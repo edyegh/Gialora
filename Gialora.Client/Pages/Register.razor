@@ -1,0 +1,83 @@
+﻿@* Gialora.Client/Pages/Register.razor *@
+@page "/register"
+@using Gialora.Shared.Dtos
+@using Gialora.Client.Auth
+@inject HttpClient Http
+@inject TokenAuthStateProvider AuthProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Register — Gialora</PageTitle>
+
+<h3>Create your Gialora account</h3>
+
+<EditForm Model="@registerDto" OnValidSubmit="HandleRegister">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-3">
+        <label>Email</label>
+        <InputText class="form-control" @bind-Value="registerDto.Email" />
+    </div>
+
+    <div class="mb-3">
+        <label>Display Name</label>
+        <InputText class="form-control" @bind-Value="registerDto.DisplayName" />
+    </div>
+
+    <div class="mb-3">
+        <label>Password</label>
+        <InputText class="form-control" type="password" @bind-Value="registerDto.Password" />
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+        @(isSubmitting ? "Creating account..." : "Register")
+    </button>
+</EditForm>
+
+@code {
+    private RegisterDto registerDto = new();
+    private string? errorMessage;
+    private bool isSubmitting = false;
+
+    private async Task HandleRegister()
+    {
+        isSubmitting = true;
+        errorMessage = null;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/auth/register", registerDto);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+                if (result is not null)
+                {
+                    await AuthProvider.SetTokenAsync(result.Token);
+                    Navigation.NavigateTo("/family-setup");
+                }
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                errorMessage = "An account with this email already exists.";
+            }
+            else
+            {
+                errorMessage = "Registration failed. Please check your details and try again.";
+            }
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to connect to the server. Please try again.";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}

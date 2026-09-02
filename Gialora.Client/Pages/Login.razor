@@ -1,0 +1,75 @@
+﻿@* Gialora.Client/Pages/Login.razor *@
+@page "/login"
+@using Gialora.Shared.Dtos
+@using Gialora.Client.Auth
+@inject HttpClient Http
+@inject TokenAuthStateProvider AuthProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Login — Gialora</PageTitle>
+
+<h3>Login to Gialora</h3>
+
+<EditForm Model="@loginDto" OnValidSubmit="HandleLogin">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-3">
+        <label>Email</label>
+        <InputText class="form-control" @bind-Value="loginDto.Email" />
+    </div>
+
+    <div class="mb-3">
+        <label>Password</label>
+        <InputText class="form-control" type="password" @bind-Value="loginDto.Password" />
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+        @(isSubmitting ? "Logging in..." : "Login")
+    </button>
+</EditForm>
+
+@code {
+    private LoginDto loginDto = new();
+    private string? errorMessage;
+    private bool isSubmitting = false;
+
+    private async Task HandleLogin()
+    {
+        isSubmitting = true;
+        errorMessage = null;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/auth/login", loginDto);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+                if (result is not null)
+                {
+                    await AuthProvider.SetTokenAsync(result.Token);
+                    Navigation.NavigateTo("/");
+                }
+            }
+            else
+            {
+                // Դիտավորյալ ընդհանուր message — նույն սկզբունքը, ինչ backend-ում
+                errorMessage = "Invalid email or password.";
+            }
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to connect to the server. Please try again.";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}
