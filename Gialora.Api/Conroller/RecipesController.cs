@@ -1,9 +1,9 @@
-﻿// Gialora.Api/Controllers/RecipesController.cs
+// Gialora.Api/Controllers/RecipesController.cs
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Gialora.Api.Extensions;
 using Gialora.Application.Services;
 using Gialora.Shared.Dtos;
-using Gialora.Application;
-using Microsoft.AspNetCore.Authorization;
 
 namespace Gialora.Api.Controllers;
 
@@ -34,16 +34,15 @@ public class RecipesController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")] // ← ԱՎԵԼԱՑՎԱԾ
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult> Create([FromBody] RecipeCreateDto dto)
     {
-        // Հիմա կարող ենք վերցնել իրական admin Id-ն token-ից, ոչ թե Guid.Empty
-        var adminIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-            ?? User.FindFirst("sub")?.Value;
-        var adminId = Guid.Parse(adminIdClaim!);
-
+        // Նախ validation, հետո նոր claim-երի հետ աշխատանք
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
+
+        if (User.GetUserId() is not { } adminId)
+            return Unauthorized();
 
         try
         {
@@ -56,13 +55,11 @@ public class RecipesController : ControllerBase
         }
     }
 
-
     [HttpDelete("{id:guid}")]
-    [Authorize(Roles = "Admin")] // ← ԱՎԵԼԱՑՎԱԾ
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(Guid id)
     {
         var deleted = await _recipeService.DeleteRecipeAsync(id);
         return deleted ? NoContent() : NotFound();
-
     }
 }

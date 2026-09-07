@@ -1,0 +1,62 @@
+@* Gialora.Client/Pages/FamilySetup.razor *@
+@page "/family-setup"
+@attribute [Authorize]
+@inject HttpClient Http
+
+<PageTitle>Family — Gialora</PageTitle>
+
+<h1 class="h3">Your family</h1>
+
+@if (isLoading)
+{
+    <p>Loading...</p>
+}
+else if (errorMessage is not null)
+{
+    <div class="alert alert-danger" role="alert">@errorMessage</div>
+}
+else if (family is not null)
+{
+    <p class="lead">@family.Name</p>
+
+    @if (family.Members.Count == 0)
+    {
+        <p>No family members yet.</p>
+    }
+    else
+    {
+        <ul class="list-group mb-3">
+            @foreach (var member in family.Members)
+            {
+                <li class="list-group-item">
+                    @member.Name @(member.Age is null ? "" : $"({member.Age})")
+                </li>
+            }
+        </ul>
+    }
+
+    <a class="btn btn-primary" href="">Continue</a>
+}
+
+@code {
+    private FamilyDto? family;
+    private string? errorMessage;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // GET api/family/me — server-ը առաջին անգամ ինքն է ստեղծում Family-ն
+            family = await Http.GetFromJsonAsync<FamilyDto>("api/family/me");
+        }
+        catch (Exception)
+        {
+            errorMessage = "Could not load your family. Please try again.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

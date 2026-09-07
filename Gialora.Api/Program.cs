@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using Gialora.Api.Services;
 using Gialora.Application.Services;
 using Gialora.Data;
@@ -13,13 +13,22 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 var jwtSigningKey = builder.Configuration["Jwt:SigningKey"]
     ?? throw new InvalidOperationException("JWT signing key is not configured.");
 
+// HMAC-SHA256-ը պահանջում է առնվազն 256-bit (32 բայթ) բանալի — ավելի կարճը
+// runtime-ին ձախողում է առաջին isuse-ի պահին, ոչ թե startup-ին։ Բռնում ենք հիմա։
+if (Encoding.UTF8.GetByteCount(jwtSigningKey) < 32)
+    throw new InvalidOperationException("JWT signing key must be at least 32 bytes (256 bits) long.");
+
+// Client-ի origin-ները (Gialora.Client/Properties/launchSettings.json)։
+// Կարելի է override անել appsettings-ի "Cors:AllowedOrigins" զանգվածով։
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? new[] { "https://localhost:7280", "http://localhost:5056" };
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowBlazorClient", policy =>
-        policy.WithOrigins(
-                "https://localhost:7280")  // ստուգիր Gialora.Client/Properties/launchSettings.json-ում
+        policy.WithOrigins(allowedOrigins)
               .AllowAnyMethod()
               .AllowAnyHeader());
 });
@@ -50,6 +59,8 @@ builder.Services.AddScoped<IFamilyService, FamilyService>();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        // Չենք ուզում claim-ների անունների "ավտոմատ" ձևափոխում — token-ում ինչ գրել ենք, նույնն էլ կարդում ենք
+        options.MapInboundClaims = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -60,7 +71,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtSigningKey)),
-            ClockSkew = TimeSpan.Zero
+            ClockSkew = TimeSpan.Zero,
+            // Առանց սրանց User.Identity.Name-ը դատարկ է, իսկ [Authorize(Roles = "Admin")]-ը՝ միշտ 403
+            NameClaimType = JwtTokenGenerator.NameClaimType,
+            RoleClaimType = JwtTokenGenerator.RoleClaimType
         };
     });
 builder.Services.AddAuthorization();

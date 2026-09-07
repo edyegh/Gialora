@@ -1,12 +1,29 @@
-﻿@* Gialora.Client/App.razor *@
+@* Gialora.Client/App.razor *@
 <CascadingAuthenticationState>
     <Router AppAssembly="@typeof(App).Assembly">
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
-                <NotAuthorized>
-                    @{ Navigation.NavigateTo("/login"); }
+                <NotAuthorized Context="authState">
+                    @if (authState.User.Identity?.IsAuthenticated == true)
+                    {
+                        <LayoutView Layout="@typeof(MainLayout)">
+                            <p role="alert">You are not authorized to view this page.</p>
+                        </LayoutView>
+                    }
+                    else
+                    {
+                        @* Navigation-ը render-ի ընթացքում կանչելը սխալ էր (render loop / կիսատ render).
+                           RedirectToLogin-ը դա անում է OnInitialized-ում՝ ճիշտ պահին։ *@
+                        <RedirectToLogin />
+                    }
                 </NotAuthorized>
+                <Authorizing>
+                    <LayoutView Layout="@typeof(MainLayout)">
+                        <p>Checking your session...</p>
+                    </LayoutView>
+                </Authorizing>
             </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
         </Found>
         <NotFound>
             <PageTitle>Not found</PageTitle>
@@ -16,7 +33,3 @@
         </NotFound>
     </Router>
 </CascadingAuthenticationState>
-
-@code {
-    [Inject] private NavigationManager Navigation { get; set; } = null!;
-}

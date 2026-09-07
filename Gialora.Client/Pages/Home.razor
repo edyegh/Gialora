@@ -1,0 +1,14 @@
+@* Gialora.Client/Pages/Home.razor *@
+@page "/"
+@attribute [Authorize]
+
+<PageTitle>Home — Gialora</PageTitle>
+
+<h1>Gialora</h1>
+
+<AuthorizeView>
+    <Authorized>
+        <p>Welcome back, <strong>@(context.User.Identity?.Name ?? "there")</strong>.</p>
+        <p><a href="family-setup">Manage your family</a></p>
+    </Authorized>
+</AuthorizeView>

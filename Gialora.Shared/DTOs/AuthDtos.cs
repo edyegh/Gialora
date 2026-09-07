@@ -32,3 +32,11 @@ public class AuthResultDto
     public string DisplayName { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
 }
+
+// Login/Register-ի response-ը — մեկ տեղում, և՛ API-ի, և՛ Client-ի համար,
+// որ property-ների անունները երբեք չշեղվեն իրարից
+public class AuthResponseDto
+{
+    public string Token { get; set; } = string.Empty;
+    public AuthResultDto User { get; set; } = new();
+}

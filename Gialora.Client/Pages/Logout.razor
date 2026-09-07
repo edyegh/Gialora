@@ -1,0 +1,16 @@
+@* Gialora.Client/Pages/Logout.razor *@
+@page "/logout"
+@inject TokenAuthStateProvider AuthProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Signing out — Gialora</PageTitle>
+
+<p>Signing out...</p>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthProvider.ClearTokenAsync();
+        Navigation.NavigateTo("login", replace: true);
+    }
+}

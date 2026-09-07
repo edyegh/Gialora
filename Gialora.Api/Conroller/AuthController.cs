@@ -1,4 +1,5 @@
-﻿// Gialora.Api/Controllers/AuthController.cs
+// Gialora.Api/Controllers/AuthController.cs
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Gialora.Application.Services;
 using Gialora.Api.Services;
@@ -8,6 +9,7 @@ namespace Gialora.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[AllowAnonymous]
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
@@ -20,7 +22,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
-    public async Task<ActionResult> Register([FromBody] RegisterDto dto)
+    public async Task<ActionResult<AuthResponseDto>> Register([FromBody] RegisterDto dto)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
@@ -28,8 +30,7 @@ public class AuthController : ControllerBase
         try
         {
             var result = await _authService.RegisterAsync(dto);
-            var token = _tokenGenerator.GenerateToken(result);
-            return Ok(new { token, user = result });
+            return Ok(BuildResponse(result));
         }
         catch (InvalidOperationException ex)
         {
@@ -38,7 +39,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
-    public async Task<ActionResult> Login([FromBody] LoginDto dto)
+    public async Task<ActionResult<AuthResponseDto>> Login([FromBody] LoginDto dto)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
@@ -48,7 +49,9 @@ public class AuthController : ControllerBase
         if (result is null)
             return Unauthorized("Invalid email or password."); // Դիտավորյալ ընդհանուր message
 
-        var token = _tokenGenerator.GenerateToken(result);
-        return Ok(new { token, user = result });
+        return Ok(BuildResponse(result));
     }
+
+    private AuthResponseDto BuildResponse(AuthResultDto user) =>
+        new() { Token = _tokenGenerator.GenerateToken(user), User = user };
 }

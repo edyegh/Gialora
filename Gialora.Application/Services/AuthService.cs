@@ -1,4 +1,4 @@
-﻿// Gialora.Application/Services/AuthService.cs
+// Gialora.Application/Services/AuthService.cs
 using Microsoft.EntityFrameworkCore;
 using Gialora.Data;
 using Gialora.Data.Entities;
@@ -16,6 +16,12 @@ public class AuthService : IAuthService
     // Login-ի attempt-երի սահմանաչափը (brute-force պաշտպանություն)
     private const int MaxFailedAttempts = 5;
     private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
+
+    // Իրական bcrypt hash (workFactor 12) գոյություն չունեցող password-ի համար։
+    // Օգտագործվում է միայն որպես "dummy" ստուգում, որ անհայտ email-ի response time-ը
+    // նույնը լինի, ինչ գոյություն ունեցողինը (timing attack-ի կանխարգելում)։
+    private const string DummyPasswordHash =
+        "$2a$12$tQdjcE1edb/OxXUyiAa7lOXy/tRAGBcHmsG9ua2NvGawythMt7eQq";
 
     public AuthService(GialoraDbContext db, ILogger<AuthService> logger)
     {
@@ -40,17 +46,22 @@ public class AuthService : IAuthService
         };
 
         _db.Users.Add(user);
-        await _db.SaveChangesAsync();
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // Երկու հոգի միաժամանակ գրանցվեցին նույն email-ով — unique index-ը բռնեց։
+            // Առանց սրա սա կվերածվեր 500-ի, փոխարենը՝ նույն 409-ը, ինչ վերևի ստուգումը։
+            _db.Entry(user).State = EntityState.Detached;
+            throw new InvalidOperationException("An account with this email already exists.");
+        }
 
         _logger.LogInformation("New user registered: {UserId}", user.Id);
 
-        return new AuthResultDto
-        {
-            UserId = user.Id,
-            Email = user.Email,
-            DisplayName = user.DisplayName,
-            Role = user.Role.ToString()
-        };
+        return ToDto(user);
     }
 
     public async Task<AuthResultDto?> ValidateCredentialsAsync(LoginDto dto)
@@ -63,7 +74,7 @@ public class AuthService : IAuthService
         if (user is null)
         {
             // Կատարում ենք dummy hash-check, որ response time-ը նույնը մնա (timing attack-ի կանխարգելում)
-            BCrypt.Net.BCrypt.Verify(dto.Password, "$2a$12$invalidsaltinvalidsaltinvalidsal0123456789abcdefghij");
+            BCrypt.Net.BCrypt.Verify(dto.Password, DummyPasswordHash);
             return null;
         }
 
@@ -72,6 +83,14 @@ public class AuthService : IAuthService
         {
             _logger.LogWarning("Login attempt on locked account: {UserId}", user.Id);
             return null;
+        }
+
+        // Lockout-ը լրացել է — զրոյացնում ենք counter-ը, այլապես հաջորդ ՄԵԿ սխալ փորձը
+        // անմիջապես նորից կկողպեր account-ը (5-ի հասած counter-ը երբեք չէր reset լինում)։
+        if (user.LockoutEndUtc is not null)
+        {
+            user.LockoutEndUtc = null;
+            user.FailedLoginAttempts = 0;
         }
 
         var isValid = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
@@ -93,12 +112,14 @@ public class AuthService : IAuthService
         user.LockoutEndUtc = null;
         await _db.SaveChangesAsync();
 
-        return new AuthResultDto
-        {
-            UserId = user.Id,
-            Email = user.Email,
-            DisplayName = user.DisplayName,
-            Role = user.Role.ToString()
-        };
+        return ToDto(user);
     }
+
+    private static AuthResultDto ToDto(User user) => new()
+    {
+        UserId = user.Id,
+        Email = user.Email,
+        DisplayName = user.DisplayName,
+        Role = user.Role.ToString()
+    };
 }

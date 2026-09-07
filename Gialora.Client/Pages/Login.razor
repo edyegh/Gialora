@@ -1,46 +1,75 @@
-﻿@* Gialora.Client/Pages/Login.razor *@
+@* Gialora.Client/Pages/Login.razor *@
 @page "/login"
-@using Gialora.Shared.Dtos
-@using Gialora.Client.Auth
+@using System.Net
 @inject HttpClient Http
 @inject TokenAuthStateProvider AuthProvider
 @inject NavigationManager Navigation
 
 <PageTitle>Login — Gialora</PageTitle>
 
-<h3>Login to Gialora</h3>
+<div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-5">
+        <h1 class="h3 mb-4">Login to Gialora</h1>
 
-<EditForm Model="@loginDto" OnValidSubmit="HandleLogin">
-    <DataAnnotationsValidator />
-    <ValidationSummary />
+        <EditForm Model="@loginDto" OnValidSubmit="HandleLogin" FormName="login">
+            <DataAnnotationsValidator />
 
-    <div class="mb-3">
-        <label>Email</label>
-        <InputText class="form-control" @bind-Value="loginDto.Email" />
+            <div class="mb-3">
+                <label class="form-label" for="email">Email</label>
+                <InputText id="email" class="form-control" autocomplete="username"
+                           @bind-Value="loginDto.Email" />
+                <ValidationMessage For="@(() => loginDto.Email)" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" for="password">Password</label>
+                <InputText id="password" class="form-control" type="password" autocomplete="current-password"
+                           @bind-Value="loginDto.Password" />
+                <ValidationMessage For="@(() => loginDto.Password)" />
+            </div>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger" role="alert">@errorMessage</div>
+            }
+
+            <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+                @(isSubmitting ? "Logging in..." : "Login")
+            </button>
+        </EditForm>
+
+        <p class="mt-3">
+            Don't have an account? <a href="register">Create one</a>
+        </p>
     </div>
-
-    <div class="mb-3">
-        <label>Password</label>
-        <InputText class="form-control" type="password" @bind-Value="loginDto.Password" />
-    </div>
-
-    @if (!string.IsNullOrEmpty(errorMessage))
-    {
-        <div class="alert alert-danger">@errorMessage</div>
-    }
-
-    <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
-        @(isSubmitting ? "Logging in..." : "Login")
-    </button>
-</EditForm>
+</div>
 
 @code {
     private LoginDto loginDto = new();
     private string? errorMessage;
-    private bool isSubmitting = false;
+    private bool isSubmitting;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    private string? ReturnUrl { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Արդեն login եղած user-ը login էջում գործ չունի
+        if (AuthenticationStateTask is not null)
+        {
+            var state = await AuthenticationStateTask;
+            if (state.User.Identity?.IsAuthenticated == true)
+                NavigateAfterLogin();
+        }
+    }
 
     private async Task HandleLogin()
     {
+        if (isSubmitting) return; // կրկնակի submit-ի պաշտպանություն
+
         isSubmitting = true;
         errorMessage = null;
 
@@ -50,18 +79,29 @@
 
             if (response.IsSuccessStatusCode)
             {
-                var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
-                if (result is not null)
+                var result = await response.Content.ReadFromJsonAsync<AuthResponseDto>();
+
+                // Նախկինում result == null-ի դեպքում ոչ error էր ցույց տալիս, ոչ էլ navigate անում —
+                // էջը լուռ "կախվում" էր
+                if (result is null || string.IsNullOrWhiteSpace(result.Token))
                 {
-                    await AuthProvider.SetTokenAsync(result.Token);
-                    Navigation.NavigateTo("/");
+                    errorMessage = "The server returned an unexpected response. Please try again.";
+                    return;
                 }
+
+                await AuthProvider.SetTokenAsync(result.Token);
+                NavigateAfterLogin();
+                return;
             }
-            else
+
+            errorMessage = response.StatusCode switch
             {
                 // Դիտավորյալ ընդհանուր message — նույն սկզբունքը, ինչ backend-ում
-                errorMessage = "Invalid email or password.";
-            }
+                HttpStatusCode.Unauthorized => "Invalid email or password.",
+                HttpStatusCode.BadRequest => "Please enter a valid email address and password.",
+                HttpStatusCode.TooManyRequests => "Too many attempts. Please wait and try again.",
+                _ => "Something went wrong. Please try again."
+            };
         }
         catch (Exception)
         {
@@ -71,5 +111,16 @@
         {
             isSubmitting = false;
         }
+    }
+
+    private void NavigateAfterLogin()
+    {
+        var target = string.IsNullOrWhiteSpace(ReturnUrl) ? "" : ReturnUrl;
+
+        // Միայն հարաբերական URL-ներ — բացառում ենք open-redirect-ը դեպի ուրիշ site
+        if (target.Contains("//") || target.StartsWith('/'))
+            target = "";
+
+        Navigation.NavigateTo(target, replace: true);
     }
 }

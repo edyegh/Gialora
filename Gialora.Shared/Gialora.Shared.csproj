@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
@@ -6,8 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.0" />
-  </ItemGroup>
+  <!-- Այստեղ միայն DTO-ներ են։ EntityFrameworkCore.SqlServer-ի reference-ը ավելորդ էր
+       և Shared-ի միջոցով քաշվում էր նաև Blazor WebAssembly client-ի payload-ի մեջ։ -->
 
 </Project>

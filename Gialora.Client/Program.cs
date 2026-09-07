@@ -4,17 +4,21 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Gialora.Client;
 using Gialora.Client.Auth;
 using Microsoft.AspNetCore.Components.Web;
-using System.Net.Http;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
+// API-ի հասցեն hardcode արված չէ — override արա wwwroot/appsettings.json-ից ("ApiBaseUrl")
+var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "https://localhost:5001/";
+if (!apiBaseUrl.EndsWith('/'))
+    apiBaseUrl += "/"; // առանց վերջի "/"-ի BaseAddress-ը կուտեր path-ի վերջին հատվածը
+
 builder.Services.AddScoped<AuthHeaderHandler>();
 
 builder.Services.AddHttpClient("GialoraApi", client =>
 {
-    client.BaseAddress = new Uri("https://localhost:5001/");
+    client.BaseAddress = new Uri(apiBaseUrl);
 })
     .AddHttpMessageHandler<AuthHeaderHandler>();
 

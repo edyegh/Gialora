@@ -1,6 +1,7 @@
-﻿// Gialora.Api/Controllers/FamilyController.cs
+// Gialora.Api/Controllers/FamilyController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Gialora.Api.Extensions;
 using Gialora.Application.Services;
 using Gialora.Shared.Dtos;
 
@@ -21,7 +22,9 @@ public class FamilyController : ControllerBase
     [HttpGet("me")]
     public async Task<ActionResult<FamilyDto>> GetMyFamily()
     {
-        var userId = GetCurrentUserId();
+        if (User.GetUserId() is not { } userId)
+            return Unauthorized();
+
         var family = await _familyService.GetOrCreateFamilyAsync(userId);
         return Ok(family);
     }
@@ -32,9 +35,12 @@ public class FamilyController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        var userId = GetCurrentUserId();
+        if (User.GetUserId() is not { } userId)
+            return Unauthorized();
+
         var member = await _familyService.AddMemberAsync(userId, dto);
-        return CreatedAtAction(nameof(GetMyFamily), member);
+        // routeValues-ը պարտադիր է — առանց դրա CreatedAtAction-ը Location header չի կարողանում կառուցել և նետում է InvalidOperationException
+        return CreatedAtAction(nameof(GetMyFamily), null, member);
     }
 
     [HttpPut("members/{memberId:guid}")]
@@ -43,7 +49,9 @@ public class FamilyController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        var userId = GetCurrentUserId();
+        if (User.GetUserId() is not { } userId)
+            return Unauthorized();
+
         var updated = await _familyService.UpdateMemberAsync(userId, memberId, dto);
 
         return updated is null ? NotFound() : Ok(updated);
@@ -52,17 +60,11 @@ public class FamilyController : ControllerBase
     [HttpDelete("members/{memberId:guid}")]
     public async Task<IActionResult> RemoveMember(Guid memberId)
     {
-        var userId = GetCurrentUserId();
+        if (User.GetUserId() is not { } userId)
+            return Unauthorized();
+
         var removed = await _familyService.RemoveMemberAsync(userId, memberId);
 
         return removed ? NoContent() : NotFound();
-    }
-
-    private Guid GetCurrentUserId()
-    {
-        var idClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-            ?? User.FindFirst("sub")?.Value;
-
-        return Guid.Parse(idClaim!);
     }
 }
