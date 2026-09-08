@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Gialora.Data;
 using Gialora.Data.Entities;
 using Gialora.Shared.Dtos;
+using Gialora.Application.Common;
 using BCrypt.Net;
 using Microsoft.Extensions.Logging;
 
@@ -35,7 +36,7 @@ public class AuthService : IAuthService
 
         var existing = await _db.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
         if (existing is not null)
-            throw new InvalidOperationException("An account with this email already exists.");
+            throw new ConflictException("An account with this email already exists.");
 
         var user = new User
         {
@@ -56,7 +57,7 @@ public class AuthService : IAuthService
             // Երկու հոգի միաժամանակ գրանցվեցին նույն email-ով — unique index-ը բռնեց։
             // Առանց սրա սա կվերածվեր 500-ի, փոխարենը՝ նույն 409-ը, ինչ վերևի ստուգումը։
             _db.Entry(user).State = EntityState.Detached;
-            throw new InvalidOperationException("An account with this email already exists.");
+            throw new ConflictException("An account with this email already exists.");
         }
 
         _logger.LogInformation("New user registered: {UserId}", user.Id);
@@ -113,6 +114,14 @@ public class AuthService : IAuthService
         await _db.SaveChangesAsync();
 
         return ToDto(user);
+    }
+
+    public async Task<AuthResultDto?> GetByIdAsync(Guid userId)
+    {
+        // Entity-ն նախ բերում ենք, հետո map անում — Role.ToString()-ը projection-ի
+        // ներսում SQL-ի չի թարգմանվում։
+        var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
+        return user is null ? null : ToDto(user);
     }
 
     private static AuthResultDto ToDto(User user) => new()

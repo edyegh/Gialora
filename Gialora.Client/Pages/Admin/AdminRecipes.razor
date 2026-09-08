@@ -1,0 +1,200 @@
+@* Gialora.Client/Pages/Admin/AdminRecipes.razor
+   Admin panel-ի գլխավոր էկրանը (app structure §11)՝ add / edit / publish / unpublish։ *@
+@page "/admin/recipes"
+@attribute [Authorize(Roles = "Admin")]
+@using Gialora.Client.Services
+@inject AdminApi Admin
+@inject NavigationManager Navigation
+
+<PageTitle>Admin · Recipes — Gialora</PageTitle>
+
+<section class="section container-wide">
+    <div class="page-header row-between">
+        <div>
+            <p class="eyebrow">Admin</p>
+            <h1 style="margin:0;">Recipes</h1>
+        </div>
+        <div class="cluster">
+            <a class="btn btn-outline-g" href="admin/ingredients">Ingredients</a>
+            <a class="btn btn-outline-g" href="admin/blog">Blog</a>
+            <a class="btn btn-outline-g" href="admin/import">Bulk import</a>
+            <a class="btn btn-primary" href="admin/recipes/new">New recipe</a>
+        </div>
+    </div>
+
+    <div class="cluster mb-3">
+        <input class="form-control" style="max-width:20rem;" placeholder="Search…"
+               @bind="filter.Search" @bind:event="oninput" @onkeydown="OnSearchKeyDown" />
+
+        @foreach (var option in StatusOptions)
+        {
+            <button class="btn btn-outline-g btn-sm @(publishedFilter == option.Value ? "is-on" : null)"
+                    @onclick="() => SetStatus(option.Value)">@option.Label</button>
+        }
+    </div>
+
+    <ErrorAlert Message="@error" />
+
+    @if (loading)
+    {
+        <Loading />
+    }
+    else if (result is null || result.Items.Count == 0)
+    {
+        <EmptyState Icon="🍲" Title="No recipes here"
+                    Description="Create one by hand, or import a spreadsheet in bulk.">
+            <div class="cluster" style="justify-content:center;">
+                <a class="btn btn-primary" href="admin/recipes/new">New recipe</a>
+                <a class="btn btn-outline-g" href="admin/import">Bulk import</a>
+            </div>
+        </EmptyState>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table-g">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Meal</th>
+                        <th>Diet</th>
+                        <th>Time</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var recipe in result.Items)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@recipe.Title</strong>
+                                <div class="small-muted">/@recipe.Slug</div>
+                            </td>
+                            <td>@recipe.MealType</td>
+                            <td>@recipe.DietType</td>
+                            <td>@recipe.TotalTimeMinutes min</td>
+                            <td>
+                                <span class="pill @(recipe.IsPublished ? "pill-olive" : "pill-warning")">
+                                    @(recipe.IsPublished ? "Published" : "Draft")
+                                </span>
+                            </td>
+                            <td style="text-align:right; white-space:nowrap;">
+                                <a class="btn btn-ghost btn-sm" href="admin/recipes/@recipe.Id">Edit</a>
+
+                                @if (recipe.IsPublished)
+                                {
+                                    <button class="btn btn-ghost btn-sm" @onclick="() => Unpublish(recipe.Id)"
+                                            disabled="@busy">Unpublish</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-ghost btn-sm" @onclick="() => Publish(recipe.Id)"
+                                            disabled="@busy">Publish</button>
+                                }
+
+                                <button class="btn btn-danger-soft btn-sm" @onclick="() => Delete(recipe.Id)"
+                                        disabled="@busy">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (result.TotalPages > 1)
+        {
+            <div class="cluster mt-3" style="justify-content:center;">
+                <button class="btn btn-outline-g btn-sm" @onclick="() => GoToPage(result.Page - 1)"
+                        disabled="@(!result.HasPrevious)">← Previous</button>
+                <span class="small-muted">Page @result.Page of @result.TotalPages</span>
+                <button class="btn btn-outline-g btn-sm" @onclick="() => GoToPage(result.Page + 1)"
+                        disabled="@(!result.HasNext)">Next →</button>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private record StatusOption(string Label, bool? Value);
+
+    private static readonly StatusOption[] StatusOptions =
+    {
+        new("All", null),
+        new("Published", true),
+        new("Drafts", false)
+    };
+
+    private RecipeFilterDto filter = new() { PageSize = 25 };
+    private bool? publishedFilter;
+    private PagedResult<RecipeSummaryDto>? result;
+    private bool loading = true;
+    private bool busy;
+    private string? error;
+
+    protected override Task OnInitializedAsync() => Reload();
+
+    private async Task OnSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await Reload();
+    }
+
+    private Task SetStatus(bool? value)
+    {
+        publishedFilter = value;
+        return Reload();
+    }
+
+    private Task GoToPage(int page)
+    {
+        filter.Page = Math.Max(1, page);
+        return Reload(resetPage: false);
+    }
+
+    private Task Publish(Guid id) => Act(() => Admin.PublishRecipeAsync(id));
+    private Task Unpublish(Guid id) => Act(() => Admin.UnpublishRecipeAsync(id));
+    private Task Delete(Guid id) => Act(() => Admin.DeleteRecipeAsync(id));
+
+    private async Task Act(Func<Task> action)
+    {
+        busy = true;
+        error = null;
+
+        try
+        {
+            await action();
+            await Reload(resetPage: false);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task Reload(bool resetPage = true)
+    {
+        if (resetPage)
+            filter.Page = 1;
+
+        loading = true;
+        error = null;
+
+        try
+        {
+            result = await Admin.SearchRecipesAsync(filter, publishedFilter);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+}

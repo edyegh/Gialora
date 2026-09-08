@@ -1,62 +1,340 @@
-@* Gialora.Client/Pages/FamilySetup.razor *@
+@* Gialora.Client/Pages/FamilySetup.razor
+   App structure §1-ի onboarding-ի սիրտը՝ "Adds family members" + "Selects preferences"։
+   Այս էջի տվյալն է meal-planning engine-ի ամբողջ մուտքը։ *@
+@page "/family"
 @page "/family-setup"
 @attribute [Authorize]
-@inject HttpClient Http
+@using Gialora.Client.Services
+@using Gialora.Shared.Enums
+@inject PlannerApi Planner
 
-<PageTitle>Family — Gialora</PageTitle>
+<PageTitle>My family — Gialora</PageTitle>
 
-<h1 class="h3">Your family</h1>
+<section class="section container-narrow">
+    <div class="page-header">
+        <p class="eyebrow">Your family</p>
+        <h1 style="margin:0 0 .35rem;">@(family?.Name ?? "Family setup")</h1>
+        <p class="lede">
+            Everything here feeds the planner: ages decide which recipes are appropriate,
+            allergies are treated as hard rules, and your time limit decides what we even consider.
+        </p>
+    </div>
 
-@if (isLoading)
-{
-    <p>Loading...</p>
-}
-else if (errorMessage is not null)
-{
-    <div class="alert alert-danger" role="alert">@errorMessage</div>
-}
-else if (family is not null)
-{
-    <p class="lead">@family.Name</p>
+    <ErrorAlert Message="@error" Errors="validationErrors" />
 
-    @if (family.Members.Count == 0)
+    @if (!string.IsNullOrEmpty(status))
     {
-        <p>No family members yet.</p>
-    }
-    else
-    {
-        <ul class="list-group mb-3">
-            @foreach (var member in family.Members)
-            {
-                <li class="list-group-item">
-                    @member.Name @(member.Age is null ? "" : $"({member.Age})")
-                </li>
-            }
-        </ul>
+        <div class="alert alert-success" role="status">@status</div>
     }
 
-    <a class="btn btn-primary" href="">Continue</a>
-}
+    @if (loading)
+    {
+        <Loading />
+    }
+    else if (family is not null)
+    {
+        @* ------------------------------------------------------ members *@
+        <div class="card-g mb-4">
+            <div class="card-g-body">
+                <h2 class="mb-3">Who is eating?</h2>
+
+                @if (family.Members.Count == 0)
+                {
+                    <p class="small-muted">No one added yet. Start with the adults, then add each child with their age.</p>
+                }
+                else
+                {
+                    <div class="table-wrap mb-3">
+                        <table class="table-g">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Age</th>
+                                    <th>Allergies &amp; needs</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var member in family.Members)
+                                {
+                                    <tr>
+                                        <td><strong>@member.Name</strong></td>
+                                        <td>@member.MemberType</td>
+                                        <td>@(member.Age is null ? "—" : $"{member.Age}")</td>
+                                        <td>
+                                            <div class="cluster">
+                                                @foreach (var allergy in member.Allergies)
+                                                {
+                                                    <span class="pill pill-terracotta">⚠ @allergy</span>
+                                                }
+                                                @foreach (var restriction in member.DietaryRestrictions)
+                                                {
+                                                    <span class="pill pill-olive">@restriction</span>
+                                                }
+                                                @foreach (var goal in member.Goals)
+                                                {
+                                                    <span class="pill pill-outline">@goal</span>
+                                                }
+                                            </div>
+                                        </td>
+                                        <td style="text-align:right;">
+                                            <button class="btn btn-danger-soft btn-sm"
+                                                    @onclick="() => RemoveMember(member.Id)" disabled="@busy">Remove</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                <div class="stack" style="border-top:1px solid var(--line); padding-top:1rem;">
+                    <p class="eyebrow" style="margin:0;">Add a family member</p>
+
+                    <div class="cluster">
+                        <input class="form-control" style="max-width:12rem;" placeholder="Name"
+                               @bind="newMember.Name" />
+
+                        <select class="form-select" style="max-width:9rem;" @bind="NewMemberType">
+                            @foreach (var type in Enum.GetValues<FamilyMemberType>())
+                            {
+                                <option value="@type">@type</option>
+                            }
+                        </select>
+
+                        <input class="form-control" style="max-width:7rem;" type="number" min="0" max="120"
+                               placeholder="Age" @bind="newMember.Age" />
+
+                        <input class="form-control" style="max-width:15rem;"
+                               placeholder="Allergies (comma separated)" @bind="newMemberAllergies" />
+
+                        <input class="form-control" style="max-width:15rem;"
+                               placeholder="Goals, e.g. more iron" @bind="newMemberGoals" />
+
+                        <button class="btn btn-primary" @onclick="AddMember"
+                                disabled="@(busy || string.IsNullOrWhiteSpace(newMember.Name))">Add</button>
+                    </div>
+
+                    <p class="form-text">
+                        Allergies become hard rules — a recipe containing that ingredient is never suggested.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        @* -------------------------------------------------- preferences *@
+        <div class="card-g">
+            <div class="card-g-body stack">
+                <h2 style="margin:0;">Preferences</h2>
+
+                <div class="cluster">
+                    <div>
+                        <label class="form-label" for="maxtime">Max time per meal</label>
+                        <select id="maxtime" class="form-select" style="max-width:11rem;"
+                                @bind="preferences.MaxCookingTimeMinutes">
+                            <option value="20">20 minutes</option>
+                            <option value="30">30 minutes</option>
+                            <option value="45">45 minutes</option>
+                            <option value="60">1 hour</option>
+                            <option value="90">1½ hours</option>
+                            <option value="180">No real limit</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="form-label" for="days">Cooking days per week</label>
+                        <input id="days" class="form-control" type="number" min="1" max="7"
+                               style="max-width:7rem;" @bind="preferences.CookingDaysPerWeek" />
+                    </div>
+
+                    <div>
+                        <label class="form-label" for="servings">Servings per meal</label>
+                        <input id="servings" class="form-control" type="number" min="1" max="20"
+                               style="max-width:7rem;" @bind="preferences.ServingsPerMeal" />
+                    </div>
+
+                    <div>
+                        <label class="form-label" for="budget">Budget</label>
+                        <select id="budget" class="form-select" style="max-width:10rem;" @bind="preferences.Budget">
+                            @foreach (var level in Enum.GetValues<BudgetLevel>())
+                            {
+                                <option value="@level">@(level == BudgetLevel.Any ? "No limit" : level.ToString())</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="form-label" for="diet">Household diet</label>
+                        <select id="diet" class="form-select" style="max-width:11rem;" @bind="SelectedDiet">
+                            <option value="">No restriction</option>
+                            @foreach (var diet in Enum.GetValues<DietType>())
+                            {
+                                <option value="@diet">@diet</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <span class="form-label d-block">Proteins to avoid</span>
+                    <div class="cluster">
+                        @foreach (var protein in AvoidableProteins)
+                        {
+                            var isOn = preferences.ExcludedProteins.Contains(protein);
+                            <label class="chip-check @(isOn ? "is-on" : null)">
+                                <input type="checkbox" checked="@isOn"
+                                       @onchange="e => ToggleProtein(protein, (bool)(e.Value ?? false))" />
+                                @protein
+                            </label>
+                        }
+                    </div>
+                    <p class="form-text">"No fish" in the brief — this is where it lives.</p>
+                </div>
+
+                <div>
+                    <label class="form-label" for="disliked">Disliked ingredients</label>
+                    <input id="disliked" class="form-control" placeholder="e.g. aubergine, olives"
+                           @bind="dislikedIngredients" />
+                    <p class="form-text">Comma separated. Recipes containing these are excluded entirely.</p>
+                </div>
+
+                <label class="chip-check @(preferences.PreferFreezerFriendly ? "is-on" : null)"
+                       style="align-self:flex-start;">
+                    <input type="checkbox" @bind="preferences.PreferFreezerFriendly" />
+                    Prefer meals that freeze well
+                </label>
+
+                <div class="cluster">
+                    <button class="btn btn-primary" @onclick="SavePreferences" disabled="@busy">
+                        Save preferences
+                    </button>
+                    <a class="btn btn-outline-g" href="weekly">Plan my week →</a>
+                </div>
+            </div>
+        </div>
+    }
+</section>
 
 @code {
     private FamilyDto? family;
-    private string? errorMessage;
-    private bool isLoading = true;
+    private FamilyPreferencesDto preferences = new();
+
+    private FamilyMemberCreateDto newMember = new();
+    private string newMemberAllergies = string.Empty;
+    private string newMemberGoals = string.Empty;
+    private string dislikedIngredients = string.Empty;
+
+    private bool loading = true;
+    private bool busy;
+    private string? error;
+    private string? status;
+    private Dictionary<string, string[]>? validationErrors;
+
+    // Դիտավորյալ ոչ բոլորը — "None"-ը բացառելը իմաստ չունի
+    private static readonly ProteinType[] AvoidableProteins =
+    {
+        ProteinType.Fish, ProteinType.Seafood, ProteinType.Pork, ProteinType.Beef,
+        ProteinType.Lamb, ProteinType.Chicken, ProteinType.Egg, ProteinType.Dairy
+    };
+
+    private string NewMemberType
+    {
+        get => newMember.MemberType.ToString();
+        set => newMember.MemberType = Enum.TryParse<FamilyMemberType>(value, out var v) ? v : FamilyMemberType.Adult;
+    }
+
+    private string SelectedDiet
+    {
+        get => preferences.DietPreference?.ToString() ?? string.Empty;
+        set => preferences.DietPreference = Enum.TryParse<DietType>(value, out var v) ? v : null;
+    }
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            // GET api/family/me — server-ը առաջին անգամ ինքն է ստեղծում Family-ն
-            family = await Http.GetFromJsonAsync<FamilyDto>("api/family/me");
+            family = await Planner.GetFamilyAsync();
+            preferences = family.Preferences;
+            dislikedIngredients = string.Join(", ", preferences.DislikedIngredients);
         }
-        catch (Exception)
+        catch (ApiException ex)
         {
-            errorMessage = "Could not load your family. Please try again.";
+            error = ex.Message;
         }
         finally
         {
-            isLoading = false;
+            loading = false;
+        }
+    }
+
+    private void ToggleProtein(ProteinType protein, bool isOn)
+    {
+        if (isOn)
+        {
+            if (!preferences.ExcludedProteins.Contains(protein))
+                preferences.ExcludedProteins.Add(protein);
+        }
+        else
+        {
+            preferences.ExcludedProteins.Remove(protein);
+        }
+    }
+
+    private Task AddMember() => Run(async () =>
+    {
+        newMember.Allergies = SplitList(newMemberAllergies);
+        newMember.Goals = SplitList(newMemberGoals);
+
+        await Planner.AddMemberAsync(newMember);
+
+        newMember = new FamilyMemberCreateDto();
+        newMemberAllergies = string.Empty;
+        newMemberGoals = string.Empty;
+
+        family = await Planner.GetFamilyAsync();
+        status = "Family member added.";
+    });
+
+    private Task RemoveMember(Guid memberId) => Run(async () =>
+    {
+        await Planner.RemoveMemberAsync(memberId);
+        family = await Planner.GetFamilyAsync();
+        status = "Family member removed.";
+    });
+
+    private Task SavePreferences() => Run(async () =>
+    {
+        preferences.DislikedIngredients = SplitList(dislikedIngredients);
+        preferences = await Planner.SavePreferencesAsync(preferences);
+        dislikedIngredients = string.Join(", ", preferences.DislikedIngredients);
+        status = "Preferences saved. Your next plan will use them.";
+    });
+
+    private static List<string> SplitList(string value) =>
+        value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+             .Distinct(StringComparer.OrdinalIgnoreCase)
+             .ToList();
+
+    private async Task Run(Func<Task> action)
+    {
+        busy = true;
+        error = null;
+        status = null;
+        validationErrors = null;
+
+        try
+        {
+            await action();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            validationErrors = ex.ValidationErrors;
+        }
+        finally
+        {
+            busy = false;
         }
     }
 }

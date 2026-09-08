@@ -1,0 +1,212 @@
+@* Gialora.Client/Pages/MealPlanView.razor
+   Այստեղ է app structure §1-ի "User can: accept it / replace one meal /
+   replace an entire day / regenerate the week" քայլը։ *@
+@page "/plans/{PlanId:guid}"
+@attribute [Authorize]
+@using Gialora.Client.Services
+@using Gialora.Shared.Enums
+@inject PlannerApi Planner
+@inject NavigationManager Navigation
+
+<PageTitle>@(plan?.Name ?? "Meal plan") — Gialora</PageTitle>
+
+<section class="section container-wide">
+    @if (loading)
+    {
+        <Loading Message="Loading your plan..." />
+    }
+    else if (plan is null)
+    {
+        <EmptyState Icon="🗓️" Title="Plan not found"
+                    Description="It may have been deleted, or it belongs to another family.">
+            <a class="btn btn-primary" href="weekly">Plan a new week</a>
+        </EmptyState>
+    }
+    else
+    {
+        <div class="page-header row-between">
+            <div>
+                <p class="eyebrow mb-1">
+                    @plan.PlanType · @plan.Status · @plan.ServingsPerMeal servings
+                </p>
+                <h1 style="margin:0;">@plan.Name</h1>
+            </div>
+
+            <div class="cluster">
+                @if (plan.Status != MealPlanStatus.Accepted)
+                {
+                    <button class="btn btn-primary" @onclick="Accept" disabled="@busy">Accept plan</button>
+                }
+                <button class="btn btn-outline-g" @onclick="RegenerateWeek" disabled="@busy">
+                    Regenerate
+                </button>
+                <button class="btn btn-accent" @onclick="BuildShoppingList" disabled="@busy">
+                    @(plan.ShoppingListId is null ? "Create shopping list" : "Open shopping list")
+                </button>
+            </div>
+        </div>
+
+        <ErrorAlert Message="@error" />
+
+        @if (!string.IsNullOrEmpty(status))
+        {
+            <div class="alert alert-success" role="status">@status</div>
+        }
+
+        @if (plan.PlanningNotes.Count > 0)
+        {
+            <div class="plan-notes mb-4">
+                <strong>Why this plan</strong>
+                <ul>
+                    @foreach (var note in plan.PlanningNotes)
+                    {
+                        <li>@note</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <div class="stack">
+            @foreach (var day in plan.Days)
+            {
+                <div class="plan-day">
+                    <div class="plan-day-head">
+                        <span class="plan-day-name">
+                            @day.Date.ToString("dddd") <span class="muted">· @day.Date.ToString("d MMM")</span>
+                        </span>
+                        <button class="btn btn-ghost btn-sm" @onclick="() => RegenerateDay(day.Id)" disabled="@busy">
+                            Replace this day
+                        </button>
+                    </div>
+
+                    @foreach (var entry in day.Entries)
+                    {
+                        <div class="plan-entry">
+                            <div class="plan-entry-main">
+                                <p class="eyebrow mb-1">@entry.MealType</p>
+                                <a href="recipes/@entry.Recipe.Slug" class="recipe-title d-block">
+                                    @entry.Recipe.Title
+                                </a>
+
+                                <div class="meta-row mt-1">
+                                    <span>⏱ @entry.Recipe.TotalTimeMinutes min</span>
+                                    <span>🍽 @entry.PlannedServings servings</span>
+                                    @if (entry.Recipe.PrimaryProtein != ProteinType.None)
+                                    {
+                                        <span>@entry.Recipe.PrimaryProtein</span>
+                                    }
+                                    @if (entry.Recipe.IsFreezerFriendly)
+                                    {
+                                        <span>❄ Freezes well</span>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="plan-entry-actions">
+                                @* Կողպված ուտեստը regenerate-ը չի փոխում — սա է
+                                   "պահիր ուրբաթվա մակարոնեղենը" պատասխանը *@
+                                <button class="btn btn-ghost btn-sm @(entry.IsLocked ? "is-on" : null)"
+                                        title="@(entry.IsLocked ? "Unlock this meal" : "Keep this meal when regenerating")"
+                                        @onclick="() => ToggleLock(entry)" disabled="@busy">
+                                    @(entry.IsLocked ? "🔒" : "🔓")
+                                </button>
+
+                                <button class="btn btn-outline-g btn-sm"
+                                        @onclick="() => Swap(entry.Id)" disabled="@busy">
+                                    Swap
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="mt-4 cluster">
+            <a class="btn btn-outline-g btn-sm" href="plans">All my plans</a>
+            <button class="btn btn-danger-soft btn-sm" @onclick="Delete" disabled="@busy">Delete this plan</button>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter] public Guid PlanId { get; set; }
+
+    private MealPlanDto? plan;
+    private bool loading = true;
+    private bool busy;
+    private string? error;
+    private string? status;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+        await Run(async () => plan = await Planner.GetPlanAsync(PlanId));
+        loading = false;
+    }
+
+    private Task Swap(Guid entryId) => Run(async () =>
+    {
+        plan = await Planner.SwapEntryAsync(PlanId, entryId);
+        status = "Meal replaced. It is now locked so regenerating will not change it again.";
+    });
+
+    private Task ToggleLock(MealPlanEntryDto entry) => Run(async () =>
+        plan = await Planner.SetEntryLockedAsync(PlanId, entry.Id, !entry.IsLocked));
+
+    private Task RegenerateDay(Guid dayId) => Run(async () =>
+    {
+        plan = await Planner.RegenerateDayAsync(PlanId, dayId);
+        status = "That day has been replaced.";
+    });
+
+    private Task RegenerateWeek() => Run(async () =>
+    {
+        plan = await Planner.RegenerateAsync(PlanId);
+        status = "Plan regenerated. Locked meals were kept.";
+    });
+
+    private Task Accept() => Run(async () =>
+    {
+        plan = await Planner.AcceptAsync(PlanId);
+        status = "Plan accepted.";
+    });
+
+    private Task BuildShoppingList() => Run(async () =>
+    {
+        // Կրկնակի կանչը վերագեներացնում է ցանկը՝ պահպանելով նշվածն ու
+        // ձեռքով ավելացրածը, ուստի նույն կոճակը սպասարկում է երկու դեպքն էլ։
+        var list = await Planner.BuildShoppingListAsync(PlanId);
+        Navigation.NavigateTo($"shopping-lists/{list.Id}");
+    });
+
+    private Task Delete() => Run(async () =>
+    {
+        await Planner.DeletePlanAsync(PlanId);
+        Navigation.NavigateTo("plans");
+    });
+
+    /// <summary>
+    /// Ամեն գործողություն նույն ձևով է վարվում սխալի հետ. առանց սրա ամեն մեթոդում
+    /// կրկնվում էր try/catch/busy-ի նույն վեց տողը։
+    /// </summary>
+    private async Task Run(Func<Task> action)
+    {
+        busy = true;
+        error = null;
+        status = null;
+
+        try
+        {
+            await action();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

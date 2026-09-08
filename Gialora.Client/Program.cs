@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.AspNetCore.Components.Authorization;
 using Gialora.Client;
 using Gialora.Client.Auth;
+using Gialora.Client.Services;
 using Microsoft.AspNetCore.Components.Web;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
@@ -29,5 +30,13 @@ builder.Services.AddScoped<TokenAuthStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(
     sp => sp.GetRequiredService<TokenAuthStateProvider>());
 builder.Services.AddAuthorizationCore();
+
+// Typed API clients։ Էջերը երբեք ուղիղ HttpClient չեն դիպչում — URL-ները,
+// JSON-ի կարգավորումները և սխալի թարգմանությունը մեկ շերտում են։
+builder.Services.AddScoped<AccountApi>();
+builder.Services.AddScoped<RecipeApi>();
+builder.Services.AddScoped<PlannerApi>();
+builder.Services.AddScoped<ContentApi>();
+builder.Services.AddScoped<AdminApi>();
 
 await builder.Build().RunAsync();

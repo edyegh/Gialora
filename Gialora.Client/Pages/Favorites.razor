@@ -1,0 +1,60 @@
+@* Gialora.Client/Pages/Favorites.razor — "Save/favorite recipes" (app structure §9) *@
+@page "/favorites"
+@attribute [Authorize]
+@using Gialora.Client.Services
+@inject RecipeApi Recipes
+
+<PageTitle>Saved recipes — Gialora</PageTitle>
+
+<section class="section container-wide">
+    <div class="page-header">
+        <p class="eyebrow">Saved</p>
+        <h1 style="margin:0 0 .35rem;">Your saved recipes</h1>
+        <p class="lede">Saved recipes are also nudged higher when the planner builds your week.</p>
+    </div>
+
+    <ErrorAlert Message="@error" />
+
+    @if (loading)
+    {
+        <Loading />
+    }
+    else if (favorites.Count == 0)
+    {
+        <EmptyState Icon="★" Title="Nothing saved yet"
+                    Description="Open a recipe and hit Save to keep it here.">
+            <a class="btn btn-primary" href="recipes">Browse recipes</a>
+        </EmptyState>
+    }
+    else
+    {
+        <div class="grid">
+            @foreach (var recipe in favorites)
+            {
+                <RecipeCard Recipe="recipe" />
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private List<RecipeSummaryDto> favorites = new();
+    private bool loading = true;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            favorites = await Recipes.GetFavoritesAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+}

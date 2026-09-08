@@ -1,4 +1,4 @@
-﻿// Gialora.Data/Entities/User.cs
+// Gialora.Data/Entities/User.cs
 namespace Gialora.Data.Entities;
 
 public enum UserRole
@@ -14,7 +14,7 @@ public class User : BaseEntity
     public string DisplayName { get; set; } = string.Empty;
 
     public bool EmailConfirmed { get; set; } = false;
-    public UserRole Role { get; set; } = UserRole.User; // ← ՆՈՐ
+    public UserRole Role { get; set; } = UserRole.User;
 
     public int FailedLoginAttempts { get; set; } = 0;
     public DateTime? LockoutEndUtc { get; set; }
@@ -22,5 +22,6 @@ public class User : BaseEntity
     public Guid? FamilyId { get; set; }
     public Family? Family { get; set; }
 
-    public ICollection<FamilyMember> FamilyMembers { get; set; } = new List<FamilyMember>();
+    public ICollection<FavoriteRecipe> Favorites { get; set; } = new List<FavoriteRecipe>();
+    public ICollection<Feedback> Feedbacks { get; set; } = new List<Feedback>();
 }

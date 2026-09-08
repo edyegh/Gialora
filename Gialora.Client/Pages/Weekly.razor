@@ -1,0 +1,13 @@
+@* Gialora.Client/Pages/Weekly.razor — "Plan my week" (app structure §2) *@
+@page "/weekly"
+@attribute [Authorize]
+@using Gialora.Shared.Enums
+
+<PageTitle>Weekly — Gialora</PageTitle>
+
+<PlanLauncher PlanType="MealPlanType.Weekly"
+              Eyebrow="Weekly"
+              Title="Plan my week"
+              Description="A full week of meals that never repeats the same protein two days running, keeps vegetables and legumes in the mix, and reuses ingredients so you buy less."
+              ButtonLabel="Generate my week"
+              DefaultDays="5" />

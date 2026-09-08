@@ -1,0 +1,209 @@
+@* Gialora.Client/Components/PlanLauncher.razor
+   DAILY / WEEKLY / BATCH & FREEZE երեք ուղիներն էլ նույն քայլն են անում՝
+   "SELECT / GENERATE YOUR MEALS" (app structure §2)։ Տարբերվում են միայն
+   լռելյայն պարամետրերով, ուստի կոդը մեկն է։ *@
+@using Gialora.Client.Services
+@using Gialora.Shared.Enums
+@inject PlannerApi Planner
+@inject NavigationManager Navigation
+
+<section class="section container-wide">
+    <div class="page-header">
+        <p class="eyebrow">@Eyebrow</p>
+        <h1>@Title</h1>
+        <p class="lede">@Description</p>
+    </div>
+
+    <ErrorAlert Message="@error" />
+
+    @if (loadingFamily)
+    {
+        <Loading Message="Loading your preferences..." />
+    }
+    else
+    {
+        <div class="grid" style="grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);">
+            <div class="card-g">
+                <div class="card-g-body stack">
+                    <div>
+                        <label class="form-label" for="days">How many cooking days?</label>
+                        <input id="days" class="form-control" type="number" min="1" max="14"
+                               @bind="daysCount" style="max-width:8rem;" />
+                    </div>
+
+                    <div>
+                        <span class="form-label d-block">Which meals?</span>
+                        <div class="cluster">
+                            @foreach (var meal in SelectableMeals)
+                            {
+                                var isOn = mealTypes.Contains(meal);
+                                <label class="chip-check @(isOn ? "is-on" : null)">
+                                    <input type="checkbox" checked="@isOn"
+                                           @onchange="e => ToggleMeal(meal, (bool)(e.Value ?? false))" />
+                                    @meal
+                                </label>
+                            }
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="form-label" for="servings">Servings per meal</label>
+                        <input id="servings" class="form-control" type="number" min="1" max="20"
+                               @bind="servings" style="max-width:8rem;" />
+                    </div>
+
+                    <label class="chip-check @(optimizeReuse ? "is-on" : null)">
+                        <input type="checkbox" @bind="optimizeReuse" />
+                        Use as few different ingredients as possible
+                    </label>
+
+                    <div>
+                        <button class="btn btn-primary" @onclick="Generate" disabled="@generating">
+                            @(generating ? "Building your plan..." : ButtonLabel)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            @* Պլանը կառուցվում է ԱՅՍ սահմանափակումներով — user-ը պիտի տեսնի դրանք
+               այստեղ, ոչ թե զարմանա արդյունքից և գնա փնտրի կարգավորումները *@
+            <div class="card-g">
+                <div class="card-g-body">
+                    <p class="eyebrow mb-2">Planning with</p>
+
+                    @if (family is null)
+                    {
+                        <p class="small-muted">Could not load your preferences.</p>
+                    }
+                    else
+                    {
+                        <ul class="list-unstyled small-muted mb-3" style="line-height:1.9;">
+                            <li>⏱ Up to <strong>@family.Preferences.MaxCookingTimeMinutes min</strong> per meal</li>
+                            <li>🍽 <strong>@family.Preferences.ServingsPerMeal</strong> servings</li>
+                            <li>👨‍👩‍👧 <strong>@family.Members.Count</strong> family member(s)</li>
+
+                            @if (family.Preferences.DietPreference is { } diet)
+                            {
+                                <li>🥗 <strong>@diet</strong></li>
+                            }
+
+                            @if (family.Preferences.ExcludedProteins.Count > 0)
+                            {
+                                <li>🚫 No @string.Join(", ", family.Preferences.ExcludedProteins)</li>
+                            }
+
+                            @if (allergies.Count > 0)
+                            {
+                                <li>⚠️ Allergies: @string.Join(", ", allergies)</li>
+                            }
+
+                            @if (family.Preferences.DislikedIngredients.Count > 0)
+                            {
+                                <li>👎 Avoiding @string.Join(", ", family.Preferences.DislikedIngredients)</li>
+                            }
+                        </ul>
+
+                        <a class="btn btn-outline-g btn-sm" href="family">Change preferences</a>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public MealPlanType PlanType { get; set; }
+    [Parameter] public string Eyebrow { get; set; } = string.Empty;
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string Description { get; set; } = string.Empty;
+    [Parameter] public string ButtonLabel { get; set; } = "Generate";
+    [Parameter] public int DefaultDays { get; set; } = 5;
+
+    private static readonly MealType[] SelectableMeals =
+        { MealType.Breakfast, MealType.Lunch, MealType.Dinner };
+
+    private FamilyDto? family;
+    private List<string> allergies = new();
+
+    private int daysCount;
+    private int servings = 4;
+    private bool optimizeReuse = true;
+    private readonly HashSet<MealType> mealTypes = new() { MealType.Dinner };
+
+    private bool loadingFamily = true;
+    private bool generating;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        daysCount = DefaultDays;
+
+        try
+        {
+            family = await Planner.GetFamilyAsync();
+
+            // Լռելյայնները վերցնում ենք ընտանիքի preference-ներից, ոչ թե կոդից —
+            // user-ը արդեն մեկ անգամ ասել է, թե ինչ է ուզում։
+            servings = family.Preferences.ServingsPerMeal;
+
+            if (PlanType == MealPlanType.Weekly)
+                daysCount = family.Preferences.CookingDaysPerWeek;
+
+            allergies = family.Members
+                .SelectMany(m => m.Allergies)
+                .Distinct()
+                .ToList();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loadingFamily = false;
+        }
+    }
+
+    private void ToggleMeal(MealType meal, bool isOn)
+    {
+        if (isOn)
+        {
+            mealTypes.Add(meal);
+        }
+        else if (mealTypes.Count > 1)
+        {
+            // Առնվազն մեկ ճաշատեսակ պիտի մնա — այլապես generate-ը 0 slot կուղարկեր
+            mealTypes.Remove(meal);
+        }
+    }
+
+    private async Task Generate()
+    {
+        generating = true;
+        error = null;
+
+        try
+        {
+            var plan = await Planner.GenerateAsync(new MealPlanGenerateDto
+            {
+                PlanType = PlanType,
+                DaysCount = Math.Clamp(daysCount, 1, 14),
+                MealTypes = mealTypes.ToList(),
+                ServingsPerMeal = Math.Clamp(servings, 1, 20),
+                OptimizeIngredientReuse = optimizeReuse
+            });
+
+            Navigation.NavigateTo($"plans/{plan.Id}");
+        }
+        catch (ApiException ex)
+        {
+            // Ամենահաճախ հանդիպողը՝ "no recipes match your preferences" — սա
+            // իրական պատասխան է, ոչ թե խափանում, ուստի ցույց ենք տալիս ինչպես կա։
+            error = ex.Message;
+        }
+        finally
+        {
+            generating = false;
+        }
+    }
+}

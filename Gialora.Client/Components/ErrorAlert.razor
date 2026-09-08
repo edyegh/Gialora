@@ -1,0 +1,27 @@
+@* Gialora.Client/Components/ErrorAlert.razor
+   Բոլոր էջերը սխալը նույն ձևով են ցույց տալիս, ներառյալ validation-ի մանրամասները։ *@
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="alert alert-danger" role="alert">
+        <div>@Message</div>
+
+        @if (Errors is { Count: > 0 })
+        {
+            <ul class="mb-0 mt-2 ps-3">
+                @foreach (var entry in Errors)
+                {
+                    foreach (var message in entry.Value)
+                    {
+                        <li>@message</li>
+                    }
+                }
+            </ul>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public Dictionary<string, string[]>? Errors { get; set; }
+}

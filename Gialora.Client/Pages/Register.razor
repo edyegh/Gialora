@@ -1,56 +1,59 @@
-@* Gialora.Client/Pages/Register.razor *@
+@* Gialora.Client/Pages/Register.razor
+   Գրանցումից հետո ուղարկում ենք ուղիղ family setup — app structure §1-ի
+   ուղին է՝ "User creates an account → Adds family members"։ *@
 @page "/register"
-@using System.Net
-@inject HttpClient Http
-@inject TokenAuthStateProvider AuthProvider
+@using Gialora.Client.Services
+@inject AccountApi Account
 @inject NavigationManager Navigation
 
-<PageTitle>Register — Gialora</PageTitle>
+<PageTitle>Create account — Gialora</PageTitle>
 
-<div class="row justify-content-center">
-    <div class="col-12 col-md-8 col-lg-5">
-        <h1 class="h3 mb-4">Create your Gialora account</h1>
-
-        <EditForm Model="@registerDto" OnValidSubmit="HandleRegister" FormName="register">
-            <DataAnnotationsValidator />
-
-            <div class="mb-3">
-                <label class="form-label" for="email">Email</label>
-                <InputText id="email" class="form-control" autocomplete="username"
-                           @bind-Value="registerDto.Email" />
-                <ValidationMessage For="@(() => registerDto.Email)" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" for="displayName">Display Name</label>
-                <InputText id="displayName" class="form-control" autocomplete="name"
-                           @bind-Value="registerDto.DisplayName" />
-                <ValidationMessage For="@(() => registerDto.DisplayName)" />
-            </div>
-
-            <div class="mb-3">
-                <label class="form-label" for="password">Password</label>
-                <InputText id="password" class="form-control" type="password" autocomplete="new-password"
-                           @bind-Value="registerDto.Password" />
-                <div class="form-text">At least 8 characters.</div>
-                <ValidationMessage For="@(() => registerDto.Password)" />
-            </div>
-
-            @if (!string.IsNullOrEmpty(errorMessage))
-            {
-                <div class="alert alert-danger" role="alert">@errorMessage</div>
-            }
-
-            <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
-                @(isSubmitting ? "Creating account..." : "Register")
-            </button>
-        </EditForm>
-
-        <p class="mt-3">
-            Already have an account? <a href="login">Login</a>
-        </p>
+<section class="section container-narrow" style="max-width:26rem;">
+    <div class="page-header">
+        <p class="eyebrow">Get started</p>
+        <h1 style="margin:0;">Create your account</h1>
     </div>
-</div>
+
+    <div class="card-g">
+        <div class="card-g-body">
+            <EditForm Model="@registerDto" OnValidSubmit="HandleRegister" FormName="register">
+                <DataAnnotationsValidator />
+
+                <div class="mb-3">
+                    <label class="form-label" for="email">Email</label>
+                    <InputText id="email" class="form-control" autocomplete="username"
+                               @bind-Value="registerDto.Email" />
+                    <ValidationMessage For="@(() => registerDto.Email)" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="displayName">Your name</label>
+                    <InputText id="displayName" class="form-control" autocomplete="name"
+                               @bind-Value="registerDto.DisplayName" />
+                    <ValidationMessage For="@(() => registerDto.DisplayName)" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="password">Password</label>
+                    <InputText id="password" class="form-control" type="password" autocomplete="new-password"
+                               @bind-Value="registerDto.Password" />
+                    <div class="form-text">At least 8 characters.</div>
+                    <ValidationMessage For="@(() => registerDto.Password)" />
+                </div>
+
+                <ErrorAlert Message="@errorMessage" />
+
+                <button type="submit" class="btn btn-primary w-100" disabled="@isSubmitting">
+                    @(isSubmitting ? "Creating account..." : "Create account")
+                </button>
+            </EditForm>
+
+            <p class="mt-3 mb-0 small-muted">
+                Already have an account? <a href="login">Sign in</a>
+            </p>
+        </div>
+    </div>
+</section>
 
 @code {
     private RegisterDto registerDto = new();
@@ -66,33 +69,16 @@
 
         try
         {
-            var response = await Http.PostAsJsonAsync("api/auth/register", registerDto);
-
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadFromJsonAsync<AuthResponseDto>();
-
-                if (result is null || string.IsNullOrWhiteSpace(result.Token))
-                {
-                    errorMessage = "The server returned an unexpected response. Please try again.";
-                    return;
-                }
-
-                await AuthProvider.SetTokenAsync(result.Token);
-                Navigation.NavigateTo("family-setup", replace: true);
-                return;
-            }
-
-            errorMessage = response.StatusCode switch
-            {
-                HttpStatusCode.Conflict => "An account with this email already exists.",
-                HttpStatusCode.BadRequest => "Registration failed. Please check your details and try again.",
-                _ => "Something went wrong. Please try again."
-            };
+            await Account.RegisterAsync(registerDto);
+            Navigation.NavigateTo("family", replace: true);
         }
-        catch (Exception)
+        catch (ApiException ex)
         {
-            errorMessage = "Unable to connect to the server. Please try again.";
+            errorMessage = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "Unable to reach the server. Please try again.";
         }
         finally
         {

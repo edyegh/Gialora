@@ -1,0 +1,82 @@
+@* Gialora.Client/Pages/Blog.razor — "Tips, guides & Mediterranean inspiration" (app structure §2) *@
+@page "/blog"
+@using Gialora.Client.Services
+@inject ContentApi Content
+
+<PageTitle>Blog — Gialora</PageTitle>
+
+<section class="section container-narrow">
+    <div class="page-header">
+        <p class="eyebrow">Blog</p>
+        <h1 style="margin:0 0 .35rem;">Tips, guides &amp; Mediterranean inspiration</h1>
+    </div>
+
+    <ErrorAlert Message="@error" />
+
+    @if (loading)
+    {
+        <Loading />
+    }
+    else if (posts is null || posts.Items.Count == 0)
+    {
+        <EmptyState Icon="📖" Title="No posts published yet" />
+    }
+    else
+    {
+        <div class="stack">
+            @foreach (var post in posts.Items)
+            {
+                <a class="card-g card-link" href="blog/@post.Slug">
+                    <div class="card-g-body">
+                        <p class="eyebrow mb-1">
+                            @(post.PublishedAtUtc?.ToLocalTime().ToString("d MMMM yyyy") ?? "Draft")
+                        </p>
+                        <h3 class="recipe-title">@post.Title</h3>
+                        @if (!string.IsNullOrWhiteSpace(post.Excerpt))
+                        {
+                            <p class="small-muted" style="margin:0;">@post.Excerpt</p>
+                        }
+                    </div>
+                </a>
+            }
+        </div>
+
+        @if (posts.TotalPages > 1)
+        {
+            <div class="cluster mt-4" style="justify-content:center;">
+                <button class="btn btn-outline-g btn-sm" @onclick="() => Load(posts.Page - 1)"
+                        disabled="@(!posts.HasPrevious)">← Previous</button>
+                <span class="small-muted">Page @posts.Page of @posts.TotalPages</span>
+                <button class="btn btn-outline-g btn-sm" @onclick="() => Load(posts.Page + 1)"
+                        disabled="@(!posts.HasNext)">Next →</button>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private PagedResult<BlogPostSummaryDto>? posts;
+    private bool loading = true;
+    private string? error;
+
+    protected override Task OnInitializedAsync() => Load(1);
+
+    private async Task Load(int page)
+    {
+        loading = true;
+        error = null;
+
+        try
+        {
+            posts = await Content.GetPostsAsync(Math.Max(1, page));
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+}

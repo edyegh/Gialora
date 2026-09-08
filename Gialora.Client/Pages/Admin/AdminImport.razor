@@ -1,0 +1,226 @@
+@* Gialora.Client/Pages/Admin/AdminImport.razor
+   "Can we create a structured recipe-import template so I can upload recipes in bulk?"
+   (app structure §12) — ահա այն։ *@
+@page "/admin/import"
+@attribute [Authorize(Roles = "Admin")]
+@using Microsoft.AspNetCore.Components.Forms
+@using Gialora.Client.Services
+@inject AdminApi Admin
+@inject IJSRuntime JS
+
+<PageTitle>Admin · Bulk import — Gialora</PageTitle>
+
+<section class="section container-narrow">
+    <div class="page-header row-between">
+        <div>
+            <p class="eyebrow">Admin</p>
+            <h1 style="margin:0;">Bulk recipe import</h1>
+        </div>
+        <a class="btn btn-outline-g btn-sm" href="admin/recipes">← Recipes</a>
+    </div>
+
+    <div class="card-g mb-4">
+        <div class="card-g-body">
+            <h2 class="mb-2">1. Start from the template</h2>
+            <p class="small-muted">
+                One row per ingredient. Rows that share the same <code>recipe</code> value are
+                merged into a single recipe, so the recipe columns only need filling on the first row.
+                Steps go in <code>instructions</code>, separated by <code>|</code>.
+            </p>
+            <button class="btn btn-outline-g" @onclick="DownloadTemplate" disabled="@busy">
+                Download CSV template
+            </button>
+        </div>
+    </div>
+
+    <div class="card-g mb-4">
+        <div class="card-g-body stack">
+            <h2 style="margin:0;">2. Upload your file</h2>
+
+            <InputFile class="form-control" OnChange="OnFileSelected" accept=".csv,.txt" />
+
+            @if (!string.IsNullOrEmpty(fileName))
+            {
+                <p class="small-muted" style="margin:0;">
+                    Loaded <strong>@fileName</strong> — @csvContent.Length characters.
+                </p>
+            }
+
+            <div>
+                <label class="form-label" for="delimiter">Column separator</label>
+                <select id="delimiter" class="form-select" style="max-width:12rem;" @bind="delimiter">
+                    <option value=",">Comma (,)</option>
+                    <option value=";">Semicolon (;)</option>
+                    <option value="&#9;">Tab</option>
+                </select>
+                <p class="form-text">Excel in some regions exports with semicolons.</p>
+            </div>
+
+            <div class="cluster">
+                <label class="chip-check @(createMissingIngredients ? "is-on" : null)">
+                    <input type="checkbox" @bind="createMissingIngredients" />
+                    Create ingredients that don't exist yet
+                </label>
+                <label class="chip-check @(publishImmediately ? "is-on" : null)">
+                    <input type="checkbox" @bind="publishImmediately" />
+                    Publish immediately
+                </label>
+                <label class="chip-check @(overwriteExisting ? "is-on" : null)">
+                    <input type="checkbox" @bind="overwriteExisting" />
+                    Update recipes that already exist
+                </label>
+            </div>
+
+            <div>
+                <button class="btn btn-primary" @onclick="Import"
+                        disabled="@(busy || string.IsNullOrWhiteSpace(csvContent))">
+                    @(busy ? "Importing..." : "Import recipes")
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <ErrorAlert Message="@error" />
+
+    @if (result is not null)
+    {
+        <div class="card-g">
+            <div class="card-g-body">
+                <h2 class="mb-3">Import result</h2>
+
+                <div class="cluster mb-3">
+                    <span class="pill pill-olive">@result.RecipesCreated created</span>
+                    <span class="pill pill-sea">@result.RecipesUpdated updated</span>
+                    <span class="pill pill-outline">@result.RecipesSkipped skipped</span>
+                    <span class="pill pill-outline">@result.IngredientsCreated new ingredients</span>
+                    <span class="pill pill-outline">@result.TagsCreated new tags</span>
+                </div>
+
+                @* Մասնակի հաջողությունը նորմալ արդյունք է — մի վատ տողը չի տապալում
+                   ամբողջ ֆայլը, ուստի ցույց ենք տալիս և՛ եղածը, և՛ ձախողվածը *@
+                @if (result.Errors.Count > 0)
+                {
+                    <div class="alert alert-danger">
+                        <strong>@result.Errors.Count recipe(s) could not be imported</strong>
+                        <ul class="mb-0 mt-2 ps-3">
+                            @foreach (var message in result.Errors) { <li>@message</li> }
+                        </ul>
+                    </div>
+                }
+
+                @if (result.Warnings.Count > 0)
+                {
+                    <div class="alert alert-warning">
+                        <strong>Warnings</strong>
+                        <ul class="mb-0 mt-2 ps-3">
+                            @foreach (var message in result.Warnings) { <li>@message</li> }
+                        </ul>
+                    </div>
+                }
+
+                @if (result.Success && result.RecipesCreated + result.RecipesUpdated > 0)
+                {
+                    <div class="alert alert-success mb-0">
+                        Everything imported cleanly. <a href="admin/recipes">Review the recipes →</a>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    private const long MaxFileBytes = 5 * 1024 * 1024;
+
+    private string csvContent = string.Empty;
+    private string fileName = string.Empty;
+    private string delimiter = ",";
+    private bool createMissingIngredients = true;
+    private bool publishImmediately;
+    private bool overwriteExisting;
+
+    private RecipeImportResultDto? result;
+    private bool busy;
+    private string? error;
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        error = null;
+        result = null;
+
+        var file = e.File;
+
+        if (file is null)
+            return;
+
+        if (file.Size > MaxFileBytes)
+        {
+            error = "That file is larger than the 5 MB limit.";
+            return;
+        }
+
+        try
+        {
+            // OpenReadStream-ի լռելյայն սահմանը 512 KB է — ռեցեպտների ֆայլը
+            // հանգիստ կարող է դրանից մեծ լինել, ուստի բացահայտ բարձրացնում ենք։
+            using var stream = file.OpenReadStream(MaxFileBytes);
+            using var reader = new StreamReader(stream);
+
+            csvContent = await reader.ReadToEndAsync();
+            fileName = file.Name;
+        }
+        catch (Exception)
+        {
+            error = "Could not read that file. Make sure it is a plain CSV.";
+            csvContent = string.Empty;
+            fileName = string.Empty;
+        }
+    }
+
+    private async Task Import()
+    {
+        busy = true;
+        error = null;
+        result = null;
+
+        try
+        {
+            result = await Admin.ImportRecipesAsync(new RecipeImportRequestDto
+            {
+                CsvContent = csvContent,
+                Delimiter = string.IsNullOrEmpty(delimiter) ? ',' : delimiter[0],
+                CreateMissingIngredients = createMissingIngredients,
+                PublishImmediately = publishImmediately,
+                OverwriteExisting = overwriteExisting
+            });
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task DownloadTemplate()
+    {
+        busy = true;
+        error = null;
+
+        try
+        {
+            var csv = await Admin.GetImportTemplateAsync();
+            await JS.InvokeVoidAsync("gialoraDownload", "gialora-recipe-template.csv", "text/csv", csv);
+        }
+        catch (Exception)
+        {
+            error = "Could not download the template.";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

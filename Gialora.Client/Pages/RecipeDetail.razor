@@ -1,0 +1,359 @@
+@* Gialora.Client/Pages/RecipeDetail.razor
+   Ռեցեպտը որպես ԴԱՏԱ (app structure §3)՝ չափաբաժինները փոխելիս քանակները
+   ինքնաբերաբար վերահաշվարկվում են։ Ներքևում feedback loop-ն է (§1)։ *@
+@page "/recipes/{Slug}"
+@using Gialora.Client.Services
+@using Gialora.Shared.Enums
+@inject RecipeApi Recipes
+
+<PageTitle>@(recipe?.Title ?? "Recipe") — Gialora</PageTitle>
+
+<section class="section container-narrow">
+    @if (loading)
+    {
+        <Loading Message="Loading recipe..." />
+    }
+    else if (recipe is null)
+    {
+        <EmptyState Icon="🍽️" Title="Recipe not found"
+                    Description="It may have been unpublished or removed.">
+            <a class="btn btn-primary" href="recipes">Browse recipes</a>
+        </EmptyState>
+    }
+    else
+    {
+        <article>
+            <div class="page-header">
+                <p class="eyebrow">@recipe.MealType · @recipe.Cuisine</p>
+                <h1 style="margin:0 0 .5rem;">@recipe.Title</h1>
+
+                @if (!string.IsNullOrWhiteSpace(recipe.Description))
+                {
+                    <p class="lede">@recipe.Description</p>
+                }
+
+                <div class="meta-row mt-2">
+                    <span>⏱ @recipe.PrepTimeMinutes min prep + @recipe.CookTimeMinutes min cook</span>
+                    <span>@recipe.Difficulty</span>
+                    @if (recipe.MinAgeMonths > 0)
+                    {
+                        <span>👶 From @AgeLabel(recipe.MinAgeMonths)</span>
+                    }
+                    @if (ratings is { RatingCount: > 0 })
+                    {
+                        <span class="star">★ @ratings.AverageRating.ToString("0.0") (@ratings.RatingCount)</span>
+                    }
+                </div>
+
+                <div class="cluster mt-3">
+                    @if (recipe.IsFreezerFriendly) { <span class="pill pill-sea">❄ Freezes well</span> }
+                    @if (recipe.IsKidFriendly) { <span class="pill pill-olive">Kid-friendly</span> }
+                    @if (recipe.IsLunchboxFriendly) { <span class="pill pill-olive">Lunchbox</span> }
+                    @if (recipe.IsHighProtein) { <span class="pill pill-terracotta">High protein</span> }
+                    @if (recipe.IsIronRich) { <span class="pill pill-terracotta">Iron-rich</span> }
+                    @if (recipe.IsBatchFriendly) { <span class="pill pill-outline">Batch cook</span> }
+                    @foreach (var tag in recipe.Tags)
+                    {
+                        <span class="pill pill-outline">@tag</span>
+                    }
+                </div>
+
+                <AuthorizeView>
+                    <Authorized>
+                        <div class="cluster mt-3">
+                            <button class="btn @(isFavorite ? "btn-primary" : "btn-outline-g")"
+                                    @onclick="ToggleFavorite" disabled="@busy">
+                                @(isFavorite ? "★ Saved" : "☆ Save recipe")
+                            </button>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+            </div>
+
+            <ErrorAlert Message="@error" />
+
+            <div class="card-g mb-4">
+                <div class="card-g-body">
+                    <div class="row-between mb-3">
+                        <h2 style="margin:0;">Ingredients</h2>
+
+                        @* Serving scaler — app structure §3-ի "4 → 6 servings" օրինակը։
+                           Հաշվարկը client-ում է, որ սահիկը ակնթարթային զգացվի։ *@
+                        <div class="cluster">
+                            <button class="btn btn-ghost btn-sm" @onclick="() => AdjustServings(-1)"
+                                    disabled="@(servings <= 1)" aria-label="Fewer servings">−</button>
+                            <span><strong>@servings</strong> servings</span>
+                            <button class="btn btn-ghost btn-sm" @onclick="() => AdjustServings(1)"
+                                    disabled="@(servings >= 20)" aria-label="More servings">+</button>
+                        </div>
+                    </div>
+
+                    @if (servings != recipe.Servings)
+                    {
+                        <p class="small-muted mb-2">
+                            Scaled from the original @recipe.Servings servings.
+                        </p>
+                    }
+
+                    @foreach (var ingredient in recipe.Ingredients)
+                    {
+                        <div class="ingredient-row">
+                            <span>
+                                @ingredient.IngredientName
+                                @if (!string.IsNullOrWhiteSpace(ingredient.Note))
+                                {
+                                    <span class="small-muted">, @ingredient.Note</span>
+                                }
+                                @if (ingredient.IsOptional)
+                                {
+                                    <span class="pill pill-outline ms-2">optional</span>
+                                }
+                            </span>
+                            <span class="ingredient-qty">@Scaled(ingredient)</span>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @if (recipe.Steps.Count > 0)
+            {
+                <div class="card-g mb-4">
+                    <div class="card-g-body">
+                        <h2 class="mb-3">Method</h2>
+                        <ol class="step-list">
+                            @foreach (var step in recipe.Steps)
+                            {
+                                <li>@step</li>
+                            }
+                        </ol>
+                    </div>
+                </div>
+            }
+
+            <AuthorizeView>
+                <Authorized>
+                    <div class="card-g">
+                        <div class="card-g-body">
+                            <h2 class="mb-1">How did it go?</h2>
+                            <p class="small-muted mb-3">
+                                This shapes what we suggest next week — the planner learns from it.
+                            </p>
+
+                            <div class="cluster mb-3">
+                                <button class="reaction-btn @(feedback.Reaction == FeedbackReaction.Liked ? "is-on" : null)"
+                                        @onclick="() => SetReaction(FeedbackReaction.Liked)" title="Liked it">👍</button>
+                                <button class="reaction-btn @(feedback.Reaction == FeedbackReaction.Disliked ? "is-on" : null)"
+                                        @onclick="() => SetReaction(FeedbackReaction.Disliked)" title="Did not like it">👎</button>
+
+                                <span class="ms-2 cluster">
+                                    @for (var star = 1; star <= 5; star++)
+                                    {
+                                        var value = star;
+                                        <button class="btn btn-ghost btn-sm star" @onclick="() => SetRating(value)"
+                                                aria-label="@($"Rate {value} out of 5")">
+                                            @(feedback.Rating >= value ? "★" : "☆")
+                                        </button>
+                                    }
+                                </span>
+                            </div>
+
+                            <div class="cluster mb-3">
+                                <label class="chip-check @(feedback.TooDifficult ? "is-on" : null)">
+                                    <input type="checkbox" @bind="feedback.TooDifficult" /> Too difficult
+                                </label>
+                                <label class="chip-check @(feedback.KidsDidNotEat ? "is-on" : null)">
+                                    <input type="checkbox" @bind="feedback.KidsDidNotEat" /> Kids didn't eat it
+                                </label>
+                                <label class="chip-check @(feedback.TookTooLong ? "is-on" : null)">
+                                    <input type="checkbox" @bind="feedback.TookTooLong" /> Took too long
+                                </label>
+                            </div>
+
+                            <textarea class="form-control mb-3" rows="2" maxlength="1000"
+                                      placeholder="Anything worth remembering for next time?"
+                                      @bind="feedback.Comment"></textarea>
+
+                            <div class="cluster">
+                                <button class="btn btn-primary" @onclick="SaveFeedback" disabled="@busy">
+                                    Save feedback
+                                </button>
+                                @if (!string.IsNullOrEmpty(feedbackStatus))
+                                {
+                                    <span class="small-muted">@feedbackStatus</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </Authorized>
+            </AuthorizeView>
+        </article>
+    }
+</section>
+
+@code {
+    [Parameter] public string Slug { get; set; } = string.Empty;
+
+    private RecipeDetailDto? recipe;
+    private RecipeRatingSummaryDto? ratings;
+    private FeedbackUpsertDto feedback = new();
+
+    private int servings = 4;
+    private bool isFavorite;
+    private bool loading = true;
+    private bool busy;
+    private string? error;
+    private string? feedbackStatus;
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+        error = null;
+
+        try
+        {
+            recipe = await Recipes.GetBySlugAsync(Slug);
+
+            if (recipe is null)
+                return;
+
+            servings = recipe.Servings;
+            isFavorite = recipe.IsFavorite;
+
+            ratings = await Recipes.GetRatingsAsync(recipe.Id);
+
+            // Արդեն տրված feedback-ը նախալրացնում ենք, որ user-ը կարողանա
+            // ուղղել այն, ոչ թե կուրորեն նորը գրել։
+            if (ratings.MyFeedback is { } mine)
+            {
+                feedback = new FeedbackUpsertDto
+                {
+                    Rating = mine.Rating,
+                    Reaction = mine.Reaction,
+                    TooDifficult = mine.TooDifficult,
+                    KidsDidNotEat = mine.KidsDidNotEat,
+                    TookTooLong = mine.TookTooLong,
+                    Comment = mine.Comment
+                };
+            }
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void AdjustServings(int delta) => servings = Math.Clamp(servings + delta, 1, 20);
+
+    /// <summary>
+    /// Չափաբաժնի scaling-ը՝ նույն կանոնով, ինչ server-ի UnitConverter-ը —
+    /// ամբողջական միավորները (հատ, բանկա) կլորացվում են վերև, կես ձու չկա։
+    /// </summary>
+    private string Scaled(RecipeIngredientDto ingredient)
+    {
+        if (recipe is null || recipe.Servings <= 0)
+            return Format(ingredient.Quantity, ingredient.Unit);
+
+        var scaled = ingredient.Quantity * servings / recipe.Servings;
+
+        if (IsWholeUnit(ingredient.Unit))
+            scaled = Math.Ceiling(scaled);
+
+        return Format(scaled, ingredient.Unit);
+    }
+
+    private static bool IsWholeUnit(UnitOfMeasure unit) => unit is
+        UnitOfMeasure.Piece or UnitOfMeasure.Can or UnitOfMeasure.Pack
+        or UnitOfMeasure.Slice or UnitOfMeasure.Bunch or UnitOfMeasure.Clove;
+
+    private static string Format(decimal quantity, UnitOfMeasure unit)
+    {
+        var rounded = Math.Round(quantity, 2, MidpointRounding.AwayFromZero);
+        var number = rounded == Math.Truncate(rounded) ? ((long)rounded).ToString() : rounded.ToString("0.##");
+
+        return unit == UnitOfMeasure.Piece ? number : $"{number} {Abbreviation(unit)}";
+    }
+
+    private static string Abbreviation(UnitOfMeasure unit) => unit switch
+    {
+        UnitOfMeasure.Gram => "g",
+        UnitOfMeasure.Kilogram => "kg",
+        UnitOfMeasure.Milliliter => "ml",
+        UnitOfMeasure.Liter => "l",
+        UnitOfMeasure.Teaspoon => "tsp",
+        UnitOfMeasure.Tablespoon => "tbsp",
+        UnitOfMeasure.Cup => "cup",
+        UnitOfMeasure.Pinch => "pinch",
+        UnitOfMeasure.Bunch => "bunch",
+        UnitOfMeasure.Clove => "clove",
+        UnitOfMeasure.Slice => "slice",
+        UnitOfMeasure.Can => "can",
+        UnitOfMeasure.Pack => "pack",
+        _ => string.Empty
+    };
+
+    private static string AgeLabel(int months) =>
+        months < 24 ? $"{months} months" : $"{months / 12} years";
+
+    private void SetReaction(FeedbackReaction reaction) =>
+        // Կրկնակի սեղմումը հանում է ռեակցիան — toggle, ոչ թե միակողմանի ընտրություն
+        feedback.Reaction = feedback.Reaction == reaction ? FeedbackReaction.None : reaction;
+
+    private void SetRating(int rating) =>
+        feedback.Rating = feedback.Rating == rating ? 0 : rating;
+
+    private async Task ToggleFavorite()
+    {
+        if (recipe is null) return;
+
+        busy = true;
+        error = null;
+
+        try
+        {
+            if (isFavorite)
+                await Recipes.RemoveFavoriteAsync(recipe.Id);
+            else
+                await Recipes.AddFavoriteAsync(recipe.Id);
+
+            isFavorite = !isFavorite;
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task SaveFeedback()
+    {
+        if (recipe is null) return;
+
+        busy = true;
+        error = null;
+        feedbackStatus = null;
+
+        try
+        {
+            await Recipes.SaveFeedbackAsync(recipe.Id, feedback);
+            ratings = await Recipes.GetRatingsAsync(recipe.Id);
+            feedbackStatus = "Saved — thanks. Next week's plan will take it into account.";
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

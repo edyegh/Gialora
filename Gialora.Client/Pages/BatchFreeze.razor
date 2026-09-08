@@ -1,0 +1,13 @@
+@* Gialora.Client/Pages/BatchFreeze.razor — "Cook once, save time later" (app structure §2) *@
+@page "/batch"
+@attribute [Authorize]
+@using Gialora.Shared.Enums
+
+<PageTitle>Batch &amp; freeze — Gialora</PageTitle>
+
+<PlanLauncher PlanType="MealPlanType.BatchAndFreeze"
+              Eyebrow="Batch &amp; freeze"
+              Title="Prepare more, cook less"
+              Description="One cooking session, several meals in the freezer. Only recipes that genuinely reheat and freeze well are considered."
+              ButtonLabel="Plan a batch session"
+              DefaultDays="3" />

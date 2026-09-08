@@ -1,0 +1,82 @@
+@* Gialora.Client/Components/RecipeCard.razor *@
+@using Gialora.Shared.Enums
+
+<article class="card-g card-link" @onclick="Open" role="button" tabindex="0"
+         @onkeydown="OnKeyDown" aria-label="@Recipe.Title">
+    <div class="recipe-card-media">
+        @if (!string.IsNullOrWhiteSpace(Recipe.ImageUrl))
+        {
+            <img src="@Recipe.ImageUrl" alt="@Recipe.Title" loading="lazy" />
+        }
+        else
+        {
+            @* Նկար չկա — placeholder-ը ըստ ուտեստի տեսակի, որ քարտերը դատարկ չերևան *@
+            <span aria-hidden="true">@PlaceholderIcon</span>
+        }
+    </div>
+
+    <div class="card-g-body">
+        <h3 class="recipe-title">@Recipe.Title</h3>
+
+        @if (!string.IsNullOrWhiteSpace(Recipe.Description))
+        {
+            <p class="small-muted mb-2">@Truncate(Recipe.Description, 96)</p>
+        }
+
+        <div class="meta-row mb-2">
+            <span>⏱ @Recipe.TotalTimeMinutes min</span>
+            <span>🍽 @Recipe.Servings</span>
+            @if (Recipe.RatingCount > 0)
+            {
+                <span class="star">★ @Recipe.AverageRating.ToString("0.0")</span>
+            }
+        </div>
+
+        <div class="cluster">
+            @if (Recipe.IsFreezerFriendly) { <span class="pill pill-sea">❄ Freezes</span> }
+            @if (Recipe.IsKidFriendly) { <span class="pill pill-olive">Kid-friendly</span> }
+            @if (Recipe.IsIronRich) { <span class="pill pill-terracotta">Iron-rich</span> }
+            @if (Recipe.IsBatchFriendly) { <span class="pill pill-outline">Batch</span> }
+            @if (!Recipe.IsPublished) { <span class="pill pill-warning">Draft</span> }
+        </div>
+    </div>
+</article>
+
+@code {
+    [Parameter, EditorRequired] public RecipeSummaryDto Recipe { get; set; } = new();
+
+    /// <summary>Որտեղ գնալ սեղմելիս։ Լռելյայն՝ ռեցեպտի հանրային էջը։</summary>
+    [Parameter] public EventCallback<RecipeSummaryDto> OnClick { get; set; }
+
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+
+    private string PlaceholderIcon => Recipe.MealType switch
+    {
+        MealType.Breakfast => "🥣",
+        MealType.Lunch => "🥗",
+        MealType.Snack => "🫒",
+        _ => "🍲"
+    };
+
+    private async Task Open()
+    {
+        if (OnClick.HasDelegate)
+        {
+            await OnClick.InvokeAsync(Recipe);
+            return;
+        }
+
+        Navigation.NavigateTo($"recipes/{Recipe.Slug}");
+    }
+
+    // Քարտը div է, ոչ թե <a> — ստեղնաշարով օգտվողի համար ձեռքով ենք
+    // ավելացնում Enter/Space-ի վարքը։
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or " ")
+            await Open();
+    }
+
+    private static string Truncate(string value, int max) =>
+        value.Length <= max ? value : value[..max].TrimEnd() + "…";
+}

@@ -1,0 +1,216 @@
+@* Gialora.Client/Pages/Admin/AdminIngredients.razor
+   Բաղադրիչների կատալոգը՝ shopping list-ի consolidation-ի հիմքը (app structure §3, §11)։ *@
+@page "/admin/ingredients"
+@attribute [Authorize(Roles = "Admin")]
+@using Gialora.Client.Services
+@using Gialora.Shared.Enums
+@inject AdminApi Admin
+@inject RecipeApi RecipeCatalog
+
+<PageTitle>Admin · Ingredients — Gialora</PageTitle>
+
+<section class="section container-wide">
+    <div class="page-header row-between">
+        <div>
+            <p class="eyebrow">Admin</p>
+            <h1 style="margin:0;">Ingredients</h1>
+            <p class="small-muted" style="margin:.35rem 0 0;">
+                Categories decide how the shopping list is grouped; allergen flags decide
+                which recipes the planner can safely suggest.
+            </p>
+        </div>
+        <a class="btn btn-outline-g" href="admin/recipes">← Recipes</a>
+    </div>
+
+    <ErrorAlert Message="@error" />
+
+    <div class="card-g mb-4">
+        <div class="card-g-body">
+            <p class="eyebrow mb-2">Add an ingredient</p>
+            <div class="cluster">
+                <input class="form-control" style="max-width:14rem;" placeholder="Name" @bind="draft.Name" />
+
+                <select class="form-select" style="max-width:12rem;" @bind="draft.Category">
+                    @foreach (var c in Enum.GetValues<IngredientCategory>()) { <option value="@c">@c</option> }
+                </select>
+
+                <select class="form-select" style="max-width:10rem;" @bind="draft.DefaultUnit">
+                    @foreach (var u in Enum.GetValues<UnitOfMeasure>()) { <option value="@u">@u</option> }
+                </select>
+
+                <button class="btn btn-primary" @onclick="Create"
+                        disabled="@(busy || string.IsNullOrWhiteSpace(draft.Name))">Add</button>
+            </div>
+
+            <div class="cluster mt-2">
+                @foreach (var flag in AllergenFlags)
+                {
+                    var isOn = flag.Get(draft);
+                    <label class="chip-check @(isOn ? "is-on" : null)">
+                        <input type="checkbox" checked="@isOn"
+                               @onchange="e => flag.Set(draft, (bool)(e.Value ?? false))" />
+                        @flag.Label
+                    </label>
+                }
+                <label class="chip-check @(draft.IsPantryStaple ? "is-on" : null)">
+                    <input type="checkbox" @bind="draft.IsPantryStaple" /> Pantry staple
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <input class="form-control mb-3" style="max-width:20rem;" placeholder="Filter…"
+           @bind="search" @bind:event="oninput" />
+
+    @if (loading)
+    {
+        <Loading />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table-g">
+                <thead>
+                    <tr>
+                        <th>Name</th><th>Category</th><th>Default unit</th>
+                        <th>Allergens</th><th>Used in</th><th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var ingredient in Filtered)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@ingredient.Name</strong>
+                                @if (ingredient.IsPantryStaple)
+                                {
+                                    <span class="pill pill-outline ms-2">staple</span>
+                                }
+                            </td>
+                            <td>@ingredient.Category</td>
+                            <td>@ingredient.DefaultUnit</td>
+                            <td>
+                                <div class="cluster">
+                                    @foreach (var label in AllergenLabels(ingredient))
+                                    {
+                                        <span class="pill pill-terracotta">@label</span>
+                                    }
+                                </div>
+                            </td>
+                            <td>@ingredient.UsedInRecipeCount recipe(s)</td>
+                            <td style="text-align:right;">
+                                @* Օգտագործվողը ջնջելը server-ը մերժում է 409-ով —
+                                   կոճակը նախապես անջատում ենք, որ սխալ չառաջանա *@
+                                <button class="btn btn-danger-soft btn-sm"
+                                        @onclick="() => Delete(ingredient.Id)"
+                                        disabled="@(busy || ingredient.UsedInRecipeCount > 0)"
+                                        title="@(ingredient.UsedInRecipeCount > 0 ? "In use by recipes" : "Delete")">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    private record AllergenFlag(string Label, Func<IngredientCreateDto, bool> Get, Action<IngredientCreateDto, bool> Set);
+
+    private static readonly AllergenFlag[] AllergenFlags =
+    {
+        new("Gluten", d => d.ContainsGluten, (d, v) => d.ContainsGluten = v),
+        new("Dairy", d => d.ContainsDairy, (d, v) => d.ContainsDairy = v),
+        new("Nuts", d => d.ContainsNuts, (d, v) => d.ContainsNuts = v),
+        new("Egg", d => d.ContainsEgg, (d, v) => d.ContainsEgg = v),
+        new("Fish", d => d.ContainsFish, (d, v) => d.ContainsFish = v),
+        new("Shellfish", d => d.ContainsShellfish, (d, v) => d.ContainsShellfish = v),
+        new("Soy", d => d.ContainsSoy, (d, v) => d.ContainsSoy = v)
+    };
+
+    private List<IngredientDto> ingredients = new();
+    private IngredientCreateDto draft = new();
+    private string search = string.Empty;
+    private bool loading = true;
+    private bool busy;
+    private string? error;
+
+    private IEnumerable<IngredientDto> Filtered =>
+        string.IsNullOrWhiteSpace(search)
+            ? ingredients
+            : ingredients.Where(i => i.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
+
+    protected override Task OnInitializedAsync() => Reload();
+
+    private static IEnumerable<string> AllergenLabels(IngredientDto i)
+    {
+        if (i.ContainsGluten) yield return "gluten";
+        if (i.ContainsDairy) yield return "dairy";
+        if (i.ContainsNuts) yield return "nuts";
+        if (i.ContainsEgg) yield return "egg";
+        if (i.ContainsFish) yield return "fish";
+        if (i.ContainsShellfish) yield return "shellfish";
+        if (i.ContainsSoy) yield return "soy";
+    }
+
+    private async Task Create()
+    {
+        busy = true;
+        error = null;
+
+        try
+        {
+            await Admin.CreateIngredientAsync(draft);
+            draft = new IngredientCreateDto();
+            await Reload();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task Delete(Guid id)
+    {
+        busy = true;
+        error = null;
+
+        try
+        {
+            await Admin.DeleteIngredientAsync(id);
+            await Reload();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task Reload()
+    {
+        loading = true;
+
+        try
+        {
+            ingredients = await RecipeCatalog.GetIngredientsAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+}

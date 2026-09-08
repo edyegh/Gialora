@@ -1,0 +1,85 @@
+@* Gialora.Client/Pages/Plans.razor *@
+@page "/plans"
+@attribute [Authorize]
+@using Gialora.Client.Services
+@using Gialora.Shared.Enums
+@inject PlannerApi Planner
+
+<PageTitle>My plans — Gialora</PageTitle>
+
+<section class="section container-wide">
+    <div class="page-header row-between">
+        <div>
+            <p class="eyebrow">Meal plans</p>
+            <h1 style="margin:0;">Your plans</h1>
+        </div>
+        <a class="btn btn-primary" href="weekly">Plan a new week</a>
+    </div>
+
+    <ErrorAlert Message="@error" />
+
+    @if (loading)
+    {
+        <Loading />
+    }
+    else if (plans.Count == 0)
+    {
+        <EmptyState Icon="🗓️" Title="No plans yet"
+                    Description="Generate your first week and it will show up here.">
+            <a class="btn btn-primary" href="weekly">Plan my week</a>
+        </EmptyState>
+    }
+    else
+    {
+        <div class="grid">
+            @foreach (var plan in plans)
+            {
+                <a class="card-g card-link" href="plans/@plan.Id">
+                    <div class="card-g-body">
+                        <p class="eyebrow mb-1">@plan.PlanType · @plan.Status</p>
+                        <h3 class="recipe-title">@plan.Name</h3>
+
+                        <div class="meta-row mb-2">
+                            <span>@plan.Days.Count day(s)</span>
+                            <span>@plan.Days.Sum(d => d.Entries.Count) meals</span>
+                            <span>🍽 @plan.ServingsPerMeal</span>
+                        </div>
+
+                        <div class="cluster">
+                            @if (plan.ShoppingListId is not null)
+                            {
+                                <span class="pill pill-olive">🛒 Shopping list ready</span>
+                            }
+                            @if (plan.Status == MealPlanStatus.Accepted)
+                            {
+                                <span class="pill pill-sea">Accepted</span>
+                            }
+                        </div>
+                    </div>
+                </a>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private List<MealPlanDto> plans = new();
+    private bool loading = true;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            plans = await Planner.GetPlansAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+}

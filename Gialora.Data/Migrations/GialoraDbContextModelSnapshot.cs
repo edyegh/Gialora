@@ -22,21 +22,107 @@ namespace Gialora.Data.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Gialora.Data.Entities.BlogPost", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CoverImageUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Excerpt")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPublished")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("PublishedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(220)
+                        .HasColumnType("nvarchar(220)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("BlogPosts");
+                });
+
             modelBuilder.Entity("Gialora.Data.Entities.Family", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("Budget")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CookingDaysPerWeek")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<int?>("DietPreference")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DislikedIngredients")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ExcludedProteins")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<int>("MaxCookingTimeMinutes")
+                        .HasColumnType("int");
+
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<bool>("PreferFreezerFriendly")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("PreferredCuisine")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ServingsPerMeal")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
@@ -55,6 +141,9 @@ namespace Gialora.Data.Migrations
                     b.Property<int?>("Age")
                         .HasColumnType("int");
 
+                    b.Property<int?>("AgeMonths")
+                        .HasColumnType("int");
+
                     b.Property<string>("Allergies")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -69,26 +158,47 @@ namespace Gialora.Data.Migrations
                     b.Property<Guid>("FamilyId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
+                    b.Property<string>("Goals")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("MemberType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UserId")
-                        .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 
                     b.HasIndex("FamilyId");
 
-                    b.HasIndex("UserId");
-
                     b.ToTable("FamilyMembers");
+                });
+
+            modelBuilder.Entity("Gialora.Data.Entities.FavoriteRecipe", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("RecipeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("UserId", "RecipeId");
+
+                    b.HasIndex("RecipeId");
+
+                    b.ToTable("FavoriteRecipes");
                 });
 
             modelBuilder.Entity("Gialora.Data.Entities.Feedback", b =>
@@ -98,7 +208,8 @@ namespace Gialora.Data.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Comment")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
@@ -106,11 +217,23 @@ namespace Gialora.Data.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("KidsDidNotEat")
+                        .HasColumnType("bit");
+
                     b.Property<int>("Rating")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Reaction")
                         .HasColumnType("int");
 
                     b.Property<Guid>("RecipeId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("TooDifficult")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("TookTooLong")
+                        .HasColumnType("bit");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
@@ -134,7 +257,16 @@ namespace Gialora.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("Category")
+                        .HasColumnType("int");
+
                     b.Property<bool>("ContainsDairy")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("ContainsEgg")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("ContainsFish")
                         .HasColumnType("bit");
 
                     b.Property<bool>("ContainsGluten")
@@ -143,24 +275,36 @@ namespace Gialora.Data.Migrations
                     b.Property<bool>("ContainsNuts")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("ContainsShellfish")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("ContainsSoy")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<int>("DefaultUnit")
+                        .HasColumnType("int");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsPantryStaple")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Unit")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
 
                     b.ToTable("Ingredients");
                 });
@@ -180,6 +324,20 @@ namespace Gialora.Data.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int>("PlanType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ServingsPerMeal")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -188,7 +346,7 @@ namespace Gialora.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FamilyId");
+                    b.HasIndex("FamilyId", "WeekStartDate");
 
                     b.ToTable("MealPlans");
                 });
@@ -233,6 +391,9 @@ namespace Gialora.Data.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("bit");
+
                     b.Property<Guid>("MealPlanDayId")
                         .HasColumnType("uniqueidentifier");
 
@@ -244,6 +405,9 @@ namespace Gialora.Data.Migrations
 
                     b.Property<Guid>("RecipeId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
@@ -272,30 +436,81 @@ namespace Gialora.Data.Migrations
                     b.Property<Guid>("CreatedByAdminId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("Cuisine")
+                        .HasColumnType("int");
+
                     b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("DietType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Difficulty")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("EstimatedCostPerServing")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("decimal(8,2)");
 
                     b.Property<string>("ImageUrl")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("Instructions")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("IsBatchFriendly")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsFreezerFriendly")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsHighProtein")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsIronRich")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsKidFriendly")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsLunchboxFriendly")
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsPublished")
                         .HasColumnType("bit");
 
+                    b.Property<int>("MealType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MinAgeMonths")
+                        .HasColumnType("int");
+
                     b.Property<int>("PrepTimeMinutes")
                         .HasColumnType("int");
+
+                    b.Property<int>("PrimaryProtein")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("PublishedAtUtc")
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("Servings")
                         .HasColumnType("int");
 
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(220)
+                        .HasColumnType("nvarchar(220)");
+
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
@@ -303,6 +518,11 @@ namespace Gialora.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedByAdminId");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.HasIndex("IsPublished", "MealType", "DietType");
 
                     b.ToTable("Recipes");
                 });
@@ -315,9 +535,22 @@ namespace Gialora.Data.Migrations
                     b.Property<Guid>("IngredientId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("IsOptional")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<decimal>("Quantity")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("decimal(8,2)");
+                        .HasPrecision(10, 3)
+                        .HasColumnType("decimal(10,3)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Unit")
+                        .HasColumnType("int");
 
                     b.HasKey("RecipeId", "IngredientId");
 
@@ -341,6 +574,104 @@ namespace Gialora.Data.Migrations
                     b.ToTable("RecipeTags");
                 });
 
+            modelBuilder.Entity("Gialora.Data.Entities.ShoppingList", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("MealPlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FamilyId");
+
+                    b.HasIndex("MealPlanId")
+                        .IsUnique()
+                        .HasFilter("[MealPlanId] IS NOT NULL");
+
+                    b.ToTable("ShoppingLists");
+                });
+
+            modelBuilder.Entity("Gialora.Data.Entities.ShoppingListItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<Guid?>("IngredientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsChecked")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsOptional")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(10, 3)
+                        .HasColumnType("decimal(10,3)");
+
+                    b.Property<Guid>("ShoppingListId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SourceRecipes")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Unit")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IngredientId");
+
+                    b.HasIndex("ShoppingListId");
+
+                    b.ToTable("ShoppingListItems");
+                });
+
             modelBuilder.Entity("Gialora.Data.Entities.Tag", b =>
                 {
                     b.Property<Guid>("Id")
@@ -350,17 +681,26 @@ namespace Gialora.Data.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
 
                     b.ToTable("Tags");
                 });
@@ -376,11 +716,13 @@ namespace Gialora.Data.Migrations
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("Email")
                         .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("bit");
@@ -399,7 +741,8 @@ namespace Gialora.Data.Migrations
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<int>("Role")
                         .HasColumnType("int");
@@ -417,6 +760,17 @@ namespace Gialora.Data.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("Gialora.Data.Entities.BlogPost", b =>
+                {
+                    b.HasOne("Gialora.Data.Entities.User", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+                });
+
             modelBuilder.Entity("Gialora.Data.Entities.FamilyMember", b =>
                 {
                     b.HasOne("Gialora.Data.Entities.Family", "Family")
@@ -425,11 +779,26 @@ namespace Gialora.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Gialora.Data.Entities.User", null)
-                        .WithMany("FamilyMembers")
-                        .HasForeignKey("UserId");
-
                     b.Navigation("Family");
+                });
+
+            modelBuilder.Entity("Gialora.Data.Entities.FavoriteRecipe", b =>
+                {
+                    b.HasOne("Gialora.Data.Entities.Recipe", "Recipe")
+                        .WithMany("Favorites")
+                        .HasForeignKey("RecipeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Gialora.Data.Entities.User", "User")
+                        .WithMany("Favorites")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Recipe");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Gialora.Data.Entities.Feedback", b =>
@@ -441,9 +810,9 @@ namespace Gialora.Data.Migrations
                         .IsRequired();
 
                     b.HasOne("Gialora.Data.Entities.User", "User")
-                        .WithMany()
+                        .WithMany("Feedbacks")
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Recipe");
@@ -484,7 +853,7 @@ namespace Gialora.Data.Migrations
                     b.HasOne("Gialora.Data.Entities.Recipe", "Recipe")
                         .WithMany()
                         .HasForeignKey("RecipeId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("MealPlanDay");
@@ -508,7 +877,7 @@ namespace Gialora.Data.Migrations
                     b.HasOne("Gialora.Data.Entities.Ingredient", "Ingredient")
                         .WithMany("RecipeIngredients")
                         .HasForeignKey("IngredientId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("Gialora.Data.Entities.Recipe", "Recipe")
@@ -541,6 +910,42 @@ namespace Gialora.Data.Migrations
                     b.Navigation("Tag");
                 });
 
+            modelBuilder.Entity("Gialora.Data.Entities.ShoppingList", b =>
+                {
+                    b.HasOne("Gialora.Data.Entities.Family", "Family")
+                        .WithMany()
+                        .HasForeignKey("FamilyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Gialora.Data.Entities.MealPlan", "MealPlan")
+                        .WithOne("ShoppingList")
+                        .HasForeignKey("Gialora.Data.Entities.ShoppingList", "MealPlanId")
+                        .OnDelete(DeleteBehavior.ClientCascade);
+
+                    b.Navigation("Family");
+
+                    b.Navigation("MealPlan");
+                });
+
+            modelBuilder.Entity("Gialora.Data.Entities.ShoppingListItem", b =>
+                {
+                    b.HasOne("Gialora.Data.Entities.Ingredient", "Ingredient")
+                        .WithMany()
+                        .HasForeignKey("IngredientId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Gialora.Data.Entities.ShoppingList", "ShoppingList")
+                        .WithMany("Items")
+                        .HasForeignKey("ShoppingListId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Ingredient");
+
+                    b.Navigation("ShoppingList");
+                });
+
             modelBuilder.Entity("Gialora.Data.Entities.User", b =>
                 {
                     b.HasOne("Gialora.Data.Entities.Family", "Family")
@@ -567,6 +972,8 @@ namespace Gialora.Data.Migrations
             modelBuilder.Entity("Gialora.Data.Entities.MealPlan", b =>
                 {
                     b.Navigation("Days");
+
+                    b.Navigation("ShoppingList");
                 });
 
             modelBuilder.Entity("Gialora.Data.Entities.MealPlanDay", b =>
@@ -576,11 +983,18 @@ namespace Gialora.Data.Migrations
 
             modelBuilder.Entity("Gialora.Data.Entities.Recipe", b =>
                 {
+                    b.Navigation("Favorites");
+
                     b.Navigation("Feedbacks");
 
                     b.Navigation("RecipeIngredients");
 
                     b.Navigation("RecipeTags");
+                });
+
+            modelBuilder.Entity("Gialora.Data.Entities.ShoppingList", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("Gialora.Data.Entities.Tag", b =>
@@ -590,7 +1004,9 @@ namespace Gialora.Data.Migrations
 
             modelBuilder.Entity("Gialora.Data.Entities.User", b =>
                 {
-                    b.Navigation("FamilyMembers");
+                    b.Navigation("Favorites");
+
+                    b.Navigation("Feedbacks");
                 });
 #pragma warning restore 612, 618
         }

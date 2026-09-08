@@ -1,16 +1,21 @@
-﻿@inherits LayoutComponentBase
+@* Gialora.Client/Layout/MainLayout.razor *@
+@inherits LayoutComponentBase
+
 <div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+    <NavMenu />
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
-
-        <article class="content px-4">
-            @Body
-        </article>
+    <main class="page-main">
+        @Body
     </main>
+
+    <footer class="site-footer">
+        <div class="container-wide row-between">
+            <span>Gialora — Mediterranean meals, planned for real families.</span>
+            <span class="cluster">
+                <NavLink href="recipes">Recipes</NavLink>
+                <span aria-hidden="true">·</span>
+                <NavLink href="blog">Blog</NavLink>
+            </span>
+        </div>
+    </footer>
 </div>

@@ -9,7 +9,7 @@ namespace Gialora.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize] // ← ցանկացած logged-in user (ոչ միայն Admin) — Family-ն իր սեփականն է կառավարում
+[Authorize] // ցանկացած logged-in user — Family-ն իր սեփականն է կառավարում
 public class FamilyController : ControllerBase
 {
     private readonly IFamilyService _familyService;
@@ -25,35 +25,49 @@ public class FamilyController : ControllerBase
         if (User.GetUserId() is not { } userId)
             return Unauthorized();
 
-        var family = await _familyService.GetOrCreateFamilyAsync(userId);
-        return Ok(family);
+        return Ok(await _familyService.GetOrCreateFamilyAsync(userId));
+    }
+
+    [HttpPut("me")]
+    public async Task<ActionResult<FamilyDto>> Rename([FromBody] FamilyUpdateDto dto)
+    {
+        if (User.GetUserId() is not { } userId)
+            return Unauthorized();
+
+        return Ok(await _familyService.RenameAsync(userId, dto));
+    }
+
+    /// <summary>"Selects preferences" — meal-planning engine-ի հիմնական մուտքը։</summary>
+    [HttpPut("me/preferences")]
+    public async Task<ActionResult<FamilyPreferencesDto>> UpdatePreferences([FromBody] FamilyPreferencesDto dto)
+    {
+        if (User.GetUserId() is not { } userId)
+            return Unauthorized();
+
+        return Ok(await _familyService.UpdatePreferencesAsync(userId, dto));
     }
 
     [HttpPost("members")]
     public async Task<ActionResult<FamilyMemberDto>> AddMember([FromBody] FamilyMemberCreateDto dto)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
         if (User.GetUserId() is not { } userId)
             return Unauthorized();
 
         var member = await _familyService.AddMemberAsync(userId, dto);
-        // routeValues-ը պարտադիր է — առանց դրա CreatedAtAction-ը Location header չի կարողանում կառուցել և նետում է InvalidOperationException
+
+        // routeValues-ը պարտադիր է — առանց դրա CreatedAtAction-ը Location header
+        // չի կարողանում կառուցել և նետում է InvalidOperationException
         return CreatedAtAction(nameof(GetMyFamily), null, member);
     }
 
     [HttpPut("members/{memberId:guid}")]
-    public async Task<ActionResult<FamilyMemberDto>> UpdateMember(Guid memberId, [FromBody] FamilyMemberUpdateDto dto)
+    public async Task<ActionResult<FamilyMemberDto>> UpdateMember(
+        Guid memberId, [FromBody] FamilyMemberUpdateDto dto)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
         if (User.GetUserId() is not { } userId)
             return Unauthorized();
 
         var updated = await _familyService.UpdateMemberAsync(userId, memberId, dto);
-
         return updated is null ? NotFound() : Ok(updated);
     }
 
@@ -63,8 +77,6 @@ public class FamilyController : ControllerBase
         if (User.GetUserId() is not { } userId)
             return Unauthorized();
 
-        var removed = await _familyService.RemoveMemberAsync(userId, memberId);
-
-        return removed ? NoContent() : NotFound();
+        return await _familyService.RemoveMemberAsync(userId, memberId) ? NoContent() : NotFound();
     }
 }

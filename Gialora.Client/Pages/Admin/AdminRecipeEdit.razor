@@ -1,0 +1,399 @@
+@* Gialora.Client/Pages/Admin/AdminRecipeEdit.razor
+   "add recipe / edit recipe / add ingredients / assign tags / mark age suitability /
+   mark freezer-friendly / change quantities / publish" (app structure §11)։ *@
+@page "/admin/recipes/new"
+@page "/admin/recipes/{RecipeId:guid}"
+@attribute [Authorize(Roles = "Admin")]
+@using Gialora.Client.Services
+@using Gialora.Shared.Enums
+@inject AdminApi Admin
+@inject RecipeApi RecipeCatalog
+@inject NavigationManager Navigation
+
+<PageTitle>@(IsNew ? "New recipe" : "Edit recipe") — Gialora</PageTitle>
+
+<section class="section container-narrow">
+    <div class="page-header row-between">
+        <div>
+            <p class="eyebrow">Admin</p>
+            <h1 style="margin:0;">@(IsNew ? "New recipe" : model.Title)</h1>
+        </div>
+        <a class="btn btn-outline-g btn-sm" href="admin/recipes">← All recipes</a>
+    </div>
+
+    <ErrorAlert Message="@error" Errors="validationErrors" />
+
+    @if (!string.IsNullOrEmpty(status))
+    {
+        <div class="alert alert-success" role="status">@status</div>
+    }
+
+    @if (loading)
+    {
+        <Loading />
+    }
+    else
+    {
+        <div class="card-g mb-4">
+            <div class="card-g-body stack">
+                <h2 style="margin:0;">Basics</h2>
+
+                <div>
+                    <label class="form-label" for="title">Title</label>
+                    <input id="title" class="form-control" @bind="model.Title" maxlength="200" />
+                </div>
+
+                <div>
+                    <label class="form-label" for="description">Short description</label>
+                    <textarea id="description" class="form-control" rows="2" maxlength="1000"
+                              @bind="model.Description"></textarea>
+                </div>
+
+                <div>
+                    <label class="form-label" for="image">Image URL</label>
+                    <input id="image" class="form-control" @bind="model.ImageUrl" maxlength="500" />
+                </div>
+
+                <div class="cluster">
+                    <div>
+                        <label class="form-label" for="meal">Meal</label>
+                        <select id="meal" class="form-select" @bind="model.MealType">
+                            @foreach (var v in Enum.GetValues<MealType>()) { <option value="@v">@v</option> }
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="cuisine">Cuisine</label>
+                        <select id="cuisine" class="form-select" @bind="model.Cuisine">
+                            @foreach (var v in Enum.GetValues<CuisineType>()) { <option value="@v">@v</option> }
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="diet">Diet</label>
+                        <select id="diet" class="form-select" @bind="model.DietType">
+                            @foreach (var v in Enum.GetValues<DietType>()) { <option value="@v">@v</option> }
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="protein">Main protein</label>
+                        <select id="protein" class="form-select" @bind="model.PrimaryProtein">
+                            @foreach (var v in Enum.GetValues<ProteinType>()) { <option value="@v">@v</option> }
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="difficulty">Difficulty</label>
+                        <select id="difficulty" class="form-select" @bind="model.Difficulty">
+                            @foreach (var v in Enum.GetValues<DifficultyLevel>()) { <option value="@v">@v</option> }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="cluster">
+                    <div>
+                        <label class="form-label" for="prep">Prep (min)</label>
+                        <input id="prep" class="form-control" style="max-width:7rem;" type="number" min="0" max="600"
+                               @bind="model.PrepTimeMinutes" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="cook">Cook (min)</label>
+                        <input id="cook" class="form-control" style="max-width:7rem;" type="number" min="0" max="600"
+                               @bind="model.CookTimeMinutes" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="servings">Servings</label>
+                        <input id="servings" class="form-control" style="max-width:7rem;" type="number" min="1" max="50"
+                               @bind="model.Servings" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="minage">Suitable from (months)</label>
+                        <input id="minage" class="form-control" style="max-width:9rem;" type="number" min="0" max="1200"
+                               @bind="model.MinAgeMonths" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="cost">Cost per serving</label>
+                        <input id="cost" class="form-control" style="max-width:9rem;" type="number" step="0.01" min="0"
+                               @bind="model.EstimatedCostPerServing" />
+                    </div>
+                </div>
+
+                <div>
+                    <span class="form-label d-block">Characteristics</span>
+                    <div class="cluster">
+                        <label class="chip-check @(model.IsKidFriendly ? "is-on" : null)">
+                            <input type="checkbox" @bind="model.IsKidFriendly" /> Kid-friendly
+                        </label>
+                        <label class="chip-check @(model.IsFreezerFriendly ? "is-on" : null)">
+                            <input type="checkbox" @bind="model.IsFreezerFriendly" /> ❄ Freezes well
+                        </label>
+                        <label class="chip-check @(model.IsLunchboxFriendly ? "is-on" : null)">
+                            <input type="checkbox" @bind="model.IsLunchboxFriendly" /> Lunchbox
+                        </label>
+                        <label class="chip-check @(model.IsHighProtein ? "is-on" : null)">
+                            <input type="checkbox" @bind="model.IsHighProtein" /> High protein
+                        </label>
+                        <label class="chip-check @(model.IsIronRich ? "is-on" : null)">
+                            <input type="checkbox" @bind="model.IsIronRich" /> Iron-rich
+                        </label>
+                        <label class="chip-check @(model.IsBatchFriendly ? "is-on" : null)">
+                            <input type="checkbox" @bind="model.IsBatchFriendly" /> Batch cook
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="form-label" for="tags">Tags</label>
+                    <input id="tags" class="form-control" @bind="tagsText"
+                           placeholder="quick, kid-friendly, one-pot" />
+                    <p class="form-text">Comma separated. New tags are created automatically.</p>
+                </div>
+            </div>
+        </div>
+
+        @* ---------------------------------------------------- ingredients *@
+        <div class="card-g mb-4">
+            <div class="card-g-body">
+                <h2 class="mb-3">Ingredients</h2>
+
+                @if (model.Ingredients.Count == 0)
+                {
+                    <p class="small-muted">No ingredients yet. A recipe needs at least one.</p>
+                }
+                else
+                {
+                    <div class="table-wrap mb-3">
+                        <table class="table-g">
+                            <thead>
+                                <tr><th>Ingredient</th><th>Quantity</th><th>Unit</th><th>Note</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                @for (var i = 0; i < model.Ingredients.Count; i++)
+                                {
+                                    var index = i;
+                                    var line = model.Ingredients[index];
+                                    <tr>
+                                        <td>@NameOf(line.IngredientId)</td>
+                                        <td>
+                                            <input class="form-control" style="max-width:7rem;" type="number"
+                                                   step="0.01" min="0.001" @bind="line.Quantity" />
+                                        </td>
+                                        <td>
+                                            <select class="form-select" style="max-width:9rem;" @bind="line.Unit">
+                                                @foreach (var u in Enum.GetValues<UnitOfMeasure>())
+                                                {
+                                                    <option value="@u">@u</option>
+                                                }
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <input class="form-control" style="max-width:11rem;"
+                                                   placeholder="finely chopped" @bind="line.Note" />
+                                        </td>
+                                        <td style="text-align:right;">
+                                            <button class="btn btn-danger-soft btn-sm"
+                                                    @onclick="() => model.Ingredients.RemoveAt(index)">Remove</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                <div class="cluster">
+                    <select class="form-select" style="max-width:16rem;" @bind="selectedIngredientId">
+                        <option value="">Choose an ingredient…</option>
+                        @foreach (var ingredient in ingredients)
+                        {
+                            <option value="@ingredient.Id">@ingredient.Name</option>
+                        }
+                    </select>
+                    <button class="btn btn-primary" @onclick="AddIngredient"
+                            disabled="@string.IsNullOrEmpty(selectedIngredientId)">Add ingredient</button>
+                    <a class="btn btn-outline-g" href="admin/ingredients">Manage ingredients</a>
+                </div>
+            </div>
+        </div>
+
+        @* ------------------------------------------------------- method *@
+        <div class="card-g mb-4">
+            <div class="card-g-body">
+                <h2 class="mb-2">Method</h2>
+                <p class="form-text mb-2">One step per line.</p>
+                <textarea class="form-control" rows="8" @bind="model.Instructions"></textarea>
+            </div>
+        </div>
+
+        <div class="cluster">
+            <button class="btn btn-primary" @onclick="Save" disabled="@busy">
+                @(busy ? "Saving..." : IsNew ? "Create as draft" : "Save changes")
+            </button>
+
+            @if (!IsNew)
+            {
+                <label class="chip-check @(isPublished ? "is-on" : null)">
+                    <input type="checkbox" @bind="isPublished" /> Published
+                </label>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter] public Guid? RecipeId { get; set; }
+
+    private bool IsNew => RecipeId is null;
+
+    private RecipeUpdateDto model = new();
+    private List<IngredientDto> ingredients = new();
+    private string tagsText = string.Empty;
+    private string selectedIngredientId = string.Empty;
+    private bool isPublished;
+
+    private bool loading = true;
+    private bool busy;
+    private string? error;
+    private string? status;
+    private Dictionary<string, string[]>? validationErrors;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+        error = null;
+
+        try
+        {
+            ingredients = await RecipeCatalog.GetIngredientsAsync();
+
+            if (RecipeId is { } id)
+            {
+                // Admin endpoint — draft-երն էլ պիտի բացվեն, ոչ միայն published-ը
+                var existing = await Admin.GetRecipeAsync(id);
+
+                if (existing is null)
+                {
+                    error = "Recipe not found.";
+                    return;
+                }
+
+                model = ToUpdateDto(existing);
+                tagsText = string.Join(", ", existing.Tags);
+                isPublished = existing.IsPublished;
+            }
+            else
+            {
+                model = new RecipeUpdateDto { Servings = 4, MealType = MealType.Dinner };
+            }
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private static RecipeUpdateDto ToUpdateDto(RecipeDetailDto source) => new()
+    {
+        Title = source.Title,
+        Description = source.Description,
+        Instructions = source.Instructions ?? string.Empty,
+        ImageUrl = source.ImageUrl,
+        MealType = source.MealType,
+        Cuisine = source.Cuisine,
+        Difficulty = source.Difficulty,
+        DietType = source.DietType,
+        PrimaryProtein = source.PrimaryProtein,
+        PrepTimeMinutes = source.PrepTimeMinutes,
+        CookTimeMinutes = source.CookTimeMinutes,
+        Servings = source.Servings,
+        MinAgeMonths = source.MinAgeMonths,
+        IsFreezerFriendly = source.IsFreezerFriendly,
+        IsLunchboxFriendly = source.IsLunchboxFriendly,
+        IsKidFriendly = source.IsKidFriendly,
+        IsHighProtein = source.IsHighProtein,
+        IsIronRich = source.IsIronRich,
+        IsBatchFriendly = source.IsBatchFriendly,
+        EstimatedCostPerServing = source.EstimatedCostPerServing,
+        IsPublished = source.IsPublished,
+        Tags = source.Tags.ToList(),
+        Ingredients = source.Ingredients.Select(i => new RecipeIngredientInputDto
+        {
+            IngredientId = i.IngredientId,
+            Quantity = i.Quantity,
+            Unit = i.Unit,
+            Note = i.Note,
+            IsOptional = i.IsOptional,
+            SortOrder = i.SortOrder
+        }).ToList()
+    };
+
+    private string NameOf(Guid ingredientId) =>
+        ingredients.FirstOrDefault(i => i.Id == ingredientId)?.Name ?? "(unknown)";
+
+    private void AddIngredient()
+    {
+        if (!Guid.TryParse(selectedIngredientId, out var id))
+            return;
+
+        // Նույն բաղադրիչը երկու անգամ → server-ում composite key-ի բախում,
+        // ուստի կանխում ենք այստեղ, հասկանալի հաղորդագրությամբ։
+        if (model.Ingredients.Any(i => i.IngredientId == id))
+        {
+            error = "That ingredient is already in the list — edit its quantity instead.";
+            return;
+        }
+
+        var source = ingredients.First(i => i.Id == id);
+
+        model.Ingredients.Add(new RecipeIngredientInputDto
+        {
+            IngredientId = id,
+            Quantity = 1,
+            Unit = source.DefaultUnit,
+            SortOrder = model.Ingredients.Count
+        });
+
+        selectedIngredientId = string.Empty;
+        error = null;
+    }
+
+    private async Task Save()
+    {
+        busy = true;
+        error = null;
+        status = null;
+        validationErrors = null;
+
+        try
+        {
+            model.Tags = tagsText
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            for (var i = 0; i < model.Ingredients.Count; i++)
+                model.Ingredients[i].SortOrder = i;
+
+            if (IsNew)
+            {
+                var id = await Admin.CreateRecipeAsync(model);
+                Navigation.NavigateTo($"admin/recipes/{id}");
+                return;
+            }
+
+            model.IsPublished = isPublished;
+            await Admin.UpdateRecipeAsync(RecipeId!.Value, model);
+            status = "Saved.";
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            validationErrors = ex.ValidationErrors;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

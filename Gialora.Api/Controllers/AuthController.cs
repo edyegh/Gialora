@@ -1,15 +1,17 @@
 // Gialora.Api/Controllers/AuthController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Gialora.Application.Services;
+using Microsoft.AspNetCore.RateLimiting;
+using Gialora.Api.Extensions;
 using Gialora.Api.Services;
+using Gialora.Application.Services;
 using Gialora.Shared.Dtos;
 
 namespace Gialora.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[AllowAnonymous]
+[EnableRateLimiting("auth")] // IP-ի մակարդակի brute-force պաշտպանություն
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
@@ -22,34 +24,39 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
+    [AllowAnonymous]
     public async Task<ActionResult<AuthResponseDto>> Register([FromBody] RegisterDto dto)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
-        try
-        {
-            var result = await _authService.RegisterAsync(dto);
-            return Ok(BuildResponse(result));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(ex.Message); // 409 — email-ն արդեն զբաղված է
-        }
+        // ConflictException-ը 409-ի է վերածում middleware-ը — այստեղ try/catch պետք չէ
+        var result = await _authService.RegisterAsync(dto);
+        return Ok(BuildResponse(result));
     }
 
     [HttpPost("login")]
+    [AllowAnonymous]
     public async Task<ActionResult<AuthResponseDto>> Login([FromBody] LoginDto dto)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
         var result = await _authService.ValidateCredentialsAsync(dto);
 
         if (result is null)
-            return Unauthorized("Invalid email or password."); // Դիտավորյալ ընդհանուր message
+        {
+            // Դիտավորյալ ընդհանուր message — չպիտի բացահայտենք՝ email-ը գոյություն ունի՞
+            return Unauthorized(new ApiErrorDto { Message = "Invalid email or password." });
+        }
 
         return Ok(BuildResponse(result));
+    }
+
+    /// <summary>Client-ը սա կանչում է token-ի վավերականությունը ստուգելու համար։</summary>
+    [HttpGet("me")]
+    [Authorize]
+    public async Task<ActionResult<AuthResultDto>> Me()
+    {
+        if (User.GetUserId() is not { } userId)
+            return Unauthorized();
+
+        var user = await _authService.GetByIdAsync(userId);
+        return user is null ? Unauthorized() : Ok(user);
     }
 
     private AuthResponseDto BuildResponse(AuthResultDto user) =>

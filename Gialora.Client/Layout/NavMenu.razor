@@ -1,55 +1,74 @@
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">Gialora</a>
-        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-    </div>
-</div>
+@* Gialora.Client/Layout/NavMenu.razor
+   Կառուցվածքը ուղիղ հետևում է app structure §2-ի "Website structure"-ին՝
+   HOME / DAILY / WEEKLY / BATCH & FREEZE / RECIPES / SHOPPING LIST / BLOG *@
+@implements IDisposable
+@inject NavigationManager Navigation
 
-<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
-    <nav class="nav flex-column">
-        <AuthorizeView>
-            <Authorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                        <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="family-setup">
-                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Family
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="logout">
-                        <span class="bi bi-lock-nav-menu" aria-hidden="true"></span> Logout
-                    </NavLink>
-                </div>
-            </Authorized>
-            <NotAuthorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="login">
-                        <span class="bi bi-lock-nav-menu" aria-hidden="true"></span> Login
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="register">
-                        <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Register
-                    </NavLink>
-                </div>
-            </NotAuthorized>
-        </AuthorizeView>
-    </nav>
-</div>
+<header class="site-header">
+    <div class="container-wide site-header-inner">
+        <a class="brand" href="">Gialora<span class="brand-mark">.</span></a>
+
+        <button class="nav-toggle" type="button" @onclick="ToggleMenu"
+                aria-label="Toggle navigation" aria-expanded="@(!collapsed)">
+            ☰
+        </button>
+
+        @* Class, ոչ թե hidden attribute — hidden-ը թաքցնում է ամեն լայնության վրա,
+           իսկ մեզ պետք է, որ desktop-ում մենյուն միշտ երևա *@
+        <nav class="site-nav @(collapsed ? "is-collapsed" : null)">
+            <NavLink href="" Match="NavLinkMatch.All">Home</NavLink>
+            <NavLink href="daily">Daily</NavLink>
+            <NavLink href="weekly">Weekly</NavLink>
+            <NavLink href="batch">Batch &amp; freeze</NavLink>
+            <NavLink href="recipes">Recipes</NavLink>
+
+            <AuthorizeView>
+                <Authorized>
+                    <NavLink href="shopping-lists">Shopping list</NavLink>
+                </Authorized>
+            </AuthorizeView>
+
+            <NavLink href="blog">Blog</NavLink>
+
+            <span class="site-nav-spacer"></span>
+
+            <AuthorizeView>
+                <Authorized Context="auth">
+                    <AuthorizeView Roles="Admin" Context="adminAuth">
+                        <NavLink href="admin/recipes">Admin</NavLink>
+                    </AuthorizeView>
+                    <NavLink href="favorites">Saved</NavLink>
+                    <NavLink href="family">My family</NavLink>
+                    <NavLink href="logout">Sign out</NavLink>
+                </Authorized>
+                <NotAuthorized>
+                    <NavLink href="login">Sign in</NavLink>
+                    <NavLink href="register">Create account</NavLink>
+                </NotAuthorized>
+            </AuthorizeView>
+        </nav>
+    </div>
+</header>
 
 @code {
-    private bool collapseNavMenu = true;
+    // Մենյուն միշտ "collapsed" վիճակում ենք պահում. desktop-ում CSS-ը այն
+    // ամեն դեպքում ցույց է տալիս, ուստի սա ազդում է միայն նեղ էկրանին։
+    private bool collapsed = true;
 
-    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+    protected override void OnInitialized() =>
+        Navigation.LocationChanged += OnLocationChanged;
 
-    private void ToggleNavMenu()
+    private void ToggleMenu() => collapsed = !collapsed;
+
+    // Էջ փոխելուց հետո բացված մենյուն պիտի փակվի — հակառակ դեպքում հեռախոսին
+    // նոր էջը բացվում է մենյուի տակ թաքնված։
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
-        collapseNavMenu = !collapseNavMenu;
+        if (collapsed) return;
+
+        collapsed = true;
+        StateHasChanged();
     }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
 }

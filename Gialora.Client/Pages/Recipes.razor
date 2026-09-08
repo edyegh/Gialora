@@ -1,0 +1,254 @@
+@* Gialora.Client/Pages/Recipes.razor
+   "RECIPES — Browse all recipes" (app structure §2) + MVP-ի "Recipe search/filter" (§9)։
+   Հանրային էջ — SEO-ի և չգրանցված այցելուի համար։ *@
+@page "/recipes"
+@using Gialora.Client.Services
+@using Gialora.Shared.Enums
+@inject RecipeApi Catalog
+@inject NavigationManager Navigation
+
+<PageTitle>Recipes — Gialora</PageTitle>
+
+<section class="section container-wide">
+    <div class="page-header">
+        <p class="eyebrow">Recipes</p>
+        <h1 style="margin:0 0 .35rem;">Browse all recipes</h1>
+        <p class="lede">Structured, filterable and ready to drop into a weekly plan.</p>
+    </div>
+
+    <div class="card-g mb-4">
+        <div class="card-g-body stack">
+            <div class="cluster">
+                <input class="form-control" style="max-width:22rem;" placeholder="Search recipes or ingredients…"
+                       @bind="filter.Search" @bind:event="oninput" @onkeydown="OnSearchKeyDown" />
+
+                <select class="form-select" style="max-width:11rem;" @bind="SelectedMealType">
+                    <option value="">Any meal</option>
+                    @foreach (var meal in Enum.GetValues<MealType>())
+                    {
+                        <option value="@meal">@meal</option>
+                    }
+                </select>
+
+                <select class="form-select" style="max-width:11rem;" @bind="SelectedDiet">
+                    <option value="">Any diet</option>
+                    @foreach (var diet in Enum.GetValues<DietType>())
+                    {
+                        <option value="@diet">@diet</option>
+                    }
+                </select>
+
+                <select class="form-select" style="max-width:11rem;" @bind="SelectedMaxTime">
+                    <option value="">Any time</option>
+                    <option value="20">Under 20 min</option>
+                    <option value="30">Under 30 min</option>
+                    <option value="45">Under 45 min</option>
+                    <option value="60">Under 60 min</option>
+                </select>
+
+                <select class="form-select" style="max-width:12rem;" @bind="SelectedSort">
+                    @foreach (var sort in Enum.GetValues<RecipeSortOrder>())
+                    {
+                        <option value="@sort">@SortLabel(sort)</option>
+                    }
+                </select>
+            </div>
+
+            <div class="cluster">
+                @foreach (var flag in FlagFilters)
+                {
+                    var isOn = flag.Get(filter) == true;
+                    <label class="chip-check @(isOn ? "is-on" : null)">
+                        <input type="checkbox" checked="@isOn"
+                               @onchange="e => ToggleFlag(flag, (bool)(e.Value ?? false))" />
+                        @flag.Label
+                    </label>
+                }
+
+                <AuthorizeView>
+                    <Authorized>
+                        <label class="chip-check @(filter.FavoritesOnly ? "is-on" : null)">
+                            <input type="checkbox" checked="@filter.FavoritesOnly"
+                                   @onchange="e => ToggleFavorites((bool)(e.Value ?? false))" />
+                            ★ Saved only
+                        </label>
+                    </Authorized>
+                </AuthorizeView>
+
+                @if (HasActiveFilters)
+                {
+                    <button class="btn btn-ghost btn-sm" @onclick="ClearFilters">Clear filters</button>
+                }
+            </div>
+        </div>
+    </div>
+
+    <ErrorAlert Message="@error" />
+
+    @if (loading)
+    {
+        <Loading Message="Finding recipes..." />
+    }
+    else if (result is null || result.Items.Count == 0)
+    {
+        <EmptyState Icon="🍽️" Title="No recipes match those filters"
+                    Description="Try removing a filter or widening the cooking time.">
+            <button class="btn btn-outline-g" @onclick="ClearFilters">Clear filters</button>
+        </EmptyState>
+    }
+    else
+    {
+        <p class="small-muted mb-3">@result.TotalCount recipe(s)</p>
+
+        <div class="grid">
+            @foreach (var recipe in result.Items)
+            {
+                <RecipeCard Recipe="recipe" />
+            }
+        </div>
+
+        @if (result.TotalPages > 1)
+        {
+            <div class="cluster mt-4" style="justify-content:center;">
+                <button class="btn btn-outline-g btn-sm" @onclick="() => GoToPage(result.Page - 1)"
+                        disabled="@(!result.HasPrevious)">← Previous</button>
+                <span class="small-muted">Page @result.Page of @result.TotalPages</span>
+                <button class="btn btn-outline-g btn-sm" @onclick="() => GoToPage(result.Page + 1)"
+                        disabled="@(!result.HasNext)">Next →</button>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private RecipeFilterDto filter = new() { PageSize = 12 };
+    private PagedResult<RecipeSummaryDto>? result;
+    private bool loading = true;
+    private string? error;
+
+    // Debounce-ի փոխարեն՝ որոնումը կիրառվում է Enter-ով կամ filter փոխելիս։
+    // Ամեն ստեղնահարումով request ուղարկելը 12 ավելորդ կանչ էր տալիս մեկ բառի համար։
+    private CancellationTokenSource? _searchCts;
+
+    private record FlagFilter(string Label, Func<RecipeFilterDto, bool?> Get, Action<RecipeFilterDto, bool?> Set);
+
+    private static readonly FlagFilter[] FlagFilters =
+    {
+        new("Kid-friendly", f => f.KidFriendly, (f, v) => f.KidFriendly = v),
+        new("❄ Freezes well", f => f.FreezerFriendly, (f, v) => f.FreezerFriendly = v),
+        new("Lunchbox", f => f.LunchboxFriendly, (f, v) => f.LunchboxFriendly = v),
+        new("High protein", f => f.HighProtein, (f, v) => f.HighProtein = v),
+        new("Iron-rich", f => f.IronRich, (f, v) => f.IronRich = v),
+        new("Batch cook", f => f.BatchFriendly, (f, v) => f.BatchFriendly = v)
+    };
+
+    private bool HasActiveFilters =>
+        !string.IsNullOrWhiteSpace(filter.Search) || filter.MealType is not null ||
+        filter.DietType is not null || filter.MaxTotalMinutes is not null ||
+        filter.FavoritesOnly || FlagFilters.Any(f => f.Get(filter) == true);
+
+    // --- Bindings. select-ի value-ն string է, ուստի enum-ի փոխակերպումը ձեռքով է ---
+
+    private string SelectedMealType
+    {
+        get => filter.MealType?.ToString() ?? string.Empty;
+        set { filter.MealType = Enum.TryParse<MealType>(value, out var v) ? v : null; _ = ReloadAsync(); }
+    }
+
+    private string SelectedDiet
+    {
+        get => filter.DietType?.ToString() ?? string.Empty;
+        set { filter.DietType = Enum.TryParse<DietType>(value, out var v) ? v : null; _ = ReloadAsync(); }
+    }
+
+    private string SelectedMaxTime
+    {
+        get => filter.MaxTotalMinutes?.ToString() ?? string.Empty;
+        set { filter.MaxTotalMinutes = int.TryParse(value, out var v) ? v : null; _ = ReloadAsync(); }
+    }
+
+    private string SelectedSort
+    {
+        get => filter.SortBy.ToString();
+        set { filter.SortBy = Enum.TryParse<RecipeSortOrder>(value, out var v) ? v : RecipeSortOrder.Newest; _ = ReloadAsync(); }
+    }
+
+    protected override Task OnInitializedAsync() => ReloadAsync();
+
+    private async Task OnSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await ReloadAsync();
+    }
+
+    private Task ToggleFlag(FlagFilter flag, bool isOn)
+    {
+        // null (ոչ թե false) — "չզտել այս դաշտով"։ false-ը կնշանակեր
+        // "ցույց տուր ՄԻԱՅՆ ոչ-kid-friendly-ները", ինչը ոչ ոք չի ուզում։
+        flag.Set(filter, isOn ? true : null);
+        return ReloadAsync();
+    }
+
+    private Task ToggleFavorites(bool isOn)
+    {
+        filter.FavoritesOnly = isOn;
+        return ReloadAsync();
+    }
+
+    private Task ClearFilters()
+    {
+        filter = new RecipeFilterDto { PageSize = 12 };
+        return ReloadAsync();
+    }
+
+    private Task GoToPage(int page)
+    {
+        filter.Page = Math.Max(1, page);
+        return ReloadAsync(resetPage: false);
+    }
+
+    private async Task ReloadAsync(bool resetPage = true)
+    {
+        if (resetPage)
+            filter.Page = 1;
+
+        // Արագ հաջորդող filter-ի փոփոխությունները կարող են վերադառնալ սխալ
+        // հերթականությամբ — հին request-ի պատասխանը չպիտի վերագրի նորը։
+        _searchCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _searchCts = cts;
+
+        loading = true;
+        error = null;
+        StateHasChanged();
+
+        try
+        {
+            var response = await Catalog.SearchAsync(filter);
+
+            if (!cts.IsCancellationRequested)
+                result = response;
+        }
+        catch (ApiException ex)
+        {
+            if (!cts.IsCancellationRequested)
+                error = ex.Message;
+        }
+        finally
+        {
+            if (!cts.IsCancellationRequested)
+            {
+                loading = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private static string SortLabel(RecipeSortOrder sort) => sort switch
+    {
+        RecipeSortOrder.Title => "A–Z",
+        RecipeSortOrder.QuickestFirst => "Quickest first",
+        RecipeSortOrder.HighestRated => "Highest rated",
+        _ => "Newest"
+    };
+}

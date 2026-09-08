@@ -1,0 +1,13 @@
+@* Gialora.Client/Pages/Daily.razor — "What should I cook today?" (app structure §2) *@
+@page "/daily"
+@attribute [Authorize]
+@using Gialora.Shared.Enums
+
+<PageTitle>Daily — Gialora</PageTitle>
+
+<PlanLauncher PlanType="MealPlanType.Daily"
+              Eyebrow="Daily"
+              Title="What should I cook today?"
+              Description="One meal, chosen around your family's time, ages and allergies. Not in the mood for it? Swap it and we will pick another."
+              ButtonLabel="Find tonight's meal"
+              DefaultDays="1" />

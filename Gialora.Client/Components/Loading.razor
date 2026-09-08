@@ -1,0 +1,10 @@
+@* Gialora.Client/Components/Loading.razor *@
+
+<div class="loading-row">
+    <span class="spinner-g" aria-hidden="true"></span>
+    <span>@Message</span>
+</div>
+
+@code {
+    [Parameter] public string Message { get; set; } = "Loading...";
+}

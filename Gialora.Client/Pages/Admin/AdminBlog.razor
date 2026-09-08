@@ -1,0 +1,210 @@
+@* Gialora.Client/Pages/Admin/AdminBlog.razor — "edit blog posts" (app structure §11) *@
+@page "/admin/blog"
+@page "/admin/blog/{PostId:guid}"
+@attribute [Authorize(Roles = "Admin")]
+@using Gialora.Client.Services
+@inject AdminApi Admin
+@inject NavigationManager Navigation
+
+<PageTitle>Admin · Blog — Gialora</PageTitle>
+
+<section class="section container-narrow">
+    <div class="page-header row-between">
+        <div>
+            <p class="eyebrow">Admin</p>
+            <h1 style="margin:0;">Blog</h1>
+        </div>
+        <a class="btn btn-outline-g btn-sm" href="admin/recipes">← Recipes</a>
+    </div>
+
+    <ErrorAlert Message="@error" />
+
+    @if (!string.IsNullOrEmpty(status))
+    {
+        <div class="alert alert-success" role="status">@status</div>
+    }
+
+    <div class="card-g mb-4">
+        <div class="card-g-body stack">
+            <h2 style="margin:0;">@(PostId is null ? "New post" : "Edit post")</h2>
+
+            <div>
+                <label class="form-label" for="title">Title</label>
+                <input id="title" class="form-control" @bind="draft.Title" maxlength="200" />
+            </div>
+
+            <div>
+                <label class="form-label" for="excerpt">Excerpt</label>
+                <input id="excerpt" class="form-control" @bind="draft.Excerpt" maxlength="500" />
+            </div>
+
+            <div>
+                <label class="form-label" for="cover">Cover image URL</label>
+                <input id="cover" class="form-control" @bind="draft.CoverImageUrl" maxlength="500" />
+            </div>
+
+            <div>
+                <label class="form-label" for="content">Content</label>
+                <textarea id="content" class="form-control" rows="10" @bind="draft.Content"></textarea>
+                <p class="form-text">Separate paragraphs with a blank line.</p>
+            </div>
+
+            <div class="cluster">
+                <label class="chip-check @(draft.IsPublished ? "is-on" : null)">
+                    <input type="checkbox" @bind="draft.IsPublished" /> Published
+                </label>
+
+                <button class="btn btn-primary" @onclick="Save"
+                        disabled="@(busy || string.IsNullOrWhiteSpace(draft.Title))">
+                    @(PostId is null ? "Create post" : "Save changes")
+                </button>
+
+                @if (PostId is not null)
+                {
+                    <a class="btn btn-outline-g" href="admin/blog">New post</a>
+                }
+            </div>
+        </div>
+    </div>
+
+    @if (loading)
+    {
+        <Loading />
+    }
+    else if (posts.Count > 0)
+    {
+        <div class="table-wrap">
+            <table class="table-g">
+                <thead>
+                    <tr><th>Title</th><th>Status</th><th>Published</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var post in posts)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@post.Title</strong>
+                                <div class="small-muted">/@post.Slug</div>
+                            </td>
+                            <td>
+                                <span class="pill @(post.IsPublished ? "pill-olive" : "pill-warning")">
+                                    @(post.IsPublished ? "Published" : "Draft")
+                                </span>
+                            </td>
+                            <td>@(post.PublishedAtUtc?.ToLocalTime().ToString("d MMM yyyy") ?? "—")</td>
+                            <td style="text-align:right; white-space:nowrap;">
+                                <a class="btn btn-ghost btn-sm" href="admin/blog/@post.Id">Edit</a>
+                                <button class="btn btn-danger-soft btn-sm" @onclick="() => Delete(post.Id)"
+                                        disabled="@busy">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter] public Guid? PostId { get; set; }
+
+    private BlogPostUpdateDto draft = new();
+    private List<BlogPostSummaryDto> posts = new();
+    private bool loading = true;
+    private bool busy;
+    private string? error;
+    private string? status;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        error = null;
+
+        try
+        {
+            posts = await Admin.GetPostsAsync();
+
+            if (PostId is { } id)
+            {
+                var existing = await Admin.GetPostAsync(id);
+
+                draft = existing is null
+                    ? new BlogPostUpdateDto()
+                    : new BlogPostUpdateDto
+                    {
+                        Title = existing.Title,
+                        Excerpt = existing.Excerpt,
+                        Content = existing.Content,
+                        CoverImageUrl = existing.CoverImageUrl,
+                        IsPublished = existing.IsPublished
+                    };
+            }
+            else
+            {
+                // /admin/blog-ի վրա վերադառնալիս ձևը պիտի մաքուր լինի, ոչ թե
+                // պահի նախորդ խմբագրած գրառումը
+                draft = new BlogPostUpdateDto();
+            }
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task Save()
+    {
+        busy = true;
+        error = null;
+        status = null;
+
+        try
+        {
+            if (PostId is { } id)
+            {
+                await Admin.UpdatePostAsync(id, draft);
+                status = "Post saved.";
+                posts = await Admin.GetPostsAsync();
+            }
+            else
+            {
+                var newId = await Admin.CreatePostAsync(draft);
+                Navigation.NavigateTo($"admin/blog/{newId}");
+            }
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task Delete(Guid id)
+    {
+        busy = true;
+        error = null;
+
+        try
+        {
+            await Admin.DeletePostAsync(id);
+            posts = await Admin.GetPostsAsync();
+
+            if (PostId == id)
+                Navigation.NavigateTo("admin/blog");
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

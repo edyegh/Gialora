@@ -1,0 +1,19 @@
+@* Gialora.Client/Components/EmptyState.razor
+   Դատարկ էկրանը երբեք պիտի չլինի պարզապես դատարկ — միշտ ասում է, թե ինչ անել հաջորդը։ *@
+
+<div class="empty-state">
+    <span class="empty-icon" aria-hidden="true">@Icon</span>
+    <p class="mb-2"><strong>@Title</strong></p>
+    @if (!string.IsNullOrWhiteSpace(Description))
+    {
+        <p class="small-muted mb-3">@Description</p>
+    }
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public string Icon { get; set; } = "🫒";
+    [Parameter] public string Title { get; set; } = "Nothing here yet";
+    [Parameter] public string? Description { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

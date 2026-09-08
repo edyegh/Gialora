@@ -1,0 +1,73 @@
+@* Gialora.Client/Pages/ShoppingLists.razor *@
+@page "/shopping-lists"
+@attribute [Authorize]
+@using Gialora.Client.Services
+@inject PlannerApi Planner
+
+<PageTitle>Shopping lists — Gialora</PageTitle>
+
+<section class="section container-narrow">
+    <div class="page-header">
+        <p class="eyebrow">Smart shopping</p>
+        <h1 style="margin:0;">Your shopping lists</h1>
+    </div>
+
+    <ErrorAlert Message="@error" />
+
+    @if (loading)
+    {
+        <Loading />
+    }
+    else if (lists.Count == 0)
+    {
+        <EmptyState Icon="🛒" Title="No shopping lists yet"
+                    Description="Generate a meal plan, then turn it into a consolidated list with one click.">
+            <a class="btn btn-primary" href="weekly">Plan my week</a>
+        </EmptyState>
+    }
+    else
+    {
+        <div class="stack">
+            @foreach (var list in lists)
+            {
+                <a class="card-g card-link" href="shopping-lists/@list.Id">
+                    <div class="card-g-body row-between">
+                        <div>
+                            <h3 class="recipe-title">@list.Name</h3>
+                            <span class="small-muted">
+                                @list.CheckedItems of @list.TotalItems picked up ·
+                                @list.CreatedAtUtc.ToLocalTime().ToString("d MMM")
+                            </span>
+                        </div>
+                        <span class="pill @(list.CheckedItems == list.TotalItems && list.TotalItems > 0 ? "pill-olive" : "pill-outline")">
+                            @(list.TotalItems == 0 ? "empty"
+                              : list.CheckedItems == list.TotalItems ? "done" : "in progress")
+                        </span>
+                    </div>
+                </a>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private List<ShoppingListDto> lists = new();
+    private bool loading = true;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            lists = await Planner.GetShoppingListsAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+}

@@ -1,14 +1,141 @@
-@* Gialora.Client/Pages/Home.razor *@
+@* Gialora.Client/Pages/Home.razor
+   App structure §2-ի product flow-ը՝ "PURE MEDITERRANEAN GOODNESS" →
+   "WHAT DO YOU NEED TODAY?" → DAILY / WEEKLY / BATCH & FREEZE։
+   Էջը հանրային է — չգրանցված այցելուն նույնպես պիտի հասկանա, թե ինչ է առաջարկվում։ *@
 @page "/"
-@attribute [Authorize]
+@using Gialora.Client.Services
+@inject PlannerApi Planner
 
-<PageTitle>Home — Gialora</PageTitle>
+<PageTitle>Gialora — Mediterranean meals, planned</PageTitle>
 
-<h1>Gialora</h1>
+<section class="section container-wide">
+    <div class="page-header" style="text-align:center; max-width:46rem; margin-inline:auto;">
+        <p class="eyebrow">Pure Mediterranean goodness</p>
+        <h1>What do you need today?</h1>
+        <p class="lede" style="margin-inline:auto;">
+            Tell us about your family once. We will plan the week, keep the meals varied
+            and turn it all into one consolidated shopping list.
+        </p>
+    </div>
+
+    <div class="grid-3">
+        <a class="route-card" href="daily">
+            <span class="route-icon" aria-hidden="true">🍅</span>
+            <h3>Daily</h3>
+            <p>Find a great meal in minutes.</p>
+            <span class="route-go">What should I cook today? →</span>
+        </a>
+
+        <a class="route-card" href="weekly">
+            <span class="route-icon" aria-hidden="true">🗓️</span>
+            <h3>Weekly</h3>
+            <p>Plan the week in minutes.</p>
+            <span class="route-go">Plan my week →</span>
+        </a>
+
+        <a class="route-card" href="batch">
+            <span class="route-icon" aria-hidden="true">❄️</span>
+            <h3>Batch &amp; freeze</h3>
+            <p>Cook once, save time later.</p>
+            <span class="route-go">Prepare more, cook less →</span>
+        </a>
+    </div>
+</section>
 
 <AuthorizeView>
     <Authorized>
-        <p>Welcome back, <strong>@(context.User.Identity?.Name ?? "there")</strong>.</p>
-        <p><a href="family-setup">Manage your family</a></p>
+        <section class="section-tight container-wide">
+            @if (loading)
+            {
+                <Loading Message="Checking your week..." />
+            }
+            else if (currentPlan is not null)
+            {
+                <div class="card-g">
+                    <div class="card-g-body">
+                        <div class="row-between mb-3">
+                            <div>
+                                <p class="eyebrow mb-1">Your current plan</p>
+                                <h2 style="margin:0;">@currentPlan.Name</h2>
+                            </div>
+                            <a class="btn btn-primary" href="plans/@currentPlan.Id">Open plan</a>
+                        </div>
+
+                        <div class="cluster">
+                            @foreach (var entry in currentPlan.Days.SelectMany(d => d.Entries).Take(6))
+                            {
+                                <span class="pill pill-olive">@entry.Recipe.Title</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <EmptyState Icon="🗓️"
+                            Title="You have not planned a week yet"
+                            Description="Set up your family once, then generate a week in a couple of clicks.">
+                    <a class="btn btn-primary" href="family">Set up my family</a>
+                </EmptyState>
+            }
+        </section>
     </Authorized>
+
+    <NotAuthorized>
+        <section class="section-tight container-wide">
+            <div class="card-g">
+                <div class="card-g-body row-between">
+                    <div>
+                        <h2 style="margin:0 0 .25rem;">Cooking for a family?</h2>
+                        <p class="small-muted" style="margin:0;">
+                            Add your family's ages, allergies and how much time you actually have.
+                            Gialora does the deciding.
+                        </p>
+                    </div>
+                    <div class="cluster">
+                        <a class="btn btn-primary" href="register">Create an account</a>
+                        <a class="btn btn-outline-g" href="recipes">Browse recipes</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </NotAuthorized>
 </AuthorizeView>
+
+@code {
+    private MealPlanDto? currentPlan;
+    private bool loading = true;
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Ընթացիկ պլանը կարդում ենք ՄԻԱՅՆ մուտք գործածի համար — անանուն
+        // այցելուի դեպքում սա 401 կտար և կոնսոլում աղմուկ կստեղծեր։
+        if (AuthenticationStateTask is null)
+        {
+            loading = false;
+            return;
+        }
+
+        var state = await AuthenticationStateTask;
+        if (state.User.Identity?.IsAuthenticated != true)
+        {
+            loading = false;
+            return;
+        }
+
+        try
+        {
+            currentPlan = await Planner.GetCurrentPlanAsync();
+        }
+        catch (ApiException)
+        {
+            // Home էջը երբեք չպիտի "կոտրվի" — պլանը պարզապես չենք ցույց տալիս
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+}

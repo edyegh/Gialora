@@ -1,9 +1,11 @@
-﻿// Gialora.Application/Services/FamilyService.cs
+// Gialora.Application/Services/FamilyService.cs
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Gialora.Application.Common;
 using Gialora.Data;
 using Gialora.Data.Entities;
 using Gialora.Shared.Dtos;
-using Microsoft.Extensions.Logging;
+using Gialora.Shared.Enums;
 
 namespace Gialora.Application.Services;
 
@@ -22,13 +24,11 @@ public class FamilyService : IFamilyService
     {
         var user = await _db.Users
             .Include(u => u.Family)
-            .ThenInclude(f => f!.FamilyMembers)
-            .FirstOrDefaultAsync(u => u.Id == userId);
+                .ThenInclude(f => f!.FamilyMembers)
+            .FirstOrDefaultAsync(u => u.Id == userId)
+            ?? throw new NotFoundException("User not found.");
 
-        if (user is null)
-            throw new InvalidOperationException("User not found.");
-
-        // Եթե user-ը դեռ Family չունի, ստեղծում ենք ավտոմատ (առաջին onboarding քայլում)
+        // Առաջին onboarding քայլում Family-ն ստեղծվում է ավտոմատ
         if (user.Family is null)
         {
             var family = new Family { Name = $"{user.DisplayName}'s Family" };
@@ -36,61 +36,75 @@ public class FamilyService : IFamilyService
             user.Family = family;
             await _db.SaveChangesAsync();
 
-            return new FamilyDto { Id = family.Id, Name = family.Name, Members = new() };
+            _logger.LogInformation("Family {FamilyId} auto-created for user {UserId}", family.Id, userId);
+            return Map(family);
         }
 
-        return new FamilyDto
-        {
-            Id = user.Family.Id,
-            Name = user.Family.Name,
-            Members = user.Family.FamilyMembers.Select(MapToDto).ToList()
-        };
+        return Map(user.Family);
+    }
+
+    public async Task<FamilyDto> RenameAsync(Guid userId, FamilyUpdateDto dto)
+    {
+        var family = await LoadFamilyAsync(userId);
+        family.Name = dto.Name.Trim();
+        await _db.SaveChangesAsync();
+        return Map(family);
+    }
+
+    public async Task<FamilyPreferencesDto> UpdatePreferencesAsync(Guid userId, FamilyPreferencesDto dto)
+    {
+        var family = await LoadFamilyAsync(userId);
+
+        family.PreferredCuisine = dto.PreferredCuisine;
+        family.MaxCookingTimeMinutes = Math.Clamp(dto.MaxCookingTimeMinutes, 10, 300);
+        family.CookingDaysPerWeek = Math.Clamp(dto.CookingDaysPerWeek, 1, 7);
+        family.ServingsPerMeal = Math.Clamp(dto.ServingsPerMeal, 1, 20);
+        family.Budget = dto.Budget;
+        family.DietPreference = dto.DietPreference;
+        family.PreferFreezerFriendly = dto.PreferFreezerFriendly;
+
+        // Enum-երը CSV-ում պահվում են ԱՆՈՒՆՈՎ, ոչ թե թվով — DB-ն ընթեռնելի է մնում
+        // և enum-ի արժեքների վերադասավորումը հին տողերը չի փչացնում։
+        family.ExcludedProteins = dto.ExcludedProteins.Distinct().Select(p => p.ToString()).ToList();
+        family.DislikedIngredients = NormalizeList(dto.DislikedIngredients);
+
+        await _db.SaveChangesAsync();
+        return MapPreferences(family);
     }
 
     public async Task<FamilyMemberDto> AddMemberAsync(Guid userId, FamilyMemberCreateDto dto)
     {
-        var familyId = await GetFamilyIdForUserAsync(userId);
+        var familyId = await GetFamilyIdAsync(userId);
 
-        var member = new FamilyMember
-        {
-            FamilyId = familyId,
-            Name = dto.Name.Trim(),
-            Age = dto.Age,
-            DietaryRestrictions = NormalizeList(dto.DietaryRestrictions),
-            Allergies = NormalizeList(dto.Allergies)
-        };
+        var member = new FamilyMember { FamilyId = familyId };
+        ApplyMember(member, dto);
 
         _db.FamilyMembers.Add(member);
         await _db.SaveChangesAsync();
 
         _logger.LogInformation("Family member {MemberId} added to family {FamilyId}", member.Id, familyId);
-        return MapToDto(member);
+        return MapMember(member);
     }
 
     public async Task<FamilyMemberDto?> UpdateMemberAsync(Guid userId, Guid memberId, FamilyMemberUpdateDto dto)
     {
-        var familyId = await GetFamilyIdForUserAsync(userId);
+        var familyId = await GetFamilyIdAsync(userId);
 
+        // Ստուգում ենք և՛ memberId-ն, և՛ որ պատկանում է ՀԵՆՑ ԱՅՍ user-ի Family-ին
         var member = await _db.FamilyMembers
             .FirstOrDefaultAsync(m => m.Id == memberId && m.FamilyId == familyId);
 
-        // ⚠️ Կարևոր. ստուգում ենք և՛ memberId-ն, և՛ որ պատկանում է ՀԵՆՑ ԱՅՍ user-ի Family-ին
         if (member is null)
-            return null; // կամ member գոյություն չունի, կամ ուրիշի ընտանիքինն է — երկուսն էլ 404
+            return null; // կամ չկա, կամ ուրիշի ընտանիքինն է — երկուսն էլ 404
 
-        member.Name = dto.Name.Trim();
-        member.Age = dto.Age;
-        member.DietaryRestrictions = NormalizeList(dto.DietaryRestrictions);
-        member.Allergies = NormalizeList(dto.Allergies);
-        member.UpdatedAtUtc = DateTime.UtcNow;
-
+        ApplyMember(member, dto);
         await _db.SaveChangesAsync();
-        return MapToDto(member);
+        return MapMember(member);
     }
 
     public async Task<bool> RemoveMemberAsync(Guid userId, Guid memberId)
     {
-        var familyId = await GetFamilyIdForUserAsync(userId);
+        var familyId = await GetFamilyIdAsync(userId);
 
         var member = await _db.FamilyMembers
             .FirstOrDefaultAsync(m => m.Id == memberId && m.FamilyId == familyId);
@@ -99,14 +113,11 @@ public class FamilyService : IFamilyService
             return false;
 
         member.IsDeleted = true; // soft delete
-        member.UpdatedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         return true;
     }
 
-    // --- Private helpers ---
-
-    private async Task<Guid> GetFamilyIdForUserAsync(Guid userId)
+    public async Task<Guid> GetFamilyIdAsync(Guid userId)
     {
         var familyId = await _db.Users
             .Where(u => u.Id == userId)
@@ -114,20 +125,84 @@ public class FamilyService : IFamilyService
             .FirstOrDefaultAsync();
 
         if (familyId is null)
-            throw new InvalidOperationException("User does not belong to a family yet. Call GetOrCreateFamily first.");
+        {
+            // Ավտոմատ ստեղծում ենք, փոխանակ սխալ նետելու. client-ը կարող է
+            // meal plan խնդրել՝ երբեք /family/me չկանչած (օր. deep link-ից)։
+            var created = await GetOrCreateFamilyAsync(userId);
+            return created.Id;
+        }
 
         return familyId.Value;
     }
 
-    private static List<string> NormalizeList(List<string> items) =>
-        items.Select(i => i.Trim().ToLowerInvariant()).Distinct().ToList();
+    // --- Private helpers ---
 
-    private static FamilyMemberDto MapToDto(FamilyMember m) => new()
+    private async Task<Family> LoadFamilyAsync(Guid userId)
+    {
+        var familyId = await GetFamilyIdAsync(userId);
+
+        return await _db.Families
+            .Include(f => f.FamilyMembers)
+            .FirstOrDefaultAsync(f => f.Id == familyId)
+            ?? throw new NotFoundException("Family not found.");
+    }
+
+    private static void ApplyMember(FamilyMember member, FamilyMemberCreateDto dto)
+    {
+        member.Name = dto.Name.Trim();
+        member.MemberType = dto.MemberType;
+        member.Age = dto.Age;
+        member.AgeMonths = dto.AgeMonths;
+        member.DietaryRestrictions = NormalizeList(dto.DietaryRestrictions);
+        member.Allergies = NormalizeList(dto.Allergies);
+        member.Goals = dto.Goals.Select(g => g.Trim()).Where(g => g.Length > 0).Distinct().ToList();
+    }
+
+    private static List<string> NormalizeList(IEnumerable<string> items) =>
+        items.Select(i => i.Trim().ToLowerInvariant())
+             .Where(i => i.Length > 0)
+             .Distinct()
+             .ToList();
+
+    private static FamilyDto Map(Family family) => new()
+    {
+        Id = family.Id,
+        Name = family.Name,
+        Members = family.FamilyMembers
+            .Where(m => !m.IsDeleted)
+            .OrderBy(m => m.MemberType)
+            .ThenBy(m => m.Name)
+            .Select(MapMember)
+            .ToList(),
+        Preferences = MapPreferences(family)
+    };
+
+    private static FamilyPreferencesDto MapPreferences(Family family) => new()
+    {
+        PreferredCuisine = family.PreferredCuisine,
+        MaxCookingTimeMinutes = family.MaxCookingTimeMinutes,
+        CookingDaysPerWeek = family.CookingDaysPerWeek,
+        ServingsPerMeal = family.ServingsPerMeal,
+        Budget = family.Budget,
+        DietPreference = family.DietPreference,
+        PreferFreezerFriendly = family.PreferFreezerFriendly,
+        ExcludedProteins = family.ExcludedProteins
+            .Select(p => Enum.TryParse<ProteinType>(p, true, out var parsed) ? parsed : (ProteinType?)null)
+            .Where(p => p.HasValue)
+            .Select(p => p!.Value)
+            .ToList(),
+        DislikedIngredients = family.DislikedIngredients
+    };
+
+    private static FamilyMemberDto MapMember(FamilyMember m) => new()
     {
         Id = m.Id,
         Name = m.Name,
+        MemberType = m.MemberType,
         Age = m.Age,
+        AgeMonths = m.AgeMonths,
         DietaryRestrictions = m.DietaryRestrictions,
-        Allergies = m.Allergies
+        Allergies = m.Allergies,
+        Goals = m.Goals
     };
 }

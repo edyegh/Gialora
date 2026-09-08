@@ -1,0 +1,69 @@
+@* Gialora.Client/Pages/BlogPost.razor *@
+@page "/blog/{Slug}"
+@using Gialora.Client.Services
+@inject ContentApi Content
+
+<PageTitle>@(post?.Title ?? "Blog") — Gialora</PageTitle>
+
+<section class="section container-narrow">
+    @if (loading)
+    {
+        <Loading />
+    }
+    else if (post is null)
+    {
+        <EmptyState Icon="📖" Title="Post not found">
+            <a class="btn btn-primary" href="blog">Back to the blog</a>
+        </EmptyState>
+    }
+    else
+    {
+        <article>
+            <div class="page-header">
+                <p class="eyebrow">
+                    @(post.PublishedAtUtc?.ToLocalTime().ToString("d MMMM yyyy")) · @post.AuthorName
+                </p>
+                <h1 style="margin:0;">@post.Title</h1>
+            </div>
+
+            @* Բովանդակությունը պարբերությունների ենք բաժանում ձեռքով։ Raw HTML-ը
+               render անելը (MarkupString) կբացեր XSS ուղի admin-ի մուտքագրումից։ *@
+            @foreach (var paragraph in Paragraphs)
+            {
+                <p>@paragraph</p>
+            }
+
+            <p class="mt-4"><a href="blog">← All posts</a></p>
+        </article>
+    }
+</section>
+
+@code {
+    [Parameter] public string Slug { get; set; } = string.Empty;
+
+    private BlogPostDetailDto? post;
+    private bool loading = true;
+
+    private IEnumerable<string> Paragraphs =>
+        (post?.Content ?? string.Empty)
+            .Replace("\r\n", "\n")
+            .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+
+        try
+        {
+            post = await Content.GetPostAsync(Slug);
+        }
+        catch (ApiException)
+        {
+            post = null;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+}
