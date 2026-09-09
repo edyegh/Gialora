@@ -157,6 +157,7 @@ public class GialoraDbContext : DbContext
         modelBuilder.Entity<MealPlan>(b =>
         {
             b.Property(mp => mp.Name).HasMaxLength(150);
+            b.Property(mp => mp.PlanningNotes).HasConversion(csvConverter).Metadata.SetValueComparer(csvComparer);
 
             b.HasOne(mp => mp.Family)
              .WithMany(f => f.MealPlans)

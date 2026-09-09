@@ -2,16 +2,13 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.JSInterop;
 
 namespace Gialora.Client.Auth;
 
-public class TokenAuthStateProvider : AuthenticationStateProvider
+public class TokenAuthStateProvider : AuthenticationStateProvider, IDisposable
 {
-    private const string TokenKey = "authToken";
-
     // API-ի JwtTokenGenerator-ը հենց այս անուններով է claim-երը գրում։
-    // Առանց դրանք ClaimsIdentity-ին հայտնելու՝ context.User.Identity.Name-ը null է,
+    // Առանց դրանք ClaimsIdentity-ին հայտնելու՝ User.Identity.Name-ը null է,
     // իսկ <AuthorizeView Roles="Admin"> / IsInRole()-ը՝ միշտ false։
     private const string NameClaimType = "name";
     private const string RoleClaimType = "role";
@@ -19,33 +16,32 @@ public class TokenAuthStateProvider : AuthenticationStateProvider
     private static readonly AuthenticationState Anonymous =
         new(new ClaimsPrincipal(new ClaimsIdentity()));
 
-    private readonly IJSRuntime _jsRuntime;
+    private readonly TokenStore _tokens;
 
-    // Cache — AuthHeaderHandler-ը ամեն HTTP request-ի համար էր localStorage կարդում
-    private string? _cachedToken;
-    private bool _tokenLoaded;
-
-    public TokenAuthStateProvider(IJSRuntime jsRuntime)
+    public TokenAuthStateProvider(TokenStore tokens)
     {
-        _jsRuntime = jsRuntime;
+        _tokens = tokens;
+
+        // Token-ը կարող է փոխվել ուրիշ scope-ից (օր. AccountApi-ից) — UI-ն
+        // պիտի իմանա այդ մասին, ուստի բաժանորդագրվում ենք store-ի event-ին։
+        _tokens.Changed += OnTokenChanged;
     }
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
-        var token = await GetTokenAsync();
+        var token = await _tokens.GetAsync();
 
         if (string.IsNullOrWhiteSpace(token))
             return Anonymous;
 
         try
         {
-            var handler = new JwtSecurityTokenHandler();
-            var jwt = handler.ReadJwtToken(token);
+            var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
 
-            // Ստուգում ենք, արդյոք token-ը արդեն expired է
+            // Ժամկետանց token-ը մաքրում ենք, որ UI-ն "մուտք գործած" չձևանա
             if (jwt.ValidTo <= DateTime.UtcNow)
             {
-                await ClearTokenAsync();
+                await _tokens.ClearAsync();
                 return Anonymous;
             }
 
@@ -54,37 +50,20 @@ public class TokenAuthStateProvider : AuthenticationStateProvider
         }
         catch (Exception)
         {
-            // Token-ը corrupted/invalid է
-            await ClearTokenAsync();
+            // Token-ը վնասված է
+            await _tokens.ClearAsync();
             return Anonymous;
         }
     }
 
-    public async Task SetTokenAsync(string token)
-    {
-        await _jsRuntime.InvokeVoidAsync("localStorage.setItem", TokenKey, token);
-        _cachedToken = token;
-        _tokenLoaded = true;
+    public Task SetTokenAsync(string token) => _tokens.SetAsync(token);
+
+    public Task ClearTokenAsync() => _tokens.ClearAsync();
+
+    public ValueTask<string?> GetTokenAsync() => _tokens.GetAsync();
+
+    private void OnTokenChanged() =>
         NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
-    }
 
-    public async Task ClearTokenAsync()
-    {
-        await _jsRuntime.InvokeVoidAsync("localStorage.removeItem", TokenKey);
-        _cachedToken = null;
-        _tokenLoaded = true;
-        // Ուշադրություն. այստեղ GetAuthenticationStateAsync()-ը կանչելը ռեկուրսիա կտար,
-        // քանի որ ClearTokenAsync-ն ինքն էլ կանչվում է դրա միջից
-        NotifyAuthenticationStateChanged(Task.FromResult(Anonymous));
-    }
-
-    public async Task<string?> GetTokenAsync()
-    {
-        if (_tokenLoaded)
-            return _cachedToken;
-
-        _cachedToken = await _jsRuntime.InvokeAsync<string?>("localStorage.getItem", TokenKey);
-        _tokenLoaded = true;
-        return _cachedToken;
-    }
+    public void Dispose() => _tokens.Changed -= OnTokenChanged;
 }

@@ -15,6 +15,10 @@ var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "https://localhost:5001/
 if (!apiBaseUrl.EndsWith('/'))
     apiBaseUrl += "/"; // առանց վերջի "/"-ի BaseAddress-ը կուտեր path-ի վերջին հատվածը
 
+// ՊԱՐՏԱԴԻՐ singleton։ IHttpClientFactory-ն handler-ների շղթան կառուցում է իր
+// սեփական scope-ում, ուստի scoped token-ի պահոցը handler-ում ՈՒՐԻՇ օրինակ կլիներ,
+// քան UI-ում, և գրանցվելուց հետո Authorization header-ը երբեք չէր ուղարկվի։
+builder.Services.AddSingleton<TokenStore>();
 builder.Services.AddScoped<AuthHeaderHandler>();
 
 builder.Services.AddHttpClient("GialoraApi", client =>

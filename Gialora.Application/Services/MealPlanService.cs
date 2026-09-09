@@ -75,7 +75,8 @@ public class MealPlanService : IMealPlanService
             PlanType = dto.PlanType,
             Status = MealPlanStatus.Draft,
             WeekStartDate = startDate,
-            ServingsPerMeal = servings
+            ServingsPerMeal = servings,
+            PlanningNotes = result.Notes
         };
 
         var queue = new Queue<PlanningCandidate>(result.Selection);
@@ -106,9 +107,8 @@ public class MealPlanService : IMealPlanService
             "Meal plan {PlanId} generated for family {FamilyId} ({Meals} meals)",
             plan.Id, familyId, result.Selection.Count);
 
-        var dtoResult = await GetByIdAsync(userId, plan.Id);
-        dtoResult!.PlanningNotes = result.Notes;
-        return dtoResult;
+        // Notes-ը արդեն պահված է plan-ի վրա, ուստի Map()-ը ինքն է դրանք վերադարձնում
+        return (await GetByIdAsync(userId, plan.Id))!;
     }
 
     private static int ResolveDayCount(MealPlanGenerateDto dto, Family family)
@@ -357,6 +357,9 @@ public class MealPlanService : IMealPlanService
 
         for (var i = 0; i < ordered.Count && i < result.Selection.Count; i++)
             ordered[i].RecipeId = result.Selection[i].RecipeId;
+
+        // Regenerate-ից հետո բացատրությունը պիտի նկարագրի ՆՈՐ պլանը, ոչ թե հինը
+        plan.PlanningNotes = result.Notes;
     }
 
     private async Task<PlanningCandidate?> PickReplacementAsync(MealPlan plan, MealPlanEntry entry)
@@ -610,6 +613,7 @@ public class MealPlanService : IMealPlanService
         PlanType = plan.PlanType,
         Status = plan.Status,
         WeekStartDate = plan.WeekStartDate,
+        PlanningNotes = plan.PlanningNotes,
         ServingsPerMeal = plan.ServingsPerMeal,
         ShoppingListId = plan.ShoppingList?.Id,
         Days = plan.Days
