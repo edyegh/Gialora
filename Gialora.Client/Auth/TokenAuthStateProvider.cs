@@ -1,5 +1,4 @@
 // Gialora.Client/Auth/TokenAuthStateProvider.cs
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components.Authorization;
 
@@ -34,26 +33,17 @@ public class TokenAuthStateProvider : AuthenticationStateProvider, IDisposable
         if (string.IsNullOrWhiteSpace(token))
             return Anonymous;
 
-        try
-        {
-            var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
+        var jwt = JwtReader.Read(token);
 
-            // Ժամկետանց token-ը մաքրում ենք, որ UI-ն "մուտք գործած" չձևանա
-            if (jwt.ValidTo <= DateTime.UtcNow)
-            {
-                await _tokens.ClearAsync();
-                return Anonymous;
-            }
-
-            var identity = new ClaimsIdentity(jwt.Claims, "jwt", NameClaimType, RoleClaimType);
-            return new AuthenticationState(new ClaimsPrincipal(identity));
-        }
-        catch (Exception)
+        // Վնասված կամ ժամկետանց token — մաքրում ենք, որ UI-ն "մուտք գործած" չձևանա
+        if (jwt is null || jwt.ExpiresUtc <= DateTime.UtcNow)
         {
-            // Token-ը վնասված է
             await _tokens.ClearAsync();
             return Anonymous;
         }
+
+        var identity = new ClaimsIdentity(jwt.Claims, "jwt", NameClaimType, RoleClaimType);
+        return new AuthenticationState(new ClaimsPrincipal(identity));
     }
 
     public Task SetTokenAsync(string token) => _tokens.SetAsync(token);

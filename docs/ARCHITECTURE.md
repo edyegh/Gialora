@@ -280,9 +280,12 @@ Surviving candidates are scored and the best is taken for each slot in turn. The
 | Kid-friendly, if the household has children | +1.5 | |
 | Matches the preferred cuisine | +1.0 | |
 | Under 30 minutes, in the first two slots | +0.8 | Weeknights are the tightest. |
+| Each family goal the recipe satisfies | +2.0 | "More iron", "Picky eater" and the rest — see below. |
 | Random jitter | 0 … +1.2 | |
 
 The vegetable target is 60% of slots (rounded up); the legume target is one meal per five slots. A recipe counts as vegetable-rich when it contains at least two ingredients in the *Vegetables* or *Fruit* categories, and as legume-based when its primary protein is `Legume` or it carries a `legumes`, `beans` or `lentils` tag.
+
+**Family goals.** Each member can carry goals such as "more iron" or "picky eater". Free text is matched against a catalogue in `Gialora.Shared/Goals/NutritionGoals.cs` — the single source shared by the engine and the family page, so the interface can never offer a goal the planner ignores. Recognised goals map to recipe fields: *More iron* to `IsIronRich`, *More protein* to `IsHighProtein`, *Picky eater* to `IsKidFriendly`, *More vegetables* to two or more vegetable ingredients, *Quicker meals* to 30 minutes or less, *Lower cost* to a cost per serving at or under 2.5. Goals are scored, never filtered: a goal raises matching recipes up the ranking but never excludes anything, because a goal is an aspiration rather than a restriction. Text that matches nothing is still saved, and the family page says plainly that it will not affect planning. The plan notes report the outcome — *Goal "More iron": 3 of 4 meals match.*
 
 **Why the random jitter exists.** Without it, "regenerate the week" is a pure function of the same inputs and returns exactly the same plan every time — the button would appear broken. The jitter is small enough that it never overrides a real signal, and the seed is stored per request so a single generation is internally consistent.
 
@@ -768,7 +771,7 @@ dotnet ef database update      -p Gialora.Data -s Gialora.Api
 
 **Images are URLs, not uploads.** There is no file storage; `ImageUrl` points at an externally hosted image.
 
-**Test coverage is partial.** `Gialora.Tests` covers the planning engine, the unit arithmetic behind the shopping list, and the client's authentication token flow — 39 tests in total. The services and controllers have no integration tests yet; those are the next thing worth adding.
+**Test coverage is partial.** `Gialora.Tests` covers the planning engine, family goals, the unit arithmetic behind the shopping list, and the client's authentication token flow — 47 tests in total. The services and controllers have no integration tests yet; those are the next thing worth adding.
 
 **Nutrition is characteristic flags, not data.** `IsHighProtein` and `IsIronRich` are booleans set by an administrator, not computed from nutritional values.
 

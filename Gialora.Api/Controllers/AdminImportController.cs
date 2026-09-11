@@ -11,7 +11,7 @@ namespace Gialora.Api.Controllers;
 /// <summary>
 /// Bulk recipe upload (app structure §12)։ "Can we create a structured recipe-import
 /// template so I can upload recipes in bulk?" — այո, ահա այն։
-/// </summary>
+/// </summary>  
 [ApiController]
 [Route("api/admin/import")]
 [Authorize(Roles = "Admin")]

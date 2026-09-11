@@ -8,6 +8,7 @@ using Gialora.Data;
 using Gialora.Data.Entities;
 using Gialora.Shared.Dtos;
 using Gialora.Shared.Enums;
+using Gialora.Shared.Goals;
 
 namespace Gialora.Application.Services;
 
@@ -423,7 +424,14 @@ public class MealPlanService : IMealPlanService
             DislikedIngredients = family.DislikedIngredients.ToHashSet(StringComparer.OrdinalIgnoreCase),
             Allergies = allergies,
             YoungestAgeMonths = youngest == int.MaxValue ? null : youngest,
-            HasChildren = children.Count > 0
+            HasChildren = children.Count > 0,
+
+            // Բոլոր անդամների նպատակները միավորվում են և վերածվում ճանաչված
+            // բանալիների. "more iron"-ը այստեղից է հասնում scoring-ին։
+            Goals = NutritionGoals
+                .Resolve(members.SelectMany(m => m.Goals))
+                .Select(g => g.Key)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase)
         };
     }
 
@@ -573,6 +581,11 @@ public class MealPlanService : IMealPlanService
     private IQueryable<MealPlan> BaseQuery() =>
         _db.MealPlans
             .AsNoTracking()
+            // Երեք ներդրված collection (Days → Entries → RecipeTags) մեկ SQL-ում
+            // տալիս են դեկարտյան արտադրյալ. 5 օր × 1 ճաշ × 6 tag = 30 տող մեկ պլանի
+            // փոխարեն, և EF-ը դրանք հետո deduplicate է անում հիշողության մեջ։
+            // Split query-ն ամեն collection-ը բերում է առանձին — շատ ավելի քիչ տվյալ։
+            .AsSplitQuery()
             .Include(p => p.ShoppingList)
             .Include(p => p.Days.OrderBy(d => d.Date))
                 .ThenInclude(d => d.Entries.OrderBy(e => e.SortOrder))

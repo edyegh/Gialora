@@ -152,6 +152,43 @@ await using (var scope = app.Services.CreateAsyncScope())
     }
 }
 
+// EF-ը model-ը և ամեն առանձին LINQ query-ն կոմպիլացնում է ԱՌԱՋԻՆ կատարման պահին։
+// Առանց warm-up-ի այդ գինը վճարում է առաջին այցելուն. չափված՝ 925 ms
+// /api/mealplans/current-ի վրա, հետագա կանչերը՝ 46 ms։ Այստեղ մեկ անգամ
+// "անվճար" կատարում ենք ամենածանր query-ները՝ background-ում, որ startup-ը չկանգնի։
+_ = Task.Run(async () =>
+{
+    try
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<GialoraDbContext>();
+        var warmupDate = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        await db.Recipes.AsNoTracking()
+            .Where(r => r.IsPublished)
+            .Select(r => new { r.Id, Tags = r.RecipeTags.Select(t => t.Tag.Name).ToList() })
+            .Take(1).ToListAsync();
+
+        await db.MealPlans.AsNoTracking()
+            .Include(p => p.Days).ThenInclude(d => d.Entries).ThenInclude(e => e.Recipe)
+            .Where(p => p.Days.Any(d => d.Date >= warmupDate))
+            .Take(1).ToListAsync();
+
+        await db.ShoppingLists.AsNoTracking()
+            .Include(l => l.Items).ThenInclude(i => i.Ingredient)
+            .Take(1).ToListAsync();
+
+        await db.BlogPosts.AsNoTracking().Where(p => p.IsPublished).Take(1).ToListAsync();
+    }
+    catch (Exception ex)
+    {
+        // Warm-up-ը օպտիմիզացիա է, ոչ թե պահանջ — ձախողումը չպիտի տապալի հավելվածը
+        app.Services.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("Startup")
+            .LogWarning(ex, "Query warm-up failed; the first request will be slower.");
+    }
+});
+
 // ---------------------------------------------------------------------------
 // Pipeline
 // ---------------------------------------------------------------------------

@@ -6,6 +6,7 @@
 @attribute [Authorize]
 @using Gialora.Client.Services
 @using Gialora.Shared.Enums
+@using Gialora.Shared.Goals
 @inject PlannerApi Planner
 
 <PageTitle>My family — Gialora</PageTitle>
@@ -116,8 +117,30 @@
                                 disabled="@(busy || string.IsNullOrWhiteSpace(newMember.Name))">Add</button>
                     </div>
 
+                    @* Նպատակները ազատ տեքստ էին, և user-ը չէր իմանում, թե որոնք են
+                       իրականում գործում։ Այժմ ճանաչվողները մեկ սեղմումով ավելացվում են։ *@
+                    <div class="cluster">
+                        <span class="small-muted">Goals that change your plan:</span>
+                        @foreach (var goal in SupportedGoals)
+                        {
+                            <button type="button" class="chip-check" @onclick="() => AddGoal(goal.Label)">
+                                + @goal.Label
+                            </button>
+                        }
+                    </div>
+
+                    @if (unrecognisedGoals.Count > 0)
+                    {
+                        <div class="alert alert-warning mb-0">
+                            Saved, but not used for planning yet:
+                            <strong>@string.Join(", ", unrecognisedGoals)</strong>.
+                            Only the goals listed above affect which meals are chosen.
+                        </div>
+                    }
+
                     <p class="form-text">
                         Allergies become hard rules — a recipe containing that ingredient is never suggested.
+                        Goals are softer: they push matching recipes up the list rather than excluding anything.
                     </p>
                 </div>
             </div>
@@ -223,6 +246,12 @@
     private FamilyMemberCreateDto newMember = new();
     private string newMemberAllergies = string.Empty;
     private string newMemberGoals = string.Empty;
+
+    // Ցանկը գալիս է Shared-ից, ոչ թե այստեղ պատճենված — էջը չի կարող խոստանալ
+    // նպատակ, որ պլանավորիչը չի ճանաչում։
+    private static IReadOnlyList<NutritionGoals.NutritionGoal> SupportedGoals => NutritionGoals.All;
+
+    private List<string> unrecognisedGoals = new();
     private string dislikedIngredients = string.Empty;
 
     private bool loading = true;
@@ -257,6 +286,7 @@
             family = await Planner.GetFamilyAsync();
             preferences = family.Preferences;
             dislikedIngredients = string.Join(", ", preferences.DislikedIngredients);
+            RefreshUnrecognisedGoals();
         }
         catch (ApiException ex)
         {
@@ -281,6 +311,26 @@
         }
     }
 
+    /// <summary>Ճանաչված նպատակը մեկ սեղմումով ավելացնում ենք տեքստի դաշտին։</summary>
+    private void AddGoal(string label)
+    {
+        var current = SplitList(newMemberGoals);
+
+        if (!current.Contains(label, StringComparer.OrdinalIgnoreCase))
+            current.Add(label);
+
+        newMemberGoals = string.Join(", ", current);
+        RefreshUnrecognisedGoals();
+    }
+
+    private void RefreshUnrecognisedGoals()
+    {
+        var typed = SplitList(newMemberGoals);
+        var saved = family?.Members.SelectMany(m => m.Goals) ?? Enumerable.Empty<string>();
+
+        unrecognisedGoals = NutritionGoals.Unrecognised(typed.Concat(saved));
+    }
+
     private Task AddMember() => Run(async () =>
     {
         newMember.Allergies = SplitList(newMemberAllergies);
@@ -293,6 +343,7 @@
         newMemberGoals = string.Empty;
 
         family = await Planner.GetFamilyAsync();
+        RefreshUnrecognisedGoals();
         status = "Family member added.";
     });
 

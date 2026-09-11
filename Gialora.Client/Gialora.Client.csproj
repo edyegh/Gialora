@@ -4,6 +4,11 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Հավելվածը միալեզու է (անգլերեն), իսկ ամսաթվերը ձևաչափվում են
+         InvariantCulture-ով։ ICU-ի ամբողջ տվյալների հավաքածուն (≈1.1 ՄԲ)
+         browser-ը ոչ մի բանի համար չի օգտագործում, ուստի չենք ուղարկում։ -->
+    <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
   <ItemGroup>
@@ -11,10 +16,11 @@
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="9.0.3" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="9.0.3" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.11" />
-    <!-- TokenAuthStateProvider-ը JWT-ն կարդալու համար։ Նախկինում սա գալիս էր պատահաբար՝
-         EntityFrameworkCore.SqlServer-ի հետ, որը WebAssembly client-ում տեղ չուներ
-         (browser-ից SQL Server չենք բացում, բայց payload-ի մեջ մտնում էր): -->
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.19.2" />
+
+    <!-- System.IdentityModel.Tokens.Jwt-ը ԴԻՏԱՎՈՐՅԱԼ բացակայում է։ Այն browser
+         ուղարկում էր ≈5 ՄԲ ավելորդ assembly (System.Private.Xml, System.Data.Common,
+         ամբողջ System.Xml ընտանիքը) SAML/XML token-ների համար, որոնք այստեղ պետք չեն։
+         Token-ի payload-ը կարդում է Auth/JwtReader.cs-ը; ստորագրությունը ստուգում է API-ն։ -->
   </ItemGroup>
 
   <ItemGroup>

@@ -13,7 +13,7 @@ namespace Gialora.Data.Migrations
 {
     [DbContext(typeof(GialoraDbContext))]
     [Migration("20260825174701_initialcreate")]
-    partial class initialcreate
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

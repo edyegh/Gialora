@@ -1,5 +1,6 @@
 // Gialora.Application/Planning/MealPlanningEngine.cs
 using Gialora.Shared.Enums;
+using Gialora.Shared.Goals;
 
 namespace Gialora.Application.Planning;
 
@@ -43,6 +44,7 @@ public class MealPlanningEngine : IMealPlanningEngine
     private const double LegumeQuotaBonus = 3.0;
     private const double CuisineMatchBonus = 1.0;
     private const double QuickMealBonus = 0.8;
+    private const double GoalMatchBonus = 2.0;
     private const double RandomJitter = 1.2;
 
     // -----------------------------------------------------------------------
@@ -277,6 +279,16 @@ public class MealPlanningEngine : IMealPlanningEngine
         if (slot < 2 && candidate.TotalMinutes <= 30)
             score += QuickMealBonus;
 
+        // Ընտանիքի նպատակները՝ "more iron", "picky eater" (app structure §1)։
+        // Ամեն բավարարված նպատակ ավելացնում է միավոր. մի քանի նպատակ գումարվում է,
+        // ուստի "more iron" + "picky eater" ունեցող ընտանիքին երկուսին էլ
+        // համապատասխանող ուտեստը զգալիորեն առաջ է գալիս։
+        foreach (var goal in request.Constraints.Goals)
+        {
+            if (GoalMatchers.Matches(goal, candidate))
+                score += GoalMatchBonus;
+        }
+
         // Առանց jitter-ի "regenerate the week"-ը միշտ նույն արդյունքը կտար
         score += random.NextDouble() * RandomJitter;
 
@@ -325,6 +337,20 @@ public class MealPlanningEngine : IMealPlanningEngine
         var freezerCount = selected.Count(s => s.IsFreezerFriendly);
         if (freezerCount > 0)
             result.Notes.Add($"{freezerCount} recipe(s) can be frozen for later.");
+
+        // Նպատակների ազդեցությունը պիտի տեսանելի լինի — այլապես user-ը չի իմանա,
+        // արդյոք "more iron"-ը որևէ բան փոխեց, թե ոչ։
+        foreach (var goalKey in request.Constraints.Goals)
+        {
+            var goal = NutritionGoals.All.FirstOrDefault(g => g.Key == goalKey);
+            if (goal is null)
+                continue;
+
+            var matched = selected.Count(c => GoalMatchers.Matches(goal.Key, c));
+            result.Notes.Add(matched > 0
+                ? $"Goal \"{goal.Label}\": {matched} of {selected.Count} meals match."
+                : $"Goal \"{goal.Label}\": no matching recipes were available this time.");
+        }
     }
 
     // -----------------------------------------------------------------------

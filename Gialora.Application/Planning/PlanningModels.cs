@@ -66,6 +66,14 @@ public class PlanningConstraints
     public int? YoungestAgeMonths { get; init; }
 
     public bool HasChildren { get; init; }
+
+    /// <summary>
+    /// Ընտանիքի անդամների նպատակները՝ "more iron", "picky eater" (app structure §1)։
+    /// Սրանք ՓԱՓՈՒԿ ազդանշաններ են, ոչ թե կոշտ զտիչներ. նպատակը ցանկություն է,
+    /// ոչ թե սահմանափակում, ուստի այն բարձրացնում է միավորը, բայց ոչ մի ուտեստ
+    /// ամբողջությամբ չի բացառում։
+    /// </summary>
+    public HashSet<string> Goals { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public class PlanningRequest
