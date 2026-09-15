@@ -18,6 +18,13 @@ public class FamilyMember : BaseEntity
     /// <summary>Երեխաների համար ամիսներով տարիքը ավելի ճշգրիտ է (0–3 տ.)։</summary>
     public int? AgeMonths { get; set; }
 
+    /// <summary>
+    /// Ակտիվ անդամը հաշվի է առնվում պլանավորման ժամանակ։ Ոչ ակտիվը (օր. ճամփորդում է
+    /// այս շաբաթ) մնում է ընտանիքում, բայց նրա ալերգիաները, նպատակները, տարիքը և
+    /// չափաբաժինը ԱՆՏԵՍՎՈՒՄ են ռեցեպտների ընտրության և գնումների ցանկի համար։
+    /// </summary>
+    public bool IsActive { get; set; } = true;
+
     // CSV-ով պահվող ցուցակներ (օր. ["vegetarian", "gluten-free"])
     public List<string> DietaryRestrictions { get; set; } = new();
     public List<string> Allergies { get; set; } = new();

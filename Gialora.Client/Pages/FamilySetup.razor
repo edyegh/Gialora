@@ -45,10 +45,17 @@
                 }
                 else
                 {
+                    <p class="small-muted mb-2">
+                        <strong>@family.ActiveMemberCount</strong> of <strong>@family.Members.Count</strong> eating with you.
+                        Switch someone off when they're away — their allergies, goals and portion are left out of the
+                        next plan and shopping list until you switch them back on.
+                    </p>
+
                     <div class="table-wrap mb-3">
                         <table class="table-g">
                             <thead>
                                 <tr>
+                                    <th>Eating</th>
                                     <th>Name</th>
                                     <th>Type</th>
                                     <th>Age</th>
@@ -59,7 +66,16 @@
                             <tbody>
                                 @foreach (var member in family.Members)
                                 {
-                                    <tr>
+                                    <tr class="@(member.IsActive ? null : "member-inactive")">
+                                        <td>
+                                            @* Դիտավորյալ ոչ թե "Remove"-ի կողքին — սա հակադարձելի է, ջնջելը՝ ոչ։ *@
+                                            <label class="chip-check @(member.IsActive ? "is-on" : null)"
+                                                   title="@(member.IsActive ? "Counted in your plans" : "Not counted until switched back on")">
+                                                <input type="checkbox" checked="@member.IsActive" disabled="@busy"
+                                                       @onchange="e => SetMemberActive(member.Id, (bool)(e.Value ?? false))" />
+                                                @(member.IsActive ? "Active" : "Inactive")
+                                            </label>
+                                        </td>
                                         <td><strong>@member.Name</strong></td>
                                         <td>@member.MemberType</td>
                                         <td>@(member.Age is null ? "—" : $"{member.Age}")</td>
@@ -175,6 +191,10 @@
                         <label class="form-label" for="servings">Servings per meal</label>
                         <input id="servings" class="form-control" type="number" min="1" max="20"
                                style="max-width:7rem;" @bind="preferences.ServingsPerMeal" />
+                        <p class="form-text mb-0">
+                            Used only when no family members are added — otherwise plans default to
+                            one serving per active member.
+                        </p>
                     </div>
 
                     <div>
@@ -352,6 +372,17 @@
         await Planner.RemoveMemberAsync(memberId);
         family = await Planner.GetFamilyAsync();
         status = "Family member removed.";
+    });
+
+    private Task SetMemberActive(Guid memberId, bool isActive) => Run(async () =>
+    {
+        var member = await Planner.SetMemberActiveAsync(memberId, isActive);
+        family = await Planner.GetFamilyAsync();
+        RefreshUnrecognisedGoals();
+
+        status = isActive
+            ? $"{member.Name} is eating with you again — the next plan counts them in."
+            : $"{member.Name} is marked inactive — the next plan and shopping list leave them out.";
     });
 
     private Task SavePreferences() => Run(async () =>

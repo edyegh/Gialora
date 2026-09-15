@@ -15,6 +15,12 @@ public interface IFamilyService
     Task<FamilyMemberDto?> UpdateMemberAsync(Guid userId, Guid memberId, FamilyMemberUpdateDto dto);
     Task<bool> RemoveMemberAsync(Guid userId, Guid memberId);
 
+    /// <summary>
+    /// Ակտիվ / ոչ ակտիվ։ Ոչ ակտիվ անդամը չի ջնջվում, բայց պլանավորիչը և գնումների
+    /// ցանկը նրան հաշվի չեն առնում, մինչև նորից ակտիվացվի։
+    /// </summary>
+    Task<FamilyMemberDto?> SetMemberActiveAsync(Guid userId, Guid memberId, bool isActive);
+
     /// <summary>Meal-planning-ի և shopping list-ի համար — user → familyId։</summary>
     Task<Guid> GetFamilyIdAsync(Guid userId);
 }

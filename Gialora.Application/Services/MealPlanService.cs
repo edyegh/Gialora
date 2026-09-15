@@ -8,7 +8,6 @@ using Gialora.Data;
 using Gialora.Data.Entities;
 using Gialora.Shared.Dtos;
 using Gialora.Shared.Enums;
-using Gialora.Shared.Goals;
 
 namespace Gialora.Application.Services;
 
@@ -50,11 +49,11 @@ public class MealPlanService : IMealPlanService
             mealTypes.Add(MealType.Dinner);
 
         var daysCount = ResolveDayCount(dto, family);
-        var servings = dto.ServingsPerMeal ?? family.ServingsPerMeal;
+        var servings = dto.ServingsPerMeal ?? FamilyPlanningInput.DefaultServings(family);
         var startDate = dto.WeekStartDate ?? DefaultStartDate(dto.PlanType);
 
         var candidates = await LoadCandidatesAsync(mealTypes, familyId);
-        var constraints = BuildConstraints(family);
+        var constraints = FamilyPlanningInput.BuildConstraints(family);
 
         var result = _engine.Plan(candidates, new PlanningRequest
         {
@@ -337,7 +336,7 @@ public class MealPlanService : IMealPlanService
 
         var result = _engine.Plan(candidates, new PlanningRequest
         {
-            Constraints = BuildConstraints(family),
+            Constraints = FamilyPlanningInput.BuildConstraints(family),
             SlotCount = openEntries.Count,
             PlanType = plan.PlanType,
             OptimizeIngredientReuse = true,
@@ -377,62 +376,10 @@ public class MealPlanService : IMealPlanService
 
         return _engine.PickReplacement(
             candidates,
-            BuildConstraints(family),
+            FamilyPlanningInput.BuildConstraints(family),
             currentPlan,
             entry.RecipeId,
             Random.Shared.Next());
-    }
-
-    /// <summary>Ընտանիքի preference-ները + անդամների ալերգիաները → engine-ի սահմանափակումներ։</summary>
-    private static PlanningConstraints BuildConstraints(Family family)
-    {
-        var members = family.FamilyMembers.Where(m => !m.IsDeleted).ToList();
-
-        // Ալերգիաները ՄԻԱՎՈՐՎՈՒՄ են — մեկի ալերգիան ամբողջ ընտանիքի սահմանափակումն է
-        var allergies = members
-            .SelectMany(m => m.Allergies)
-            .Concat(members.SelectMany(m => m.DietaryRestrictions))
-            .Select(a => a.Trim().ToLowerInvariant())
-            .Where(a => a.Length > 0)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var children = members.Where(m => m.MemberType == FamilyMemberType.Child).ToList();
-
-        var youngest = children
-            .Select(m => m.EffectiveAgeMonths)
-            .Where(a => a.HasValue)
-            .Select(a => a!.Value)
-            .DefaultIfEmpty(int.MaxValue)
-            .Min();
-
-        // Անդամի "vegetarian" restriction-ը ամբողջ ընտանիքի դիետան չի դարձնում,
-        // բայց ընտանիքի բացահայտ preference-ը՝ այո։
-        var dietPreference = family.DietPreference;
-
-        return new PlanningConstraints
-        {
-            MaxCookingTimeMinutes = family.MaxCookingTimeMinutes,
-            DietPreference = dietPreference,
-            PreferredCuisine = family.PreferredCuisine,
-            Budget = family.Budget,
-            PreferFreezerFriendly = family.PreferFreezerFriendly,
-            ExcludedProteins = family.ExcludedProteins
-                .Select(p => Enum.TryParse<ProteinType>(p, true, out var parsed) ? parsed : (ProteinType?)null)
-                .Where(p => p.HasValue)
-                .Select(p => p!.Value)
-                .ToHashSet(),
-            DislikedIngredients = family.DislikedIngredients.ToHashSet(StringComparer.OrdinalIgnoreCase),
-            Allergies = allergies,
-            YoungestAgeMonths = youngest == int.MaxValue ? null : youngest,
-            HasChildren = children.Count > 0,
-
-            // Բոլոր անդամների նպատակները միավորվում են և վերածվում ճանաչված
-            // բանալիների. "more iron"-ը այստեղից է հասնում scoring-ին։
-            Goals = NutritionGoals
-                .Resolve(members.SelectMany(m => m.Goals))
-                .Select(g => g.Key)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase)
-        };
     }
 
     /// <summary>
