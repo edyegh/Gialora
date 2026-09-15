@@ -71,6 +71,21 @@ public class FamilyController : ControllerBase
         return updated is null ? NotFound() : Ok(updated);
     }
 
+    /// <summary>
+    /// Ակտիվ / ոչ ակտիվ։ Ոչ ակտիվ անդամի ալերգիաները, նպատակները և չափաբաժինը
+    /// հաջորդ պլանում ու գնումների ցանկում հաշվի չեն առնվում։
+    /// </summary>
+    [HttpPut("members/{memberId:guid}/active")]
+    public async Task<ActionResult<FamilyMemberDto>> SetMemberActive(
+        Guid memberId, [FromBody] FamilyMemberStatusDto dto)
+    {
+        if (User.GetUserId() is not { } userId)
+            return Unauthorized();
+
+        var updated = await _familyService.SetMemberActiveAsync(userId, memberId, dto.IsActive);
+        return updated is null ? NotFound() : Ok(updated);
+    }
+
     [HttpDelete("members/{memberId:guid}")]
     public async Task<IActionResult> RemoveMember(Guid memberId)
     {

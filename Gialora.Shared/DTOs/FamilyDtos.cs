@@ -11,6 +11,10 @@ public class FamilyMemberDto
     public FamilyMemberType MemberType { get; set; }
     public int? Age { get; set; }
     public int? AgeMonths { get; set; }
+
+    /// <summary>false = անդամը ժամանակավորապես չի ուտում ընտանիքի հետ. պլանավորիչը նրան անտեսում է։</summary>
+    public bool IsActive { get; set; } = true;
+
     public List<string> DietaryRestrictions { get; set; } = new();
     public List<string> Allergies { get; set; } = new();
     public List<string> Goals { get; set; } = new();
@@ -22,6 +26,15 @@ public class FamilyDto
     public string Name { get; set; } = string.Empty;
     public List<FamilyMemberDto> Members { get; set; } = new();
     public FamilyPreferencesDto Preferences { get; set; } = new();
+
+    /// <summary>Քանի՞ անդամ է իրականում ուտում — սա է լռելյայն չափաբաժինների թիվը։</summary>
+    public int ActiveMemberCount { get; set; }
+}
+
+/// <summary>Անդամի ակտիվ / ոչ ակտիվ կարգավիճակի փոփոխություն։</summary>
+public class FamilyMemberStatusDto
+{
+    public bool IsActive { get; set; } = true;
 }
 
 /// <summary>
@@ -71,6 +84,8 @@ public class FamilyMemberCreateDto
 
     [Range(0, 1440)]
     public int? AgeMonths { get; set; }
+
+    public bool IsActive { get; set; } = true;
 
     public List<string> DietaryRestrictions { get; set; } = new();
     public List<string> Allergies { get; set; } = new();

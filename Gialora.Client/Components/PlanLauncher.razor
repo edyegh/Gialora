@@ -79,8 +79,14 @@
                     {
                         <ul class="list-unstyled small-muted mb-3" style="line-height:1.9;">
                             <li>⏱ Up to <strong>@family.Preferences.MaxCookingTimeMinutes min</strong> per meal</li>
-                            <li>🍽 <strong>@family.Preferences.ServingsPerMeal</strong> servings</li>
-                            <li>👨‍👩‍👧 <strong>@family.Members.Count</strong> family member(s)</li>
+                            <li>🍽 <strong>@servings</strong> servings</li>
+                            <li>
+                                👨‍👩‍👧 <strong>@family.ActiveMemberCount</strong> of @family.Members.Count family member(s) eating
+                                @if (inactiveMembers.Count > 0)
+                                {
+                                    <span class="small-muted"> — not counting @string.Join(", ", inactiveMembers)</span>
+                                }
+                            </li>
 
                             @if (family.Preferences.DietPreference is { } diet)
                             {
@@ -124,6 +130,7 @@
 
     private FamilyDto? family;
     private List<string> allergies = new();
+    private List<string> inactiveMembers = new();
 
     private int daysCount;
     private int servings = 4;
@@ -142,16 +149,27 @@
         {
             family = await Planner.GetFamilyAsync();
 
-            // Լռելյայնները վերցնում ենք ընտանիքի preference-ներից, ոչ թե կոդից —
-            // user-ը արդեն մեկ անգամ ասել է, թե ինչ է ուզում։
-            servings = family.Preferences.ServingsPerMeal;
+            // Լռելյայնները վերցնում ենք ընտանիքից, ոչ թե կոդից — user-ը արդեն մեկ
+            // անգամ ասել է, թե ինչ է ուզում։ Չափաբաժինը = ակտիվ անդամների թիվը
+            // (նույն կանոնը, ինչ սերվերում), որ ոչ ակտիվ անդամը ցանկը փոքրացնի։
+            servings = family.ActiveMemberCount > 0
+                ? family.ActiveMemberCount
+                : family.Preferences.ServingsPerMeal;
 
             if (PlanType == MealPlanType.Weekly)
                 daysCount = family.Preferences.CookingDaysPerWeek;
 
-            allergies = family.Members
+            // Միայն ակտիվների ալերգիաները — ոչ ակտիվինը պլանը չի սահմանափակում
+            var eating = family.Members.Where(m => m.IsActive).ToList();
+
+            allergies = eating
                 .SelectMany(m => m.Allergies)
                 .Distinct()
+                .ToList();
+
+            inactiveMembers = family.Members
+                .Where(m => !m.IsActive)
+                .Select(m => m.Name)
                 .ToList();
         }
         catch (ApiException ex)

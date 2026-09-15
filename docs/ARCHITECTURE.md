@@ -124,7 +124,7 @@ Every persisted entity except the pure join tables derives from `BaseEntity`.
 | PreferredCuisine | Scoring preference, not a hard filter. |
 | MaxCookingTimeMinutes | Hard filter: prep + cook must not exceed this. |
 | CookingDaysPerWeek | Default number of days a generated week covers. |
-| ServingsPerMeal | Drives quantity scaling throughout. |
+| ServingsPerMeal | Fallback servings per meal, used only when the family has no active members. Otherwise a plan defaults to one serving per active member (`FamilyPlanningInput.DefaultServings`). |
 | Budget | `Any`, `Low`, `Medium`, `High`. |
 | DietPreference | Optional household-wide diet. |
 | ExcludedProteins | Stored as a pipe-delimited list of enum **names**. This is where "no fish" lives. |
@@ -133,7 +133,7 @@ Every persisted entity except the pure join tables derives from `BaseEntity`.
 
 Excluded proteins are persisted by name rather than by numeric value so the database stays readable and so reordering the `ProteinType` enum cannot silently corrupt existing rows.
 
-**FamilyMember** — Name, MemberType (`Adult` / `Child`), Age, AgeMonths, DietaryRestrictions, Allergies, Goals. `EffectiveAgeMonths` is a computed property (`AgeMonths ?? Age * 12`) mapped as `Ignore` — it exists for the engine, not for the database.
+**FamilyMember** — Name, MemberType (`Adult` / `Child`), Age, AgeMonths, IsActive, DietaryRestrictions, Allergies, Goals. `EffectiveAgeMonths` is a computed property (`AgeMonths ?? Age * 12`) mapped as `Ignore` — it exists for the engine, not for the database. `IsActive` (default `true`) switches a member off without deleting them: while inactive, their allergies, restrictions, goals, age and portion are excluded from planning (`FamilyPlanningInput`), so the next generated plan and its shopping list reflect only the people actually eating.
 
 ### 3.3 Recipes as data, not articles
 
@@ -484,6 +484,7 @@ Both anonymous routes sit behind a fixed-window rate limiter of 10 requests per 
 | PUT | `/family/me/preferences` | User |
 | POST | `/family/members` | User |
 | PUT | `/family/members/{memberId}` | User |
+| PUT | `/family/members/{memberId}/active` | User |
 | DELETE | `/family/members/{memberId}` | User |
 
 ### Recipes

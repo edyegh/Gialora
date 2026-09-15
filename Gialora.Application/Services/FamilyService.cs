@@ -117,6 +117,26 @@ public class FamilyService : IFamilyService
         return true;
     }
 
+    public async Task<FamilyMemberDto?> SetMemberActiveAsync(Guid userId, Guid memberId, bool isActive)
+    {
+        var familyId = await GetFamilyIdAsync(userId);
+
+        var member = await _db.FamilyMembers
+            .FirstOrDefaultAsync(m => m.Id == memberId && m.FamilyId == familyId);
+
+        if (member is null)
+            return null;
+
+        member.IsActive = isActive;
+        await _db.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Family member {MemberId} marked {Status} in family {FamilyId}",
+            member.Id, isActive ? "active" : "inactive", familyId);
+
+        return MapMember(member);
+    }
+
     public async Task<Guid> GetFamilyIdAsync(Guid userId)
     {
         var familyId = await _db.Users
@@ -153,6 +173,7 @@ public class FamilyService : IFamilyService
         member.MemberType = dto.MemberType;
         member.Age = dto.Age;
         member.AgeMonths = dto.AgeMonths;
+        member.IsActive = dto.IsActive;
         member.DietaryRestrictions = NormalizeList(dto.DietaryRestrictions);
         member.Allergies = NormalizeList(dto.Allergies);
         member.Goals = dto.Goals.Select(g => g.Trim()).Where(g => g.Length > 0).Distinct().ToList();
@@ -174,7 +195,8 @@ public class FamilyService : IFamilyService
             .ThenBy(m => m.Name)
             .Select(MapMember)
             .ToList(),
-        Preferences = MapPreferences(family)
+        Preferences = MapPreferences(family),
+        ActiveMemberCount = family.FamilyMembers.Count(m => !m.IsDeleted && m.IsActive)
     };
 
     private static FamilyPreferencesDto MapPreferences(Family family) => new()
@@ -201,6 +223,7 @@ public class FamilyService : IFamilyService
         MemberType = m.MemberType,
         Age = m.Age,
         AgeMonths = m.AgeMonths,
+        IsActive = m.IsActive,
         DietaryRestrictions = m.DietaryRestrictions,
         Allergies = m.Allergies,
         Goals = m.Goals

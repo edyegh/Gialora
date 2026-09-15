@@ -28,6 +28,11 @@ public class PlannerApi : ApiClientBase
 
     public Task RemoveMemberAsync(Guid memberId) => DeleteAsync($"api/family/members/{memberId}");
 
+    /// <summary>Ակտիվ / ոչ ակտիվ — ոչ ակտիվ անդամը հաջորդ պլանում և գնումների ցանկում չի հաշվվում։</summary>
+    public Task<FamilyMemberDto> SetMemberActiveAsync(Guid memberId, bool isActive) =>
+        PutAsync<FamilyMemberDto>($"api/family/members/{memberId}/active",
+            new FamilyMemberStatusDto { IsActive = isActive });
+
     // --- Meal plans ---
 
     public Task<List<MealPlanDto>> GetPlansAsync() => GetAsync<List<MealPlanDto>>("api/mealplans");

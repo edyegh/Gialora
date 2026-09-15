@@ -385,6 +385,10 @@ a:hover { color: var(--terracotta-dark); }
 .chip-check input { margin: 0; }
 .chip-check.is-on { background: rgba(92, 111, 71, .12); border-color: var(--olive-light); color: var(--olive-dark); font-weight: 600; }
 
+/* Ոչ ակտիվ ընտանիքի անդամ — մնում է ցուցակում, բայց տեսանելիորեն "դուրս է խաղից" */
+.member-inactive td:not(:first-child) { opacity: .5; }
+.member-inactive td strong { text-decoration: line-through; text-decoration-color: var(--ink-faint); }
+
 /* --------------------------------------------------------------- alerts */
 
 .alert { border-radius: var(--radius-sm); border-width: 1px; font-size: .92rem; }
