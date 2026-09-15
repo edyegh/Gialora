@@ -1,0 +1,242 @@
+@* Gialora.Client/Pages/Admin/AdminUsers.razor
+   Admin-ի user management՝ ավելացնել, password փոխել, հեռացնել։ *@
+@page "/admin/users"
+@attribute [Authorize(Roles = "Admin")]
+@using Gialora.Client.Services
+@inject AdminApi Admin
+
+<PageTitle>Admin · Users — Gialora</PageTitle>
+
+<section class="section container-wide">
+    <div class="page-header row-between">
+        <div>
+            <p class="eyebrow">Admin</p>
+            <h1 style="margin:0;">Users</h1>
+            <p class="small-muted" style="margin:.35rem 0 0;">
+                Add accounts, reset a password, or remove someone. Removed users can no longer sign in.
+            </p>
+        </div>
+        <a class="btn btn-outline-g" href="admin/recipes">← Recipes</a>
+    </div>
+
+    <ErrorAlert Message="@error" Errors="@errors" />
+
+    @if (!string.IsNullOrWhiteSpace(status))
+    {
+        <div class="alert alert-success" role="status">@status</div>
+    }
+
+    <div class="card-g mb-4">
+        <div class="card-g-body">
+            <p class="eyebrow mb-2">Add a user</p>
+            <EditForm Model="draft" OnValidSubmit="Create">
+                <DataAnnotationsValidator />
+                <div class="cluster">
+                    <InputText class="form-control" style="max-width:14rem;" placeholder="Name"
+                               @bind-Value="draft.DisplayName" />
+                    <InputText class="form-control" style="max-width:18rem;" type="email" placeholder="Email"
+                               @bind-Value="draft.Email" autocomplete="off" />
+                    <InputText class="form-control" style="max-width:14rem;" type="password"
+                               placeholder="Password (min 8)" @bind-Value="draft.Password" autocomplete="new-password" />
+                    <InputSelect class="form-select" style="max-width:9rem;" @bind-Value="draft.Role">
+                        <option value="User">User</option>
+                        <option value="Admin">Admin</option>
+                    </InputSelect>
+                    <button type="submit" class="btn btn-primary" disabled="@busy">Add</button>
+                </div>
+                <ValidationSummary class="small-muted mt-2" />
+            </EditForm>
+        </div>
+    </div>
+
+    <input class="form-control mb-3" style="max-width:20rem;" placeholder="Filter by name or email…"
+           @bind="search" @bind:event="oninput" />
+
+    @if (loading)
+    {
+        <Loading />
+    }
+    else if (users.Count == 0)
+    {
+        <EmptyState Icon="👤" Title="No users yet" Description="Add the first account above." />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table-g">
+                <thead>
+                    <tr>
+                        <th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var user in Filtered)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@user.DisplayName</strong>
+                                @if (user.IsCurrentUser)
+                                {
+                                    <span class="pill pill-outline ms-2">you</span>
+                                }
+                                @if (user.IsLockedOut)
+                                {
+                                    <span class="pill pill-warning ms-2" title="Too many failed sign-ins — resetting the password unlocks the account">locked</span>
+                                }
+                            </td>
+                            <td>@user.Email</td>
+                            <td>
+                                <span class="pill @(user.Role == "Admin" ? "pill-olive" : "pill-outline")">@user.Role</span>
+                            </td>
+                            <td>@user.CreatedAtUtc.ToLocalTime().ToString("d MMM yyyy")</td>
+                            <td style="text-align:right;">
+                                @if (passwordFor == user.Id)
+                                {
+                                    <div class="cluster" style="justify-content:flex-end;">
+                                        <input class="form-control form-control-sm" style="max-width:14rem;" type="password"
+                                               placeholder="New password (min 8)" @bind="newPassword" @bind:event="oninput"
+                                               autocomplete="new-password" />
+                                        <button class="btn btn-primary btn-sm" @onclick="() => SavePassword(user)"
+                                                disabled="@(busy || newPassword.Length < 8)">Save</button>
+                                        <button class="btn btn-ghost btn-sm" @onclick="CancelInline" disabled="@busy">Cancel</button>
+                                    </div>
+                                }
+                                else if (removeFor == user.Id)
+                                {
+                                    <div class="cluster" style="justify-content:flex-end;">
+                                        <span class="small-muted">Remove @user.DisplayName?</span>
+                                        <button class="btn btn-danger-soft btn-sm" @onclick="() => Remove(user)" disabled="@busy">Yes, remove</button>
+                                        <button class="btn btn-ghost btn-sm" @onclick="CancelInline" disabled="@busy">Cancel</button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="cluster" style="justify-content:flex-end;">
+                                        <button class="btn btn-outline-g btn-sm" @onclick="() => StartPassword(user.Id)" disabled="@busy">
+                                            Change password
+                                        </button>
+                                        @* Իրեն ջնջելը server-ը մերժում է — կոճակը նախապես թաքցնում ենք *@
+                                        @if (!user.IsCurrentUser)
+                                        {
+                                            <button class="btn btn-danger-soft btn-sm" @onclick="() => StartRemove(user.Id)" disabled="@busy">
+                                                Remove
+                                            </button>
+                                        }
+                                    </div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    private List<AdminUserDto> users = new();
+    private AdminUserCreateDto draft = new();
+    private string search = string.Empty;
+    private bool loading = true;
+    private bool busy;
+    private string? error;
+    private Dictionary<string, string[]>? errors;
+    private string? status;
+
+    // Տողի ներսի inline վիճակները — միաժամանակ միայն մեկը կարող է բաց լինել
+    private Guid? passwordFor;
+    private Guid? removeFor;
+    private string newPassword = string.Empty;
+
+    private IEnumerable<AdminUserDto> Filtered =>
+        string.IsNullOrWhiteSpace(search)
+            ? users
+            : users.Where(u => u.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase)
+                            || u.Email.Contains(search, StringComparison.OrdinalIgnoreCase));
+
+    protected override Task OnInitializedAsync() => Reload();
+
+    private void StartPassword(Guid id)
+    {
+        passwordFor = id;
+        removeFor = null;
+        newPassword = string.Empty;
+    }
+
+    private void StartRemove(Guid id)
+    {
+        removeFor = id;
+        passwordFor = null;
+    }
+
+    private void CancelInline()
+    {
+        passwordFor = null;
+        removeFor = null;
+        newPassword = string.Empty;
+    }
+
+    private Task Create() => Run(async () =>
+    {
+        var created = await Admin.CreateUserAsync(draft);
+        draft = new AdminUserCreateDto();
+        status = $"Added {created.DisplayName} ({created.Email}).";
+        await Reload();
+    });
+
+    private Task SavePassword(AdminUserDto user) => Run(async () =>
+    {
+        await Admin.SetUserPasswordAsync(user.Id, newPassword);
+        CancelInline();
+        status = $"Password updated for {user.DisplayName}.";
+        await Reload(); // lockout-ի նշանը հանելու համար
+    });
+
+    private Task Remove(AdminUserDto user) => Run(async () =>
+    {
+        await Admin.DeleteUserAsync(user.Id);
+        CancelInline();
+        status = $"Removed {user.DisplayName}.";
+        await Reload();
+    });
+
+    private async Task Run(Func<Task> action)
+    {
+        busy = true;
+        error = null;
+        errors = null;
+        status = null;
+
+        try
+        {
+            await action();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errors = ex.ValidationErrors;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task Reload()
+    {
+        loading = true;
+
+        try
+        {
+            users = await Admin.GetUsersAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+}
