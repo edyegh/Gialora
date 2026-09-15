@@ -70,10 +70,10 @@
                                         <td>
                                             @* Դիտավորյալ ոչ թե "Remove"-ի կողքին — սա հակադարձելի է, ջնջելը՝ ոչ։ *@
                                             <label class="chip-check @(member.IsActive ? "is-on" : null)"
-                                                   title="@(member.IsActive ? "Counted in your plans" : "Not counted until switched back on")">
+                                                   title="@(member.IsActive ? "Counted in your plans — uncheck to leave out" : "Not counted in your plans — check to include")">
                                                 <input type="checkbox" checked="@member.IsActive" disabled="@busy"
                                                        @onchange="e => SetMemberActive(member.Id, (bool)(e.Value ?? false))" />
-                                                @(member.IsActive ? "Active" : "Inactive")
+                                                Active
                                             </label>
                                         </td>
                                         <td><strong>@member.Name</strong></td>
