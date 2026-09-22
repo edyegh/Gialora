@@ -1,4 +1,5 @@
 // Gialora.Client/Services/RecipeApi.cs
+using Gialora.Client.Localization;
 using Gialora.Shared.Dtos;
 
 namespace Gialora.Client.Services;
@@ -6,7 +7,7 @@ namespace Gialora.Client.Services;
 /// <summary>Product 1 — recipe discovery (app structure §6)։</summary>
 public class RecipeApi : ApiClientBase
 {
-    public RecipeApi(HttpClient http) : base(http) { }
+    public RecipeApi(HttpClient http, Localizer localizer) : base(http, localizer) { }
 
     public Task<PagedResult<RecipeSummaryDto>> SearchAsync(RecipeFilterDto filter) =>
         GetAsync<PagedResult<RecipeSummaryDto>>($"api/recipes{filter.ToQueryString()}");

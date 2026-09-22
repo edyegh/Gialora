@@ -6,38 +6,35 @@
 @using Gialora.Client.Services
 @inject PlannerApi Planner
 
-<PageTitle>Gialora — Mediterranean meals, planned</PageTitle>
+<PageTitle>@L["Home.Title"]</PageTitle>
 
 <section class="section container-wide">
     <div class="page-header" style="text-align:center; max-width:46rem; margin-inline:auto;">
-        <p class="eyebrow">Pure Mediterranean goodness</p>
-        <h1>What do you need today?</h1>
-        <p class="lede" style="margin-inline:auto;">
-            Tell us about your family once. We will plan the week, keep the meals varied
-            and turn it all into one consolidated shopping list.
-        </p>
+        <p class="eyebrow">@L["Home.Eyebrow"]</p>
+        <h1>@L["Home.Heading"]</h1>
+        <p class="lede" style="margin-inline:auto;">@L["Home.Lede"]</p>
     </div>
 
     <div class="grid-3">
         <a class="route-card" href="daily">
             <span class="route-icon" aria-hidden="true">🍅</span>
-            <h3>Daily</h3>
-            <p>Find a great meal in minutes.</p>
-            <span class="route-go">What should I cook today? →</span>
+            <h3>@L["Nav.Daily"]</h3>
+            <p>@L["Home.DailyText"]</p>
+            <span class="route-go">@L["Home.DailyGo"] →</span>
         </a>
 
         <a class="route-card" href="weekly">
             <span class="route-icon" aria-hidden="true">🗓️</span>
-            <h3>Weekly</h3>
-            <p>Plan the week in minutes.</p>
-            <span class="route-go">Plan my week →</span>
+            <h3>@L["Nav.Weekly"]</h3>
+            <p>@L["Home.WeeklyText"]</p>
+            <span class="route-go">@L["Common.PlanMyWeek"] →</span>
         </a>
 
         <a class="route-card" href="batch">
             <span class="route-icon" aria-hidden="true">❄️</span>
-            <h3>Batch &amp; freeze</h3>
-            <p>Cook once, save time later.</p>
-            <span class="route-go">Prepare more, cook less →</span>
+            <h3>@L["Nav.Batch"]</h3>
+            <p>@L["Home.BatchText"]</p>
+            <span class="route-go">@L["Home.BatchGo"] →</span>
         </a>
     </div>
 </section>
@@ -47,7 +44,7 @@
         <section class="section-tight container-wide">
             @if (loading)
             {
-                <Loading Message="Checking your week..." />
+                <Loading Message="@L["Home.CheckingWeek"]" />
             }
             else if (currentPlan is not null)
             {
@@ -55,10 +52,10 @@
                     <div class="card-g-body">
                         <div class="row-between mb-3">
                             <div>
-                                <p class="eyebrow mb-1">Your current plan</p>
+                                <p class="eyebrow mb-1">@L["Home.CurrentPlan"]</p>
                                 <h2 style="margin:0;">@currentPlan.Name</h2>
                             </div>
-                            <a class="btn btn-primary" href="plans/@currentPlan.Id">Open plan</a>
+                            <a class="btn btn-primary" href="plans/@currentPlan.Id">@L["Home.OpenPlan"]</a>
                         </div>
 
                         <div class="cluster">
@@ -73,9 +70,9 @@
             else
             {
                 <EmptyState Icon="🗓️"
-                            Title="You have not planned a week yet"
-                            Description="Set up your family once, then generate a week in a couple of clicks.">
-                    <a class="btn btn-primary" href="family">Set up my family</a>
+                            Title="@L["Home.NoPlanTitle"]"
+                            Description="@L["Home.NoPlanDescription"]">
+                    <a class="btn btn-primary" href="family">@L["Common.SetUpMyFamily"]</a>
                 </EmptyState>
             }
         </section>
@@ -86,15 +83,12 @@
             <div class="card-g">
                 <div class="card-g-body row-between">
                     <div>
-                        <h2 style="margin:0 0 .25rem;">Cooking for a family?</h2>
-                        <p class="small-muted" style="margin:0;">
-                            Add your family's ages, allergies and how much time you actually have.
-                            Gialora does the deciding.
-                        </p>
+                        <h2 style="margin:0 0 .25rem;">@L["Home.CookingForFamily"]</h2>
+                        <p class="small-muted" style="margin:0;">@L["Home.CookingForFamilyText"]</p>
                     </div>
                     <div class="cluster">
-                        <a class="btn btn-primary" href="register">Create an account</a>
-                        <a class="btn btn-outline-g" href="recipes">Browse recipes</a>
+                        <a class="btn btn-primary" href="register">@L["Home.CreateAnAccount"]</a>
+                        <a class="btn btn-outline-g" href="recipes">@L["Common.BrowseRecipes"]</a>
                     </div>
                 </div>
             </div>

@@ -5,18 +5,16 @@
 @using Gialora.Client.Services
 @inject AdminApi Admin
 
-<PageTitle>Admin · Users — Gialora</PageTitle>
+<PageTitle>@L["Nav.Admin"] · @L["Admin.Users"] — Gialora</PageTitle>
 
 <section class="section container-wide">
     <div class="page-header row-between">
         <div>
-            <p class="eyebrow">Admin</p>
-            <h1 style="margin:0;">Users</h1>
-            <p class="small-muted" style="margin:.35rem 0 0;">
-                Add accounts, reset a password, or remove someone. Removed users can no longer sign in.
-            </p>
+            <p class="eyebrow">@L["Nav.Admin"]</p>
+            <h1 style="margin:0;">@L["Admin.Users"]</h1>
+            <p class="small-muted" style="margin:.35rem 0 0;">@L["AdminUsers.Lede"]</p>
         </div>
-        <a class="btn btn-outline-g" href="admin/recipes">← Recipes</a>
+        <a class="btn btn-outline-g" href="admin/recipes">← @L["Nav.Recipes"]</a>
     </div>
 
     <ErrorAlert Message="@error" Errors="@errors" />
@@ -28,28 +26,28 @@
 
     <div class="card-g mb-4">
         <div class="card-g-body">
-            <p class="eyebrow mb-2">Add a user</p>
+            <p class="eyebrow mb-2">@L["AdminUsers.AddUser"]</p>
             <EditForm Model="draft" OnValidSubmit="Create">
                 <DataAnnotationsValidator />
                 <div class="cluster">
-                    <InputText class="form-control" style="max-width:14rem;" placeholder="Name"
+                    <InputText class="form-control" style="max-width:14rem;" placeholder="@L["Common.Name"]"
                                @bind-Value="draft.DisplayName" />
-                    <InputText class="form-control" style="max-width:18rem;" type="email" placeholder="Email"
+                    <InputText class="form-control" style="max-width:18rem;" type="email" placeholder="@L["Common.Email"]"
                                @bind-Value="draft.Email" autocomplete="off" />
                     <InputText class="form-control" style="max-width:14rem;" type="password"
-                               placeholder="Password (min 8)" @bind-Value="draft.Password" autocomplete="new-password" />
+                               placeholder="@L["AdminUsers.PasswordPlaceholder"]" @bind-Value="draft.Password" autocomplete="new-password" />
                     <InputSelect class="form-select" style="max-width:9rem;" @bind-Value="draft.Role">
-                        <option value="User">User</option>
-                        <option value="Admin">Admin</option>
+                        <option value="User">@L["Enum.UserRole.User"]</option>
+                        <option value="Admin">@L["Enum.UserRole.Admin"]</option>
                     </InputSelect>
-                    <button type="submit" class="btn btn-primary" disabled="@busy">Add</button>
+                    <button type="submit" class="btn btn-primary" disabled="@busy">@L["Common.Add"]</button>
                 </div>
                 <ValidationSummary class="small-muted mt-2" />
             </EditForm>
         </div>
     </div>
 
-    <input class="form-control mb-3" style="max-width:20rem;" placeholder="Filter by name or email…"
+    <input class="form-control mb-3" style="max-width:20rem;" placeholder="@L["AdminUsers.FilterPlaceholder"]"
            @bind="search" @bind:event="oninput" />
 
     @if (loading)
@@ -58,7 +56,7 @@
     }
     else if (users.Count == 0)
     {
-        <EmptyState Icon="👤" Title="No users yet" Description="Add the first account above." />
+        <EmptyState Icon="👤" Title="@L["AdminUsers.EmptyTitle"]" Description="@L["AdminUsers.EmptyDescription"]" />
     }
     else
     {
@@ -66,7 +64,7 @@
             <table class="table-g">
                 <thead>
                     <tr>
-                        <th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th></th>
+                        <th>@L["Common.Name"]</th><th>@L["Common.Email"]</th><th>@L["AdminUsers.ColRole"]</th><th>@L["AdminUsers.ColJoined"]</th><th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -77,49 +75,49 @@
                                 <strong>@user.DisplayName</strong>
                                 @if (user.IsCurrentUser)
                                 {
-                                    <span class="pill pill-outline ms-2">you</span>
+                                    <span class="pill pill-outline ms-2">@L["AdminUsers.You"]</span>
                                 }
                                 @if (user.IsLockedOut)
                                 {
-                                    <span class="pill pill-warning ms-2" title="Too many failed sign-ins — resetting the password unlocks the account">locked</span>
+                                    <span class="pill pill-warning ms-2" title="@L["AdminUsers.LockedHint"]">@L["AdminUsers.Locked"]</span>
                                 }
                             </td>
                             <td>@user.Email</td>
                             <td>
-                                <span class="pill @(user.Role == "Admin" ? "pill-olive" : "pill-outline")">@user.Role</span>
+                                <span class="pill @(user.Role == "Admin" ? "pill-olive" : "pill-outline")">@L[$"Enum.UserRole.{user.Role}"]</span>
                             </td>
-                            <td>@user.CreatedAtUtc.ToLocalTime().ToString("d MMM yyyy")</td>
+                            <td>@L.ShortDate(user.CreatedAtUtc.ToLocalTime())</td>
                             <td style="text-align:right;">
                                 @if (passwordFor == user.Id)
                                 {
                                     <div class="cluster" style="justify-content:flex-end;">
                                         <input class="form-control form-control-sm" style="max-width:14rem;" type="password"
-                                               placeholder="New password (min 8)" @bind="newPassword" @bind:event="oninput"
+                                               placeholder="@L["AdminUsers.NewPasswordPlaceholder"]" @bind="newPassword" @bind:event="oninput"
                                                autocomplete="new-password" />
                                         <button class="btn btn-primary btn-sm" @onclick="() => SavePassword(user)"
-                                                disabled="@(busy || newPassword.Length < 8)">Save</button>
-                                        <button class="btn btn-ghost btn-sm" @onclick="CancelInline" disabled="@busy">Cancel</button>
+                                                disabled="@(busy || newPassword.Length < 8)">@L["Common.Save"]</button>
+                                        <button class="btn btn-ghost btn-sm" @onclick="CancelInline" disabled="@busy">@L["Common.Cancel"]</button>
                                     </div>
                                 }
                                 else if (removeFor == user.Id)
                                 {
                                     <div class="cluster" style="justify-content:flex-end;">
-                                        <span class="small-muted">Remove @user.DisplayName?</span>
-                                        <button class="btn btn-danger-soft btn-sm" @onclick="() => Remove(user)" disabled="@busy">Yes, remove</button>
-                                        <button class="btn btn-ghost btn-sm" @onclick="CancelInline" disabled="@busy">Cancel</button>
+                                        <span class="small-muted">@L["AdminUsers.ConfirmRemove", user.DisplayName]</span>
+                                        <button class="btn btn-danger-soft btn-sm" @onclick="() => Remove(user)" disabled="@busy">@L["AdminUsers.YesRemove"]</button>
+                                        <button class="btn btn-ghost btn-sm" @onclick="CancelInline" disabled="@busy">@L["Common.Cancel"]</button>
                                     </div>
                                 }
                                 else
                                 {
                                     <div class="cluster" style="justify-content:flex-end;">
                                         <button class="btn btn-outline-g btn-sm" @onclick="() => StartPassword(user.Id)" disabled="@busy">
-                                            Change password
+                                            @L["AdminUsers.ChangePassword"]
                                         </button>
                                         @* Իրեն ջնջելը server-ը մերժում է — կոճակը նախապես թաքցնում ենք *@
                                         @if (!user.IsCurrentUser)
                                         {
                                             <button class="btn btn-danger-soft btn-sm" @onclick="() => StartRemove(user.Id)" disabled="@busy">
-                                                Remove
+                                                @L["Common.Remove"]
                                             </button>
                                         }
                                     </div>
@@ -180,7 +178,7 @@
     {
         var created = await Admin.CreateUserAsync(draft);
         draft = new AdminUserCreateDto();
-        status = $"Added {created.DisplayName} ({created.Email}).";
+        status = L["AdminUsers.StatusAdded", created.DisplayName, created.Email];
         await Reload();
     });
 
@@ -188,7 +186,7 @@
     {
         await Admin.SetUserPasswordAsync(user.Id, newPassword);
         CancelInline();
-        status = $"Password updated for {user.DisplayName}.";
+        status = L["AdminUsers.StatusPasswordUpdated", user.DisplayName];
         await Reload(); // lockout-ի նշանը հանելու համար
     });
 
@@ -196,7 +194,7 @@
     {
         await Admin.DeleteUserAsync(user.Id);
         CancelInline();
-        status = $"Removed {user.DisplayName}.";
+        status = L["AdminUsers.StatusRemoved", user.DisplayName];
         await Reload();
     });
 

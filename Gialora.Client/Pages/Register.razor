@@ -6,12 +6,12 @@
 @inject AccountApi Account
 @inject NavigationManager Navigation
 
-<PageTitle>Create account — Gialora</PageTitle>
+<PageTitle>@L["Nav.CreateAccount"] — Gialora</PageTitle>
 
 <section class="section container-narrow" style="max-width:26rem;">
     <div class="page-header">
-        <p class="eyebrow">Get started</p>
-        <h1 style="margin:0;">Create your account</h1>
+        <p class="eyebrow">@L["Register.Eyebrow"]</p>
+        <h1 style="margin:0;">@L["Register.Heading"]</h1>
     </div>
 
     <div class="card-g">
@@ -20,36 +20,36 @@
                 <DataAnnotationsValidator />
 
                 <div class="mb-3">
-                    <label class="form-label" for="email">Email</label>
+                    <label class="form-label" for="email">@L["Common.Email"]</label>
                     <InputText id="email" class="form-control" autocomplete="username"
                                @bind-Value="registerDto.Email" />
                     <ValidationMessage For="@(() => registerDto.Email)" />
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label" for="displayName">Your name</label>
+                    <label class="form-label" for="displayName">@L["Register.YourName"]</label>
                     <InputText id="displayName" class="form-control" autocomplete="name"
                                @bind-Value="registerDto.DisplayName" />
                     <ValidationMessage For="@(() => registerDto.DisplayName)" />
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label" for="password">Password</label>
+                    <label class="form-label" for="password">@L["Common.Password"]</label>
                     <InputText id="password" class="form-control" type="password" autocomplete="new-password"
                                @bind-Value="registerDto.Password" />
-                    <div class="form-text">At least 8 characters.</div>
+                    <div class="form-text">@L["Register.PasswordHint"]</div>
                     <ValidationMessage For="@(() => registerDto.Password)" />
                 </div>
 
                 <ErrorAlert Message="@errorMessage" />
 
                 <button type="submit" class="btn btn-primary w-100" disabled="@isSubmitting">
-                    @(isSubmitting ? "Creating account..." : "Create account")
+                    @(isSubmitting ? L["Register.Submitting"] : L["Nav.CreateAccount"])
                 </button>
             </EditForm>
 
             <p class="mt-3 mb-0 small-muted">
-                Already have an account? <a href="login">Sign in</a>
+                @L["Register.AlreadyHaveAccount"] <a href="login">@L["Nav.SignIn"]</a>
             </p>
         </div>
     </div>
@@ -78,7 +78,7 @@
         }
         catch (HttpRequestException)
         {
-            errorMessage = "Unable to reach the server. Please try again.";
+            errorMessage = L["Common.ServerUnreachable"];
         }
         finally
         {

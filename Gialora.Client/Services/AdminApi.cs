@@ -1,4 +1,5 @@
 // Gialora.Client/Services/AdminApi.cs
+using Gialora.Client.Localization;
 using Gialora.Shared.Dtos;
 
 namespace Gialora.Client.Services;
@@ -6,7 +7,7 @@ namespace Gialora.Client.Services;
 /// <summary>Admin panel-ի ամբողջ մակերեսը (app structure §11, §12)։</summary>
 public class AdminApi : ApiClientBase
 {
-    public AdminApi(HttpClient http) : base(http) { }
+    public AdminApi(HttpClient http, Localizer localizer) : base(http, localizer) { }
 
     // --- Recipes ---
 

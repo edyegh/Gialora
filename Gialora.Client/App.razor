@@ -7,7 +7,7 @@
                     @if (authState.User.Identity?.IsAuthenticated == true)
                     {
                         <LayoutView Layout="@typeof(MainLayout)">
-                            <p role="alert">You are not authorized to view this page.</p>
+                            <p role="alert">@L["App.NotAuthorized"]</p>
                         </LayoutView>
                     }
                     else
@@ -19,16 +19,16 @@
                 </NotAuthorized>
                 <Authorizing>
                     <LayoutView Layout="@typeof(MainLayout)">
-                        <p>Checking your session...</p>
+                        <p>@L["App.CheckingSession"]</p>
                     </LayoutView>
                 </Authorizing>
             </AuthorizeRouteView>
             <FocusOnNavigate RouteData="@routeData" Selector="h1" />
         </Found>
         <NotFound>
-            <PageTitle>Not found</PageTitle>
+            <PageTitle>@L["App.NotFoundTitle"]</PageTitle>
             <LayoutView Layout="@typeof(MainLayout)">
-                <p role="alert">Sorry, there's nothing at this address.</p>
+                <p role="alert">@L["App.NotFound"]</p>
             </LayoutView>
         </NotFound>
     </Router>

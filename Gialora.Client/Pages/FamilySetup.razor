@@ -9,16 +9,13 @@
 @using Gialora.Shared.Goals
 @inject PlannerApi Planner
 
-<PageTitle>My family — Gialora</PageTitle>
+<PageTitle>@L["Nav.MyFamily"] — Gialora</PageTitle>
 
 <section class="section container-narrow">
     <div class="page-header">
-        <p class="eyebrow">Your family</p>
-        <h1 style="margin:0 0 .35rem;">@(family?.Name ?? "Family setup")</h1>
-        <p class="lede">
-            Everything here feeds the planner: ages decide which recipes are appropriate,
-            allergies are treated as hard rules, and your time limit decides what we even consider.
-        </p>
+        <p class="eyebrow">@L["Family.Eyebrow"]</p>
+        <h1 style="margin:0 0 .35rem;">@(family?.Name ?? L["Family.SetupTitle"])</h1>
+        <p class="lede">@L["Family.Lede"]</p>
     </div>
 
     <ErrorAlert Message="@error" Errors="validationErrors" />
@@ -37,29 +34,28 @@
         @* ------------------------------------------------------ members *@
         <div class="card-g mb-4">
             <div class="card-g-body">
-                <h2 class="mb-3">Who is eating?</h2>
+                <h2 class="mb-3">@L["Family.WhoIsEating"]</h2>
 
                 @if (family.Members.Count == 0)
                 {
-                    <p class="small-muted">No one added yet. Start with the adults, then add each child with their age.</p>
+                    <p class="small-muted">@L["Family.NoMembers"]</p>
                 }
                 else
                 {
                     <p class="small-muted mb-2">
-                        <strong>@family.ActiveMemberCount</strong> of <strong>@family.Members.Count</strong> eating with you.
-                        Switch someone off when they're away — their allergies, goals and portion are left out of the
-                        next plan and shopping list until you switch them back on.
+                        @((MarkupString)L["Family.EatingWithYou", family.ActiveMemberCount, family.Members.Count])
+                        @L["Family.SwitchOffHint"]
                     </p>
 
                     <div class="table-wrap mb-3">
                         <table class="table-g">
                             <thead>
                                 <tr>
-                                    <th>Eating</th>
-                                    <th>Name</th>
-                                    <th>Type</th>
-                                    <th>Age</th>
-                                    <th>Allergies &amp; needs</th>
+                                    <th>@L["Family.ColEating"]</th>
+                                    <th>@L["Common.Name"]</th>
+                                    <th>@L["Family.ColType"]</th>
+                                    <th>@L["Family.ColAge"]</th>
+                                    <th>@L["Family.ColNeeds"]</th>
                                     <th></th>
                                 </tr>
                             </thead>
@@ -70,14 +66,14 @@
                                         <td>
                                             @* Դիտավորյալ ոչ թե "Remove"-ի կողքին — սա հակադարձելի է, ջնջելը՝ ոչ։ *@
                                             <label class="chip-check @(member.IsActive ? "is-on" : null)"
-                                                   title="@(member.IsActive ? "Counted in your plans — uncheck to leave out" : "Not counted in your plans — check to include")">
+                                                   title="@(member.IsActive ? L["Family.ActiveTooltipOn"] : L["Family.ActiveTooltipOff"])">
                                                 <input type="checkbox" checked="@member.IsActive" disabled="@busy"
                                                        @onchange="e => SetMemberActive(member.Id, (bool)(e.Value ?? false))" />
-                                                Active
+                                                @L["Family.Active"]
                                             </label>
                                         </td>
                                         <td><strong>@member.Name</strong></td>
-                                        <td>@member.MemberType</td>
+                                        <td>@L.Enum(member.MemberType)</td>
                                         <td>@(member.Age is null ? "—" : $"{member.Age}")</td>
                                         <td>
                                             <div class="cluster">
@@ -91,13 +87,13 @@
                                                 }
                                                 @foreach (var goal in member.Goals)
                                                 {
-                                                    <span class="pill pill-outline">@goal</span>
+                                                    <span class="pill pill-outline">@GoalDisplay(goal)</span>
                                                 }
                                             </div>
                                         </td>
                                         <td style="text-align:right;">
                                             <button class="btn btn-danger-soft btn-sm"
-                                                    @onclick="() => RemoveMember(member.Id)" disabled="@busy">Remove</button>
+                                                    @onclick="() => RemoveMember(member.Id)" disabled="@busy">@L["Common.Remove"]</button>
                                         </td>
                                     </tr>
                                 }
@@ -107,40 +103,42 @@
                 }
 
                 <div class="stack" style="border-top:1px solid var(--line); padding-top:1rem;">
-                    <p class="eyebrow" style="margin:0;">Add a family member</p>
+                    <p class="eyebrow" style="margin:0;">@L["Family.AddMember"]</p>
 
                     <div class="cluster">
-                        <input class="form-control" style="max-width:12rem;" placeholder="Name"
+                        <input class="form-control" style="max-width:12rem;" placeholder="@L["Common.Name"]"
                                @bind="newMember.Name" />
 
                         <select class="form-select" style="max-width:9rem;" @bind="NewMemberType">
                             @foreach (var type in Enum.GetValues<FamilyMemberType>())
                             {
-                                <option value="@type">@type</option>
+                                <option value="@type">@L.Enum(type)</option>
                             }
                         </select>
 
                         <input class="form-control" style="max-width:7rem;" type="number" min="0" max="120"
-                               placeholder="Age" @bind="newMember.Age" />
+                               placeholder="@L["Family.ColAge"]" @bind="newMember.Age" />
 
                         <input class="form-control" style="max-width:15rem;"
-                               placeholder="Allergies (comma separated)" @bind="newMemberAllergies" />
+                               placeholder="@L["Family.AllergiesPlaceholder"]" @bind="newMemberAllergies" />
 
                         <input class="form-control" style="max-width:15rem;"
-                               placeholder="Goals, e.g. more iron" @bind="newMemberGoals" />
+                               placeholder="@L["Family.GoalsPlaceholder"]" @bind="newMemberGoals" />
 
                         <button class="btn btn-primary" @onclick="AddMember"
-                                disabled="@(busy || string.IsNullOrWhiteSpace(newMember.Name))">Add</button>
+                                disabled="@(busy || string.IsNullOrWhiteSpace(newMember.Name))">@L["Common.Add"]</button>
                     </div>
 
                     @* Նպատակները ազատ տեքստ էին, և user-ը չէր իմանում, թե որոնք են
-                       իրականում գործում։ Այժմ ճանաչվողները մեկ սեղմումով ավելացվում են։ *@
+                       իրականում գործում։ Այժմ ճանաչվողները մեկ սեղմումով ավելացվում են։
+                       Կոճակը ցույց է տալիս թարգմանությունը, բայց դաշտին ավելացնում է
+                       անգլերեն Label-ը — engine-ը հենց դրանով է ճանաչում նպատակը։ *@
                     <div class="cluster">
-                        <span class="small-muted">Goals that change your plan:</span>
+                        <span class="small-muted">@L["Family.GoalsThatChangePlan"]</span>
                         @foreach (var goal in SupportedGoals)
                         {
                             <button type="button" class="chip-check" @onclick="() => AddGoal(goal.Label)">
-                                + @goal.Label
+                                + @L[$"Goal.{goal.Key}"]
                             </button>
                         }
                     </div>
@@ -148,16 +146,13 @@
                     @if (unrecognisedGoals.Count > 0)
                     {
                         <div class="alert alert-warning mb-0">
-                            Saved, but not used for planning yet:
+                            @L["Family.UnrecognisedGoals"]
                             <strong>@string.Join(", ", unrecognisedGoals)</strong>.
-                            Only the goals listed above affect which meals are chosen.
+                            @L["Family.UnrecognisedGoalsHint"]
                         </div>
                     }
 
-                    <p class="form-text">
-                        Allergies become hard rules — a recipe containing that ingredient is never suggested.
-                        Goals are softer: they push matching recipes up the list rather than excluding anything.
-                    </p>
+                    <p class="form-text">@L["Family.AllergiesHint"]</p>
                 </div>
             </div>
         </div>
@@ -165,62 +160,59 @@
         @* -------------------------------------------------- preferences *@
         <div class="card-g">
             <div class="card-g-body stack">
-                <h2 style="margin:0;">Preferences</h2>
+                <h2 style="margin:0;">@L["Family.Preferences"]</h2>
 
                 <div class="cluster">
                     <div>
-                        <label class="form-label" for="maxtime">Max time per meal</label>
+                        <label class="form-label" for="maxtime">@L["Family.MaxTime"]</label>
                         <select id="maxtime" class="form-select" style="max-width:11rem;"
                                 @bind="preferences.MaxCookingTimeMinutes">
-                            <option value="20">20 minutes</option>
-                            <option value="30">30 minutes</option>
-                            <option value="45">45 minutes</option>
-                            <option value="60">1 hour</option>
-                            <option value="90">1½ hours</option>
-                            <option value="180">No real limit</option>
+                            <option value="20">@L["Family.Minutes", 20]</option>
+                            <option value="30">@L["Family.Minutes", 30]</option>
+                            <option value="45">@L["Family.Minutes", 45]</option>
+                            <option value="60">@L["Family.OneHour"]</option>
+                            <option value="90">@L["Family.OneAndHalfHours"]</option>
+                            <option value="180">@L["Family.NoRealLimit"]</option>
                         </select>
                     </div>
 
                     <div>
-                        <label class="form-label" for="days">Cooking days per week</label>
+                        <label class="form-label" for="days">@L["Family.CookingDays"]</label>
                         <input id="days" class="form-control" type="number" min="1" max="7"
                                style="max-width:7rem;" @bind="preferences.CookingDaysPerWeek" />
                     </div>
 
                     <div>
-                        <label class="form-label" for="servings">Servings per meal</label>
+                        <label class="form-label" for="servings">@L["Launcher.ServingsPerMeal"]</label>
                         <input id="servings" class="form-control" type="number" min="1" max="20"
                                style="max-width:7rem;" @bind="preferences.ServingsPerMeal" />
-                        <p class="form-text mb-0">
-                            Used only when no family members are added — otherwise plans default to
-                            one serving per active member.
-                        </p>
+                        <p class="form-text mb-0">@L["Family.ServingsHint"]</p>
                     </div>
 
                     <div>
-                        <label class="form-label" for="budget">Budget</label>
+                        <label class="form-label" for="budget">@L["Family.Budget"]</label>
                         <select id="budget" class="form-select" style="max-width:10rem;" @bind="preferences.Budget">
                             @foreach (var level in Enum.GetValues<BudgetLevel>())
                             {
-                                <option value="@level">@(level == BudgetLevel.Any ? "No limit" : level.ToString())</option>
+                                <option value="@level">@L.Enum(level)</option>
                             }
                         </select>
                     </div>
 
                     <div>
-                        <label class="form-label" for="diet">Household diet</label>
+                        <label class="form-label" for="diet">@L["Family.HouseholdDiet"]</label>
                         <select id="diet" class="form-select" style="max-width:11rem;" @bind="SelectedDiet">
-                            <option value="">No restriction</option>
+                            <option value="">@L["Family.NoRestriction"]</option>
                             @foreach (var diet in Enum.GetValues<DietType>())
                             {
-                                <option value="@diet">@diet</option>
+                                <option value="@diet">@L.Enum(diet)</option>
                             }
                         </select>
                     </div>
                 </div>
 
                 <div>
-                    <span class="form-label d-block">Proteins to avoid</span>
+                    <span class="form-label d-block">@L["Family.ProteinsToAvoid"]</span>
                     <div class="cluster">
                         @foreach (var protein in AvoidableProteins)
                         {
@@ -228,31 +220,31 @@
                             <label class="chip-check @(isOn ? "is-on" : null)">
                                 <input type="checkbox" checked="@isOn"
                                        @onchange="e => ToggleProtein(protein, (bool)(e.Value ?? false))" />
-                                @protein
+                                @L.Enum(protein)
                             </label>
                         }
                     </div>
-                    <p class="form-text">"No fish" in the brief — this is where it lives.</p>
+                    <p class="form-text">@L["Family.ProteinsHint"]</p>
                 </div>
 
                 <div>
-                    <label class="form-label" for="disliked">Disliked ingredients</label>
-                    <input id="disliked" class="form-control" placeholder="e.g. aubergine, olives"
+                    <label class="form-label" for="disliked">@L["Family.Disliked"]</label>
+                    <input id="disliked" class="form-control" placeholder="@L["Family.DislikedPlaceholder"]"
                            @bind="dislikedIngredients" />
-                    <p class="form-text">Comma separated. Recipes containing these are excluded entirely.</p>
+                    <p class="form-text">@L["Family.DislikedHint"]</p>
                 </div>
 
                 <label class="chip-check @(preferences.PreferFreezerFriendly ? "is-on" : null)"
                        style="align-self:flex-start;">
                     <input type="checkbox" @bind="preferences.PreferFreezerFriendly" />
-                    Prefer meals that freeze well
+                    @L["Family.PreferFreezer"]
                 </label>
 
                 <div class="cluster">
                     <button class="btn btn-primary" @onclick="SavePreferences" disabled="@busy">
-                        Save preferences
+                        @L["Family.SavePreferences"]
                     </button>
-                    <a class="btn btn-outline-g" href="weekly">Plan my week →</a>
+                    <a class="btn btn-outline-g" href="weekly">@L["Common.PlanMyWeek"] →</a>
                 </div>
             </div>
         </div>
@@ -318,6 +310,13 @@
         }
     }
 
+    /// <summary>Պահված նպատակը ճանաչված է՝ ցույց ենք տալիս թարգմանությունը, այլապես՝ ինչպես գրվել է։</summary>
+    private string GoalDisplay(string raw)
+    {
+        var match = NutritionGoals.Resolve(new[] { raw }).FirstOrDefault();
+        return match is null ? raw : L[$"Goal.{match.Key}"];
+    }
+
     private void ToggleProtein(ProteinType protein, bool isOn)
     {
         if (isOn)
@@ -364,14 +363,14 @@
 
         family = await Planner.GetFamilyAsync();
         RefreshUnrecognisedGoals();
-        status = "Family member added.";
+        status = L["Family.StatusMemberAdded"];
     });
 
     private Task RemoveMember(Guid memberId) => Run(async () =>
     {
         await Planner.RemoveMemberAsync(memberId);
         family = await Planner.GetFamilyAsync();
-        status = "Family member removed.";
+        status = L["Family.StatusMemberRemoved"];
     });
 
     private Task SetMemberActive(Guid memberId, bool isActive) => Run(async () =>
@@ -381,8 +380,8 @@
         RefreshUnrecognisedGoals();
 
         status = isActive
-            ? $"{member.Name} is eating with you again — the next plan counts them in."
-            : $"{member.Name} is marked inactive — the next plan and shopping list leave them out.";
+            ? L["Family.StatusMemberActive", member.Name]
+            : L["Family.StatusMemberInactive", member.Name];
     });
 
     private Task SavePreferences() => Run(async () =>
@@ -390,7 +389,7 @@
         preferences.DislikedIngredients = SplitList(dislikedIngredients);
         preferences = await Planner.SavePreferencesAsync(preferences);
         dislikedIngredients = string.Join(", ", preferences.DislikedIngredients);
-        status = "Preferences saved. Your next plan will use them.";
+        status = L["Family.StatusPreferencesSaved"];
     });
 
     private static List<string> SplitList(string value) =>

@@ -8,73 +8,69 @@
 @inject AdminApi Admin
 @inject IJSRuntime JS
 
-<PageTitle>Admin · Bulk import — Gialora</PageTitle>
+<PageTitle>@L["Nav.Admin"] · @L["Admin.BulkImport"] — Gialora</PageTitle>
 
 <section class="section container-narrow">
     <div class="page-header row-between">
         <div>
-            <p class="eyebrow">Admin</p>
-            <h1 style="margin:0;">Bulk recipe import</h1>
+            <p class="eyebrow">@L["Nav.Admin"]</p>
+            <h1 style="margin:0;">@L["AdminImport.Heading"]</h1>
         </div>
-        <a class="btn btn-outline-g btn-sm" href="admin/recipes">← Recipes</a>
+        <a class="btn btn-outline-g btn-sm" href="admin/recipes">← @L["Nav.Recipes"]</a>
     </div>
 
     <div class="card-g mb-4">
         <div class="card-g-body">
-            <h2 class="mb-2">1. Start from the template</h2>
-            <p class="small-muted">
-                One row per ingredient. Rows that share the same <code>recipe</code> value are
-                merged into a single recipe, so the recipe columns only need filling on the first row.
-                Steps go in <code>instructions</code>, separated by <code>|</code>.
-            </p>
+            <h2 class="mb-2">@L["AdminImport.Step1"]</h2>
+            <p class="small-muted">@((MarkupString)L["AdminImport.Step1Text"])</p>
             <button class="btn btn-outline-g" @onclick="DownloadTemplate" disabled="@busy">
-                Download CSV template
+                @L["AdminImport.DownloadTemplate"]
             </button>
         </div>
     </div>
 
     <div class="card-g mb-4">
         <div class="card-g-body stack">
-            <h2 style="margin:0;">2. Upload your file</h2>
+            <h2 style="margin:0;">@L["AdminImport.Step2"]</h2>
 
             <InputFile class="form-control" OnChange="OnFileSelected" accept=".csv,.txt" />
 
             @if (!string.IsNullOrEmpty(fileName))
             {
                 <p class="small-muted" style="margin:0;">
-                    Loaded <strong>@fileName</strong> — @csvContent.Length characters.
+                    @((MarkupString)L["AdminImport.Loaded", fileName, csvContent.Length])
                 </p>
             }
 
             <div>
-                <label class="form-label" for="delimiter">Column separator</label>
+                <label class="form-label" for="delimiter">@L["AdminImport.ColumnSeparator"]</label>
                 <select id="delimiter" class="form-select" style="max-width:12rem;" @bind="delimiter">
-                    <option value=",">Comma (,)</option>
-                    <option value=";">Semicolon (;)</option>
-                    <option value="&#9;">Tab</option>
+                    <option value=",">@L["AdminImport.Comma"]</option>
+                    <option value=";">@L["AdminImport.Semicolon"]</option>
+                    <option value="&#9;">@L["AdminImport.Tab"]</option>
                 </select>
-                <p class="form-text">Excel in some regions exports with semicolons.</p>
+                <p class="form-text">@L["AdminImport.SeparatorHint"]</p>
             </div>
 
             <div class="cluster">
                 <label class="chip-check @(createMissingIngredients ? "is-on" : null)">
                     <input type="checkbox" @bind="createMissingIngredients" />
-                    Create ingredients that don't exist yet
+                    @L["AdminImport.CreateMissingIngredients"]
                 </label>
                 <label class="chip-check @(publishImmediately ? "is-on" : null)">
                     <input type="checkbox" @bind="publishImmediately" />
-                    Publish immediately
+                    @L["AdminImport.PublishImmediately"]
                 </label>
                 <label class="chip-check @(overwriteExisting ? "is-on" : null)">
                     <input type="checkbox" @bind="overwriteExisting" />
-                    Update recipes that already exist
+                    @L["AdminImport.OverwriteExisting"]
                 </label>
             </div>
 
             <div>
                 <button class="btn btn-primary" @onclick="Import"
                         disabled="@(busy || string.IsNullOrWhiteSpace(csvContent))">
-                    @(busy ? "Importing..." : "Import recipes")
+                    @(busy ? L["AdminImport.Importing"] : L["AdminImport.ImportRecipes"])
                 </button>
             </div>
         </div>
@@ -86,14 +82,14 @@
     {
         <div class="card-g">
             <div class="card-g-body">
-                <h2 class="mb-3">Import result</h2>
+                <h2 class="mb-3">@L["AdminImport.Result"]</h2>
 
                 <div class="cluster mb-3">
-                    <span class="pill pill-olive">@result.RecipesCreated created</span>
-                    <span class="pill pill-sea">@result.RecipesUpdated updated</span>
-                    <span class="pill pill-outline">@result.RecipesSkipped skipped</span>
-                    <span class="pill pill-outline">@result.IngredientsCreated new ingredients</span>
-                    <span class="pill pill-outline">@result.TagsCreated new tags</span>
+                    <span class="pill pill-olive">@L["AdminImport.Created", result.RecipesCreated]</span>
+                    <span class="pill pill-sea">@L["AdminImport.Updated", result.RecipesUpdated]</span>
+                    <span class="pill pill-outline">@L["AdminImport.Skipped", result.RecipesSkipped]</span>
+                    <span class="pill pill-outline">@L["AdminImport.NewIngredients", result.IngredientsCreated]</span>
+                    <span class="pill pill-outline">@L["AdminImport.NewTags", result.TagsCreated]</span>
                 </div>
 
                 @* Մասնակի հաջողությունը նորմալ արդյունք է — մի վատ տողը չի տապալում
@@ -101,7 +97,7 @@
                 @if (result.Errors.Count > 0)
                 {
                     <div class="alert alert-danger">
-                        <strong>@result.Errors.Count recipe(s) could not be imported</strong>
+                        <strong>@L["AdminImport.FailedCount", result.Errors.Count]</strong>
                         <ul class="mb-0 mt-2 ps-3">
                             @foreach (var message in result.Errors) { <li>@message</li> }
                         </ul>
@@ -111,7 +107,7 @@
                 @if (result.Warnings.Count > 0)
                 {
                     <div class="alert alert-warning">
-                        <strong>Warnings</strong>
+                        <strong>@L["AdminImport.Warnings"]</strong>
                         <ul class="mb-0 mt-2 ps-3">
                             @foreach (var message in result.Warnings) { <li>@message</li> }
                         </ul>
@@ -121,7 +117,7 @@
                 @if (result.Success && result.RecipesCreated + result.RecipesUpdated > 0)
                 {
                     <div class="alert alert-success mb-0">
-                        Everything imported cleanly. <a href="admin/recipes">Review the recipes →</a>
+                        @L["AdminImport.AllClean"] <a href="admin/recipes">@L["AdminImport.ReviewRecipes"] →</a>
                     </div>
                 }
             </div>
@@ -155,7 +151,7 @@
 
         if (file.Size > MaxFileBytes)
         {
-            error = "That file is larger than the 5 MB limit.";
+            error = L["AdminImport.TooLarge"];
             return;
         }
 
@@ -171,7 +167,7 @@
         }
         catch (Exception)
         {
-            error = "Could not read that file. Make sure it is a plain CSV.";
+            error = L["AdminImport.CouldNotRead"];
             csvContent = string.Empty;
             fileName = string.Empty;
         }
@@ -216,7 +212,7 @@
         }
         catch (Exception)
         {
-            error = "Could not download the template.";
+            error = L["AdminImport.CouldNotDownload"];
         }
         finally
         {

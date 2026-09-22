@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.AspNetCore.Components.Authorization;
 using Gialora.Client;
 using Gialora.Client.Auth;
+using Gialora.Client.Localization;
 using Gialora.Client.Services;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -43,4 +44,12 @@ builder.Services.AddScoped<PlannerApi>();
 builder.Services.AddScoped<ContentApi>();
 builder.Services.AddScoped<AdminApi>();
 
-await builder.Build().RunAsync();
+// UI-ի լեզուն (en / hy / el)։ Singleton — բոլոր բաղադրիչները նույն բառարանն են տեսնում։
+builder.Services.AddSingleton<Localizer>();
+
+var host = builder.Build();
+
+// Բառարանը բեռնում ենք առաջին render-ից ԱՌԱՋ, որ էջը անգլերենով չթարթի
+await host.Services.GetRequiredService<Localizer>().InitializeAsync();
+
+await host.RunAsync();

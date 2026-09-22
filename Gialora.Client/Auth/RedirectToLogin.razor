@@ -4,6 +4,8 @@
 @code {
     protected override void OnInitialized()
     {
+        base.OnInitialized();
+
         // Հիշում ենք, թե ուր էր գնում user-ը, որ login-ից հետո վերադարձնենք նույն էջ
         var returnUrl = Navigation.ToBaseRelativePath(Navigation.Uri);
 

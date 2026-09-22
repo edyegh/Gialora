@@ -8,30 +8,30 @@
 @inject PlannerApi Planner
 @inject NavigationManager Navigation
 
-<PageTitle>@(list?.Name ?? "Shopping list") — Gialora</PageTitle>
+<PageTitle>@(list?.Name ?? L["Nav.ShoppingList"]) — Gialora</PageTitle>
 
 <section class="section container-narrow">
     @if (loading)
     {
-        <Loading Message="Loading your list..." />
+        <Loading Message="@L["ListView.Loading"]" />
     }
     else if (list is null)
     {
-        <EmptyState Icon="🛒" Title="Shopping list not found">
-            <a class="btn btn-primary" href="shopping-lists">All lists</a>
+        <EmptyState Icon="🛒" Title="@L["ListView.NotFound"]">
+            <a class="btn btn-primary" href="shopping-lists">@L["ListView.AllLists"]</a>
         </EmptyState>
     }
     else
     {
         <div class="page-header">
-            <p class="eyebrow">Smart shopping list</p>
+            <p class="eyebrow">@L["ListView.Eyebrow"]</p>
             <h1 style="margin:0 0 .75rem;">@list.Name</h1>
 
             <div class="row-between">
-                <span class="small-muted">@list.CheckedItems of @list.TotalItems picked up</span>
+                <span class="small-muted">@L["ShoppingLists.PickedUp", list.CheckedItems, list.TotalItems]</span>
                 @if (list.MealPlanId is { } planId)
                 {
-                    <a class="btn btn-outline-g btn-sm" href="plans/@planId">Back to plan</a>
+                    <a class="btn btn-outline-g btn-sm" href="plans/@planId">@L["ListView.BackToPlan"]</a>
                 }
             </div>
 
@@ -44,14 +44,14 @@
 
         @if (list.TotalItems == 0)
         {
-            <EmptyState Icon="🛒" Title="This list is empty"
-                        Description="Regenerate it from the meal plan, or add something by hand below." />
+            <EmptyState Icon="🛒" Title="@L["ListView.EmptyTitle"]"
+                        Description="@L["ListView.EmptyDescription"]" />
         }
 
         @foreach (var group in list.Groups)
         {
             <div class="shop-group">
-                <div class="shop-group-head">@group.CategoryName</div>
+                <div class="shop-group-head">@L.Enum(group.Category)</div>
 
                 @foreach (var item in group.Items)
                 {
@@ -66,22 +66,22 @@
 
                             @if (item.IsPantryStaple)
                             {
-                                <span class="pill pill-outline ms-2">check cupboard</span>
+                                <span class="pill pill-outline ms-2">@L["ListView.CheckCupboard"]</span>
                             }
                             @if (item.IsOptional)
                             {
-                                <span class="pill pill-outline ms-2">optional</span>
+                                <span class="pill pill-outline ms-2">@L["ListView.Optional"]</span>
                             }
 
                             @* Consolidation-ի հետքը՝ user-ը տեսնում է, թե ինչու է
                                1.7 կգ հավ, և որ ուտեստներից է այն գումարվել *@
                             @if (item.SourceRecipes.Count > 0)
                             {
-                                <span class="d-block small-muted">for @string.Join(", ", item.SourceRecipes)</span>
+                                <span class="d-block small-muted">@L["ListView.ForRecipes", string.Join(", ", item.SourceRecipes)]</span>
                             }
                         </label>
 
-                        <button class="btn btn-danger-soft btn-sm" title="Remove"
+                        <button class="btn btn-danger-soft btn-sm" title="@L["Common.Remove"]"
                                 @onclick="() => RemoveItem(item.Id)" disabled="@busy">×</button>
                     </div>
                 }
@@ -90,27 +90,25 @@
 
         <div class="card-g mt-4">
             <div class="card-g-body">
-                <p class="eyebrow mb-2">Add something else</p>
+                <p class="eyebrow mb-2">@L["ListView.AddSomethingElse"]</p>
                 <div class="cluster">
-                    <input class="form-control" style="max-width:16rem;" placeholder="e.g. kitchen roll"
+                    <input class="form-control" style="max-width:16rem;" placeholder="@L["ListView.AddPlaceholder"]"
                            @bind="newItemName" @bind:event="oninput" @onkeydown="OnNewItemKeyDown" />
                     <input class="form-control" style="max-width:6rem;" type="number" min="1" step="1"
                            @bind="newItemQuantity" />
                     <button class="btn btn-primary" @onclick="AddItem"
-                            disabled="@(busy || string.IsNullOrWhiteSpace(newItemName))">Add</button>
+                            disabled="@(busy || string.IsNullOrWhiteSpace(newItemName))">@L["Common.Add"]</button>
                 </div>
-                <p class="form-text mt-2">
-                    Items you add by hand stay on the list even when you regenerate it from the plan.
-                </p>
+                <p class="form-text mt-2">@L["ListView.ManualItemsHint"]</p>
             </div>
         </div>
 
         <div class="mt-3 cluster">
             <button class="btn btn-outline-g btn-sm" @onclick="ClearChecked"
                     disabled="@(busy || list.CheckedItems == 0)">
-                Clear @list.CheckedItems picked-up item(s)
+                @L["ListView.ClearPickedUp", list.CheckedItems]
             </button>
-            <button class="btn btn-danger-soft btn-sm" @onclick="DeleteList" disabled="@busy">Delete list</button>
+            <button class="btn btn-danger-soft btn-sm" @onclick="DeleteList" disabled="@busy">@L["ListView.DeleteList"]</button>
         </div>
     }
 </section>

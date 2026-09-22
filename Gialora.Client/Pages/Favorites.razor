@@ -4,13 +4,13 @@
 @using Gialora.Client.Services
 @inject RecipeApi Recipes
 
-<PageTitle>Saved recipes — Gialora</PageTitle>
+<PageTitle>@L["Favorites.Title"] — Gialora</PageTitle>
 
 <section class="section container-wide">
     <div class="page-header">
-        <p class="eyebrow">Saved</p>
-        <h1 style="margin:0 0 .35rem;">Your saved recipes</h1>
-        <p class="lede">Saved recipes are also nudged higher when the planner builds your week.</p>
+        <p class="eyebrow">@L["Nav.Saved"]</p>
+        <h1 style="margin:0 0 .35rem;">@L["Favorites.Heading"]</h1>
+        <p class="lede">@L["Favorites.Lede"]</p>
     </div>
 
     <ErrorAlert Message="@error" />
@@ -21,9 +21,9 @@
     }
     else if (favorites.Count == 0)
     {
-        <EmptyState Icon="★" Title="Nothing saved yet"
-                    Description="Open a recipe and hit Save to keep it here.">
-            <a class="btn btn-primary" href="recipes">Browse recipes</a>
+        <EmptyState Icon="★" Title="@L["Favorites.EmptyTitle"]"
+                    Description="@L["Favorites.EmptyDescription"]">
+            <a class="btn btn-primary" href="recipes">@L["Common.BrowseRecipes"]</a>
         </EmptyState>
     }
     else

@@ -1,6 +1,7 @@
 // Gialora.Client/Services/ApiClientBase.cs
 using System.Net;
 using System.Net.Http.Json;
+using Gialora.Client.Localization;
 using Gialora.Shared.Dtos;
 
 namespace Gialora.Client.Services;
@@ -28,10 +29,12 @@ public class ApiException : Exception
 public abstract class ApiClientBase
 {
     protected readonly HttpClient Http;
+    private readonly Localizer _localizer;
 
-    protected ApiClientBase(HttpClient http)
+    protected ApiClientBase(HttpClient http, Localizer localizer)
     {
         Http = http;
+        _localizer = localizer;
     }
 
     protected async Task<T> GetAsync<T>(string url)
@@ -104,17 +107,17 @@ public abstract class ApiClientBase
         return await response.Content.ReadFromJsonAsync<T>(GialoraJson.Options) ?? default!;
     }
 
-    private static async Task EnsureSuccessAsync(HttpResponseMessage response)
+    private async Task EnsureSuccessAsync(HttpResponseMessage response)
     {
         if (response.IsSuccessStatusCode)
             return;
 
         var message = response.StatusCode switch
         {
-            HttpStatusCode.Unauthorized => "Please sign in to continue.",
-            HttpStatusCode.Forbidden => "You do not have access to this.",
-            HttpStatusCode.TooManyRequests => "Too many attempts. Please wait a moment and try again.",
-            _ => "Something went wrong. Please try again."
+            HttpStatusCode.Unauthorized => _localizer["Api.Unauthorized"],
+            HttpStatusCode.Forbidden => _localizer["Api.Forbidden"],
+            HttpStatusCode.TooManyRequests => _localizer["Api.TooManyRequests"],
+            _ => _localizer["Api.GenericError"]
         };
 
         Dictionary<string, string[]>? errors = null;

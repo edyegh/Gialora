@@ -4,12 +4,12 @@
 @using Gialora.Client.Services
 @inject PlannerApi Planner
 
-<PageTitle>Shopping lists — Gialora</PageTitle>
+<PageTitle>@L["ShoppingLists.Title"] — Gialora</PageTitle>
 
 <section class="section container-narrow">
     <div class="page-header">
-        <p class="eyebrow">Smart shopping</p>
-        <h1 style="margin:0;">Your shopping lists</h1>
+        <p class="eyebrow">@L["ShoppingLists.Eyebrow"]</p>
+        <h1 style="margin:0;">@L["ShoppingLists.Heading"]</h1>
     </div>
 
     <ErrorAlert Message="@error" />
@@ -20,9 +20,9 @@
     }
     else if (lists.Count == 0)
     {
-        <EmptyState Icon="🛒" Title="No shopping lists yet"
-                    Description="Generate a meal plan, then turn it into a consolidated list with one click.">
-            <a class="btn btn-primary" href="weekly">Plan my week</a>
+        <EmptyState Icon="🛒" Title="@L["ShoppingLists.EmptyTitle"]"
+                    Description="@L["ShoppingLists.EmptyDescription"]">
+            <a class="btn btn-primary" href="weekly">@L["Common.PlanMyWeek"]</a>
         </EmptyState>
     }
     else
@@ -35,13 +35,13 @@
                         <div>
                             <h3 class="recipe-title">@list.Name</h3>
                             <span class="small-muted">
-                                @list.CheckedItems of @list.TotalItems picked up ·
-                                @list.CreatedAtUtc.ToLocalTime().ToString("d MMM")
+                                @L["ShoppingLists.PickedUp", list.CheckedItems, list.TotalItems] ·
+                                @L.DayMonth(list.CreatedAtUtc.ToLocalTime())
                             </span>
                         </div>
                         <span class="pill @(list.CheckedItems == list.TotalItems && list.TotalItems > 0 ? "pill-olive" : "pill-outline")">
-                            @(list.TotalItems == 0 ? "empty"
-                              : list.CheckedItems == list.TotalItems ? "done" : "in progress")
+                            @(list.TotalItems == 0 ? L["ShoppingLists.StatusEmpty"]
+                              : list.CheckedItems == list.TotalItems ? L["ShoppingLists.StatusDone"] : L["ShoppingLists.StatusInProgress"])
                         </span>
                     </div>
                 </a>

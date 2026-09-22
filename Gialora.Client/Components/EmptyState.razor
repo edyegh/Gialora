@@ -3,7 +3,7 @@
 
 <div class="empty-state">
     <span class="empty-icon" aria-hidden="true">@Icon</span>
-    <p class="mb-2"><strong>@Title</strong></p>
+    <p class="mb-2"><strong>@(Title ?? L["Common.NothingHereYet"])</strong></p>
     @if (!string.IsNullOrWhiteSpace(Description))
     {
         <p class="small-muted mb-3">@Description</p>
@@ -13,7 +13,7 @@
 
 @code {
     [Parameter] public string Icon { get; set; } = "🫒";
-    [Parameter] public string Title { get; set; } = "Nothing here yet";
+    [Parameter] public string? Title { get; set; }
     [Parameter] public string? Description { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
 }

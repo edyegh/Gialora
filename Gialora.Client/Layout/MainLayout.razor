@@ -1,5 +1,5 @@
 @* Gialora.Client/Layout/MainLayout.razor *@
-@inherits LayoutComponentBase
+@inherits LocalizedLayoutComponentBase
 
 <div class="page">
     <NavMenu />
@@ -10,11 +10,11 @@
 
     <footer class="site-footer">
         <div class="container-wide row-between">
-            <span>Gialora — Mediterranean meals, planned for real families.</span>
+            <span>@L["Footer.Tagline"]</span>
             <span class="cluster">
-                <NavLink href="recipes">Recipes</NavLink>
+                <NavLink href="recipes">@L["Nav.Recipes"]</NavLink>
                 <span aria-hidden="true">·</span>
-                <NavLink href="blog">Blog</NavLink>
+                <NavLink href="blog">@L["Nav.Blog"]</NavLink>
             </span>
         </div>
     </footer>

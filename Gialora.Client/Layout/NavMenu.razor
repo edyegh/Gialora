@@ -1,7 +1,6 @@
 @* Gialora.Client/Layout/NavMenu.razor
    Կառուցվածքը ուղիղ հետևում է app structure §2-ի "Website structure"-ին՝
    HOME / DAILY / WEEKLY / BATCH & FREEZE / RECIPES / SHOPPING LIST / BLOG *@
-@implements IDisposable
 @inject NavigationManager Navigation
 
 <header class="site-header">
@@ -9,43 +8,52 @@
         <a class="brand" href="">Gialora<span class="brand-mark">.</span></a>
 
         <button class="nav-toggle" type="button" @onclick="ToggleMenu"
-                aria-label="Toggle navigation" aria-expanded="@(!collapsed)">
+                aria-label="@L["Nav.ToggleNavigation"]" aria-expanded="@(!collapsed)">
             ☰
         </button>
 
         @* Class, ոչ թե hidden attribute — hidden-ը թաքցնում է ամեն լայնության վրա,
            իսկ մեզ պետք է, որ desktop-ում մենյուն միշտ երևա *@
         <nav class="site-nav @(collapsed ? "is-collapsed" : null)">
-            <NavLink href="" Match="NavLinkMatch.All">Home</NavLink>
-            <NavLink href="daily">Daily</NavLink>
-            <NavLink href="weekly">Weekly</NavLink>
-            <NavLink href="batch">Batch &amp; freeze</NavLink>
-            <NavLink href="recipes">Recipes</NavLink>
+            <NavLink href="" Match="NavLinkMatch.All">@L["Nav.Home"]</NavLink>
+            <NavLink href="daily">@L["Nav.Daily"]</NavLink>
+            <NavLink href="weekly">@L["Nav.Weekly"]</NavLink>
+            <NavLink href="batch">@L["Nav.Batch"]</NavLink>
+            <NavLink href="recipes">@L["Nav.Recipes"]</NavLink>
 
             <AuthorizeView>
                 <Authorized>
-                    <NavLink href="shopping-lists">Shopping list</NavLink>
+                    <NavLink href="shopping-lists">@L["Nav.ShoppingList"]</NavLink>
                 </Authorized>
             </AuthorizeView>
 
-            <NavLink href="blog">Blog</NavLink>
+            <NavLink href="blog">@L["Nav.Blog"]</NavLink>
 
             <span class="site-nav-spacer"></span>
 
             <AuthorizeView>
                 <Authorized Context="auth">
                     <AuthorizeView Roles="Admin" Context="adminAuth">
-                        <NavLink href="admin/recipes">Admin</NavLink>
+                        <NavLink href="admin/recipes">@L["Nav.Admin"]</NavLink>
                     </AuthorizeView>
-                    <NavLink href="favorites">Saved</NavLink>
-                    <NavLink href="family">My family</NavLink>
-                    <NavLink href="logout">Sign out</NavLink>
+                    <NavLink href="favorites">@L["Nav.Saved"]</NavLink>
+                    <NavLink href="family">@L["Nav.MyFamily"]</NavLink>
+                    <NavLink href="logout">@L["Nav.SignOut"]</NavLink>
                 </Authorized>
                 <NotAuthorized>
-                    <NavLink href="login">Sign in</NavLink>
-                    <NavLink href="register">Create account</NavLink>
+                    <NavLink href="login">@L["Nav.SignIn"]</NavLink>
+                    <NavLink href="register">@L["Nav.CreateAccount"]</NavLink>
                 </NotAuthorized>
             </AuthorizeView>
+
+            @* Լեզվի ընտրիչ — արժեքը localStorage-ում է, բոլոր էջերը միանգամից re-render են լինում *@
+            <select class="lang-select" aria-label="@L["Nav.Language"]" title="@L["Nav.Language"]"
+                    value="@L.Language" @onchange="OnLanguageChanged">
+                @foreach (var language in Localizer.Languages)
+                {
+                    <option value="@language.Code">@language.NativeName</option>
+                }
+            </select>
         </nav>
     </div>
 </header>
@@ -55,10 +63,16 @@
     // ամեն դեպքում ցույց է տալիս, ուստի սա ազդում է միայն նեղ էկրանին։
     private bool collapsed = true;
 
-    protected override void OnInitialized() =>
+    protected override void OnInitialized()
+    {
+        base.OnInitialized(); // լեզվի բաժանորդագրությունը
         Navigation.LocationChanged += OnLocationChanged;
+    }
 
     private void ToggleMenu() => collapsed = !collapsed;
+
+    private Task OnLanguageChanged(ChangeEventArgs e) =>
+        L.SetLanguageAsync(e.Value?.ToString() ?? Localizer.DefaultLanguage);
 
     // Էջ փոխելուց հետո բացված մենյուն պիտի փակվի — հակառակ դեպքում հեռախոսին
     // նոր էջը բացվում է մենյուի տակ թաքնված։
@@ -70,5 +84,9 @@
         StateHasChanged();
     }
 
-    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+    public override void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        base.Dispose();
+    }
 }

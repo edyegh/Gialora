@@ -7,49 +7,49 @@
 @inject RecipeApi Catalog
 @inject NavigationManager Navigation
 
-<PageTitle>Recipes — Gialora</PageTitle>
+<PageTitle>@L["Nav.Recipes"] — Gialora</PageTitle>
 
 <section class="section container-wide">
     <div class="page-header">
-        <p class="eyebrow">Recipes</p>
-        <h1 style="margin:0 0 .35rem;">Browse all recipes</h1>
-        <p class="lede">Structured, filterable and ready to drop into a weekly plan.</p>
+        <p class="eyebrow">@L["Nav.Recipes"]</p>
+        <h1 style="margin:0 0 .35rem;">@L["Recipes.Heading"]</h1>
+        <p class="lede">@L["Recipes.Lede"]</p>
     </div>
 
     <div class="card-g mb-4">
         <div class="card-g-body stack">
             <div class="cluster">
-                <input class="form-control" style="max-width:22rem;" placeholder="Search recipes or ingredients…"
+                <input class="form-control" style="max-width:22rem;" placeholder="@L["Recipes.SearchPlaceholder"]"
                        @bind="filter.Search" @bind:event="oninput" @onkeydown="OnSearchKeyDown" />
 
                 <select class="form-select" style="max-width:11rem;" @bind="SelectedMealType">
-                    <option value="">Any meal</option>
+                    <option value="">@L["Recipes.AnyMeal"]</option>
                     @foreach (var meal in Enum.GetValues<MealType>())
                     {
-                        <option value="@meal">@meal</option>
+                        <option value="@meal">@L.Enum(meal)</option>
                     }
                 </select>
 
                 <select class="form-select" style="max-width:11rem;" @bind="SelectedDiet">
-                    <option value="">Any diet</option>
+                    <option value="">@L["Recipes.AnyDiet"]</option>
                     @foreach (var diet in Enum.GetValues<DietType>())
                     {
-                        <option value="@diet">@diet</option>
+                        <option value="@diet">@L.Enum(diet)</option>
                     }
                 </select>
 
                 <select class="form-select" style="max-width:11rem;" @bind="SelectedMaxTime">
-                    <option value="">Any time</option>
-                    <option value="20">Under 20 min</option>
-                    <option value="30">Under 30 min</option>
-                    <option value="45">Under 45 min</option>
-                    <option value="60">Under 60 min</option>
+                    <option value="">@L["Recipes.AnyTime"]</option>
+                    <option value="20">@L["Recipes.UnderMinutes", 20]</option>
+                    <option value="30">@L["Recipes.UnderMinutes", 30]</option>
+                    <option value="45">@L["Recipes.UnderMinutes", 45]</option>
+                    <option value="60">@L["Recipes.UnderMinutes", 60]</option>
                 </select>
 
                 <select class="form-select" style="max-width:12rem;" @bind="SelectedSort">
                     @foreach (var sort in Enum.GetValues<RecipeSortOrder>())
                     {
-                        <option value="@sort">@SortLabel(sort)</option>
+                        <option value="@sort">@L.Enum(sort)</option>
                     }
                 </select>
             </div>
@@ -61,7 +61,7 @@
                     <label class="chip-check @(isOn ? "is-on" : null)">
                         <input type="checkbox" checked="@isOn"
                                @onchange="e => ToggleFlag(flag, (bool)(e.Value ?? false))" />
-                        @flag.Label
+                        @L[flag.LabelKey]
                     </label>
                 }
 
@@ -70,14 +70,14 @@
                         <label class="chip-check @(filter.FavoritesOnly ? "is-on" : null)">
                             <input type="checkbox" checked="@filter.FavoritesOnly"
                                    @onchange="e => ToggleFavorites((bool)(e.Value ?? false))" />
-                            ★ Saved only
+                            ★ @L["Recipes.SavedOnly"]
                         </label>
                     </Authorized>
                 </AuthorizeView>
 
                 @if (HasActiveFilters)
                 {
-                    <button class="btn btn-ghost btn-sm" @onclick="ClearFilters">Clear filters</button>
+                    <button class="btn btn-ghost btn-sm" @onclick="ClearFilters">@L["Recipes.ClearFilters"]</button>
                 }
             </div>
         </div>
@@ -87,18 +87,18 @@
 
     @if (loading)
     {
-        <Loading Message="Finding recipes..." />
+        <Loading Message="@L["Recipes.Finding"]" />
     }
     else if (result is null || result.Items.Count == 0)
     {
-        <EmptyState Icon="🍽️" Title="No recipes match those filters"
-                    Description="Try removing a filter or widening the cooking time.">
-            <button class="btn btn-outline-g" @onclick="ClearFilters">Clear filters</button>
+        <EmptyState Icon="🍽️" Title="@L["Recipes.NoMatchTitle"]"
+                    Description="@L["Recipes.NoMatchDescription"]">
+            <button class="btn btn-outline-g" @onclick="ClearFilters">@L["Recipes.ClearFilters"]</button>
         </EmptyState>
     }
     else
     {
-        <p class="small-muted mb-3">@result.TotalCount recipe(s)</p>
+        <p class="small-muted mb-3">@L["Recipes.Count", result.TotalCount]</p>
 
         <div class="grid">
             @foreach (var recipe in result.Items)
@@ -111,10 +111,10 @@
         {
             <div class="cluster mt-4" style="justify-content:center;">
                 <button class="btn btn-outline-g btn-sm" @onclick="() => GoToPage(result.Page - 1)"
-                        disabled="@(!result.HasPrevious)">← Previous</button>
-                <span class="small-muted">Page @result.Page of @result.TotalPages</span>
+                        disabled="@(!result.HasPrevious)">← @L["Common.Previous"]</button>
+                <span class="small-muted">@L["Common.PageOf", result.Page, result.TotalPages]</span>
                 <button class="btn btn-outline-g btn-sm" @onclick="() => GoToPage(result.Page + 1)"
-                        disabled="@(!result.HasNext)">Next →</button>
+                        disabled="@(!result.HasNext)">@L["Common.Next"] →</button>
             </div>
         }
     }
@@ -130,16 +130,16 @@
     // Ամեն ստեղնահարումով request ուղարկելը 12 ավելորդ կանչ էր տալիս մեկ բառի համար։
     private CancellationTokenSource? _searchCts;
 
-    private record FlagFilter(string Label, Func<RecipeFilterDto, bool?> Get, Action<RecipeFilterDto, bool?> Set);
+    private record FlagFilter(string LabelKey, Func<RecipeFilterDto, bool?> Get, Action<RecipeFilterDto, bool?> Set);
 
     private static readonly FlagFilter[] FlagFilters =
     {
-        new("Kid-friendly", f => f.KidFriendly, (f, v) => f.KidFriendly = v),
-        new("❄ Freezes well", f => f.FreezerFriendly, (f, v) => f.FreezerFriendly = v),
-        new("Lunchbox", f => f.LunchboxFriendly, (f, v) => f.LunchboxFriendly = v),
-        new("High protein", f => f.HighProtein, (f, v) => f.HighProtein = v),
-        new("Iron-rich", f => f.IronRich, (f, v) => f.IronRich = v),
-        new("Batch cook", f => f.BatchFriendly, (f, v) => f.BatchFriendly = v)
+        new("Recipe.Tag.KidFriendly", f => f.KidFriendly, (f, v) => f.KidFriendly = v),
+        new("Recipe.Tag.FreezesWell", f => f.FreezerFriendly, (f, v) => f.FreezerFriendly = v),
+        new("Recipe.Tag.Lunchbox", f => f.LunchboxFriendly, (f, v) => f.LunchboxFriendly = v),
+        new("Recipe.Tag.HighProtein", f => f.HighProtein, (f, v) => f.HighProtein = v),
+        new("Recipe.Tag.IronRich", f => f.IronRich, (f, v) => f.IronRich = v),
+        new("Recipe.Tag.BatchCook", f => f.BatchFriendly, (f, v) => f.BatchFriendly = v)
     };
 
     private bool HasActiveFilters =>
@@ -243,12 +243,4 @@
             }
         }
     }
-
-    private static string SortLabel(RecipeSortOrder sort) => sort switch
-    {
-        RecipeSortOrder.Title => "A–Z",
-        RecipeSortOrder.QuickestFirst => "Quickest first",
-        RecipeSortOrder.HighestRated => "Highest rated",
-        _ => "Newest"
-    };
 }

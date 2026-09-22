@@ -8,18 +8,18 @@
 @inject PlannerApi Planner
 @inject NavigationManager Navigation
 
-<PageTitle>@(plan?.Name ?? "Meal plan") — Gialora</PageTitle>
+<PageTitle>@(plan?.Name ?? L["PlanView.Title"]) — Gialora</PageTitle>
 
 <section class="section container-wide">
     @if (loading)
     {
-        <Loading Message="Loading your plan..." />
+        <Loading Message="@L["PlanView.Loading"]" />
     }
     else if (plan is null)
     {
-        <EmptyState Icon="🗓️" Title="Plan not found"
-                    Description="It may have been deleted, or it belongs to another family.">
-            <a class="btn btn-primary" href="weekly">Plan a new week</a>
+        <EmptyState Icon="🗓️" Title="@L["PlanView.NotFoundTitle"]"
+                    Description="@L["PlanView.NotFoundDescription"]">
+            <a class="btn btn-primary" href="weekly">@L["Plans.PlanNewWeek"]</a>
         </EmptyState>
     }
     else
@@ -27,7 +27,7 @@
         <div class="page-header row-between">
             <div>
                 <p class="eyebrow mb-1">
-                    @plan.PlanType · @plan.Status · @plan.ServingsPerMeal servings
+                    @L.Enum(plan.PlanType) · @L.Enum(plan.Status) · @plan.ServingsPerMeal @L["Common.Servings"]
                 </p>
                 <h1 style="margin:0;">@plan.Name</h1>
             </div>
@@ -35,13 +35,13 @@
             <div class="cluster">
                 @if (plan.Status != MealPlanStatus.Accepted)
                 {
-                    <button class="btn btn-primary" @onclick="Accept" disabled="@busy">Accept plan</button>
+                    <button class="btn btn-primary" @onclick="Accept" disabled="@busy">@L["PlanView.AcceptPlan"]</button>
                 }
                 <button class="btn btn-outline-g" @onclick="RegenerateWeek" disabled="@busy">
-                    Regenerate
+                    @L["PlanView.Regenerate"]
                 </button>
                 <button class="btn btn-accent" @onclick="BuildShoppingList" disabled="@busy">
-                    @(plan.ShoppingListId is null ? "Create shopping list" : "Open shopping list")
+                    @(plan.ShoppingListId is null ? L["PlanView.CreateShoppingList"] : L["PlanView.OpenShoppingList"])
                 </button>
             </div>
         </div>
@@ -56,7 +56,7 @@
         @if (plan.PlanningNotes.Count > 0)
         {
             <div class="plan-notes mb-4">
-                <strong>Why this plan</strong>
+                <strong>@L["PlanView.WhyThisPlan"]</strong>
                 <ul>
                     @foreach (var note in plan.PlanningNotes)
                     {
@@ -72,10 +72,10 @@
                 <div class="plan-day">
                     <div class="plan-day-head">
                         <span class="plan-day-name">
-                            @day.Date.ToString("dddd") <span class="muted">· @day.Date.ToString("d MMM")</span>
+                            @L.Weekday(day.Date) <span class="muted">· @L.DayMonth(day.Date)</span>
                         </span>
                         <button class="btn btn-ghost btn-sm" @onclick="() => RegenerateDay(day.Id)" disabled="@busy">
-                            Replace this day
+                            @L["PlanView.ReplaceDay"]
                         </button>
                     </div>
 
@@ -83,21 +83,21 @@
                     {
                         <div class="plan-entry">
                             <div class="plan-entry-main">
-                                <p class="eyebrow mb-1">@entry.MealType</p>
+                                <p class="eyebrow mb-1">@L.Enum(entry.MealType)</p>
                                 <a href="recipes/@entry.Recipe.Slug" class="recipe-title d-block">
                                     @entry.Recipe.Title
                                 </a>
 
                                 <div class="meta-row mt-1">
-                                    <span>⏱ @entry.Recipe.TotalTimeMinutes min</span>
-                                    <span>🍽 @entry.PlannedServings servings</span>
+                                    <span>⏱ @L["Recipe.Minutes", entry.Recipe.TotalTimeMinutes]</span>
+                                    <span>🍽 @entry.PlannedServings @L["Common.Servings"]</span>
                                     @if (entry.Recipe.PrimaryProtein != ProteinType.None)
                                     {
-                                        <span>@entry.Recipe.PrimaryProtein</span>
+                                        <span>@L.Enum(entry.Recipe.PrimaryProtein)</span>
                                     }
                                     @if (entry.Recipe.IsFreezerFriendly)
                                     {
-                                        <span>❄ Freezes well</span>
+                                        <span>❄ @L["Recipe.FreezesWell"]</span>
                                     }
                                 </div>
                             </div>
@@ -106,14 +106,14 @@
                                 @* Կողպված ուտեստը regenerate-ը չի փոխում — սա է
                                    "պահիր ուրբաթվա մակարոնեղենը" պատասխանը *@
                                 <button class="btn btn-ghost btn-sm @(entry.IsLocked ? "is-on" : null)"
-                                        title="@(entry.IsLocked ? "Unlock this meal" : "Keep this meal when regenerating")"
+                                        title="@(entry.IsLocked ? L["PlanView.UnlockMeal"] : L["PlanView.KeepMeal"])"
                                         @onclick="() => ToggleLock(entry)" disabled="@busy">
                                     @(entry.IsLocked ? "🔒" : "🔓")
                                 </button>
 
                                 <button class="btn btn-outline-g btn-sm"
                                         @onclick="() => Swap(entry.Id)" disabled="@busy">
-                                    Swap
+                                    @L["PlanView.Swap"]
                                 </button>
                             </div>
                         </div>
@@ -123,8 +123,8 @@
         </div>
 
         <div class="mt-4 cluster">
-            <a class="btn btn-outline-g btn-sm" href="plans">All my plans</a>
-            <button class="btn btn-danger-soft btn-sm" @onclick="Delete" disabled="@busy">Delete this plan</button>
+            <a class="btn btn-outline-g btn-sm" href="plans">@L["PlanView.AllMyPlans"]</a>
+            <button class="btn btn-danger-soft btn-sm" @onclick="Delete" disabled="@busy">@L["PlanView.DeletePlan"]</button>
         </div>
     }
 </section>
@@ -148,7 +148,7 @@
     private Task Swap(Guid entryId) => Run(async () =>
     {
         plan = await Planner.SwapEntryAsync(PlanId, entryId);
-        status = "Meal replaced. It is now locked so regenerating will not change it again.";
+        status = L["PlanView.StatusSwapped"];
     });
 
     private Task ToggleLock(MealPlanEntryDto entry) => Run(async () =>
@@ -157,19 +157,19 @@
     private Task RegenerateDay(Guid dayId) => Run(async () =>
     {
         plan = await Planner.RegenerateDayAsync(PlanId, dayId);
-        status = "That day has been replaced.";
+        status = L["PlanView.StatusDayReplaced"];
     });
 
     private Task RegenerateWeek() => Run(async () =>
     {
         plan = await Planner.RegenerateAsync(PlanId);
-        status = "Plan regenerated. Locked meals were kept.";
+        status = L["PlanView.StatusRegenerated"];
     });
 
     private Task Accept() => Run(async () =>
     {
         plan = await Planner.AcceptAsync(PlanId);
-        status = "Plan accepted.";
+        status = L["PlanView.StatusAccepted"];
     });
 
     private Task BuildShoppingList() => Run(async () =>
