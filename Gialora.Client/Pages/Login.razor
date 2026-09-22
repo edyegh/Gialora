@@ -4,12 +4,12 @@
 @inject AccountApi Account
 @inject NavigationManager Navigation
 
-<PageTitle>Sign in — Gialora</PageTitle>
+<PageTitle>@L["Nav.SignIn"] — Gialora</PageTitle>
 
 <section class="section container-narrow" style="max-width:26rem;">
     <div class="page-header">
-        <p class="eyebrow">Welcome back</p>
-        <h1 style="margin:0;">Sign in</h1>
+        <p class="eyebrow">@L["Login.Eyebrow"]</p>
+        <h1 style="margin:0;">@L["Nav.SignIn"]</h1>
     </div>
 
     <div class="card-g">
@@ -18,14 +18,14 @@
                 <DataAnnotationsValidator />
 
                 <div class="mb-3">
-                    <label class="form-label" for="email">Email</label>
+                    <label class="form-label" for="email">@L["Common.Email"]</label>
                     <InputText id="email" class="form-control" autocomplete="username"
                                @bind-Value="loginDto.Email" />
                     <ValidationMessage For="@(() => loginDto.Email)" />
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label" for="password">Password</label>
+                    <label class="form-label" for="password">@L["Common.Password"]</label>
                     <InputText id="password" class="form-control" type="password" autocomplete="current-password"
                                @bind-Value="loginDto.Password" />
                     <ValidationMessage For="@(() => loginDto.Password)" />
@@ -34,12 +34,12 @@
                 <ErrorAlert Message="@errorMessage" />
 
                 <button type="submit" class="btn btn-primary w-100" disabled="@isSubmitting">
-                    @(isSubmitting ? "Signing in..." : "Sign in")
+                    @(isSubmitting ? L["Login.Submitting"] : L["Nav.SignIn"])
                 </button>
             </EditForm>
 
             <p class="mt-3 mb-0 small-muted">
-                Don't have an account? <a href="register">Create one</a>
+                @L["Login.NoAccount"] <a href="register">@L["Login.CreateOne"]</a>
             </p>
         </div>
     </div>
@@ -84,7 +84,7 @@
         }
         catch (HttpRequestException)
         {
-            errorMessage = "Unable to reach the server. Please try again.";
+            errorMessage = L["Common.ServerUnreachable"];
         }
         finally
         {

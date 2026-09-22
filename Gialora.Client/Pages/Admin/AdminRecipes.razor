@@ -6,30 +6,31 @@
 @inject AdminApi Admin
 @inject NavigationManager Navigation
 
-<PageTitle>Admin · Recipes — Gialora</PageTitle>
+<PageTitle>@L["Nav.Admin"] · @L["Nav.Recipes"] — Gialora</PageTitle>
 
 <section class="section container-wide">
     <div class="page-header row-between">
         <div>
-            <p class="eyebrow">Admin</p>
-            <h1 style="margin:0;">Recipes</h1>
+            <p class="eyebrow">@L["Nav.Admin"]</p>
+            <h1 style="margin:0;">@L["Nav.Recipes"]</h1>
         </div>
         <div class="cluster">
-            <a class="btn btn-outline-g" href="admin/ingredients">Ingredients</a>
-            <a class="btn btn-outline-g" href="admin/blog">Blog</a>
-            <a class="btn btn-outline-g" href="admin/import">Bulk import</a>
-            <a class="btn btn-primary" href="admin/recipes/new">New recipe</a>
+            <a class="btn btn-outline-g" href="admin/ingredients">@L["Admin.Ingredients"]</a>
+            <a class="btn btn-outline-g" href="admin/blog">@L["Nav.Blog"]</a>
+            <a class="btn btn-outline-g" href="admin/import">@L["Admin.BulkImport"]</a>
+            <a class="btn btn-outline-g" href="admin/users">@L["Admin.Users"]</a>
+            <a class="btn btn-primary" href="admin/recipes/new">@L["Admin.NewRecipe"]</a>
         </div>
     </div>
 
     <div class="cluster mb-3">
-        <input class="form-control" style="max-width:20rem;" placeholder="Search…"
+        <input class="form-control" style="max-width:20rem;" placeholder="@L["Common.SearchPlaceholder"]"
                @bind="filter.Search" @bind:event="oninput" @onkeydown="OnSearchKeyDown" />
 
         @foreach (var option in StatusOptions)
         {
             <button class="btn btn-outline-g btn-sm @(publishedFilter == option.Value ? "is-on" : null)"
-                    @onclick="() => SetStatus(option.Value)">@option.Label</button>
+                    @onclick="() => SetStatus(option.Value)">@L[option.LabelKey]</button>
         }
     </div>
 
@@ -41,11 +42,11 @@
     }
     else if (result is null || result.Items.Count == 0)
     {
-        <EmptyState Icon="🍲" Title="No recipes here"
-                    Description="Create one by hand, or import a spreadsheet in bulk.">
+        <EmptyState Icon="🍲" Title="@L["AdminRecipes.EmptyTitle"]"
+                    Description="@L["AdminRecipes.EmptyDescription"]">
             <div class="cluster" style="justify-content:center;">
-                <a class="btn btn-primary" href="admin/recipes/new">New recipe</a>
-                <a class="btn btn-outline-g" href="admin/import">Bulk import</a>
+                <a class="btn btn-primary" href="admin/recipes/new">@L["Admin.NewRecipe"]</a>
+                <a class="btn btn-outline-g" href="admin/import">@L["Admin.BulkImport"]</a>
             </div>
         </EmptyState>
     }
@@ -55,11 +56,11 @@
             <table class="table-g">
                 <thead>
                     <tr>
-                        <th>Title</th>
-                        <th>Meal</th>
-                        <th>Diet</th>
-                        <th>Time</th>
-                        <th>Status</th>
+                        <th>@L["Common.Title"]</th>
+                        <th>@L["AdminRecipes.ColMeal"]</th>
+                        <th>@L["AdminRecipes.ColDiet"]</th>
+                        <th>@L["AdminRecipes.ColTime"]</th>
+                        <th>@L["Common.Status"]</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -71,30 +72,30 @@
                                 <strong>@recipe.Title</strong>
                                 <div class="small-muted">/@recipe.Slug</div>
                             </td>
-                            <td>@recipe.MealType</td>
-                            <td>@recipe.DietType</td>
-                            <td>@recipe.TotalTimeMinutes min</td>
+                            <td>@L.Enum(recipe.MealType)</td>
+                            <td>@L.Enum(recipe.DietType)</td>
+                            <td>@L["Recipe.Minutes", recipe.TotalTimeMinutes]</td>
                             <td>
                                 <span class="pill @(recipe.IsPublished ? "pill-olive" : "pill-warning")">
-                                    @(recipe.IsPublished ? "Published" : "Draft")
+                                    @(recipe.IsPublished ? L["Common.Published"] : L["Common.Draft"])
                                 </span>
                             </td>
                             <td style="text-align:right; white-space:nowrap;">
-                                <a class="btn btn-ghost btn-sm" href="admin/recipes/@recipe.Id">Edit</a>
+                                <a class="btn btn-ghost btn-sm" href="admin/recipes/@recipe.Id">@L["Common.Edit"]</a>
 
                                 @if (recipe.IsPublished)
                                 {
                                     <button class="btn btn-ghost btn-sm" @onclick="() => Unpublish(recipe.Id)"
-                                            disabled="@busy">Unpublish</button>
+                                            disabled="@busy">@L["Common.Unpublish"]</button>
                                 }
                                 else
                                 {
                                     <button class="btn btn-ghost btn-sm" @onclick="() => Publish(recipe.Id)"
-                                            disabled="@busy">Publish</button>
+                                            disabled="@busy">@L["Common.Publish"]</button>
                                 }
 
                                 <button class="btn btn-danger-soft btn-sm" @onclick="() => Delete(recipe.Id)"
-                                        disabled="@busy">Delete</button>
+                                        disabled="@busy">@L["Common.Delete"]</button>
                             </td>
                         </tr>
                     }
@@ -106,23 +107,23 @@
         {
             <div class="cluster mt-3" style="justify-content:center;">
                 <button class="btn btn-outline-g btn-sm" @onclick="() => GoToPage(result.Page - 1)"
-                        disabled="@(!result.HasPrevious)">← Previous</button>
-                <span class="small-muted">Page @result.Page of @result.TotalPages</span>
+                        disabled="@(!result.HasPrevious)">← @L["Common.Previous"]</button>
+                <span class="small-muted">@L["Common.PageOf", result.Page, result.TotalPages]</span>
                 <button class="btn btn-outline-g btn-sm" @onclick="() => GoToPage(result.Page + 1)"
-                        disabled="@(!result.HasNext)">Next →</button>
+                        disabled="@(!result.HasNext)">@L["Common.Next"] →</button>
             </div>
         }
     }
 </section>
 
 @code {
-    private record StatusOption(string Label, bool? Value);
+    private record StatusOption(string LabelKey, bool? Value);
 
     private static readonly StatusOption[] StatusOptions =
     {
-        new("All", null),
-        new("Published", true),
-        new("Drafts", false)
+        new("Common.All", null),
+        new("Common.Published", true),
+        new("Common.Drafts", false)
     };
 
     private RecipeFilterDto filter = new() { PageSize = 25 };

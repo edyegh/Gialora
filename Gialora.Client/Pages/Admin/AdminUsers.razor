@@ -1,0 +1,240 @@
+@* Gialora.Client/Pages/Admin/AdminUsers.razor
+   Admin-ի user management՝ ավելացնել, password փոխել, հեռացնել։ *@
+@page "/admin/users"
+@attribute [Authorize(Roles = "Admin")]
+@using Gialora.Client.Services
+@inject AdminApi Admin
+
+<PageTitle>@L["Nav.Admin"] · @L["Admin.Users"] — Gialora</PageTitle>
+
+<section class="section container-wide">
+    <div class="page-header row-between">
+        <div>
+            <p class="eyebrow">@L["Nav.Admin"]</p>
+            <h1 style="margin:0;">@L["Admin.Users"]</h1>
+            <p class="small-muted" style="margin:.35rem 0 0;">@L["AdminUsers.Lede"]</p>
+        </div>
+        <a class="btn btn-outline-g" href="admin/recipes">← @L["Nav.Recipes"]</a>
+    </div>
+
+    <ErrorAlert Message="@error" Errors="@errors" />
+
+    @if (!string.IsNullOrWhiteSpace(status))
+    {
+        <div class="alert alert-success" role="status">@status</div>
+    }
+
+    <div class="card-g mb-4">
+        <div class="card-g-body">
+            <p class="eyebrow mb-2">@L["AdminUsers.AddUser"]</p>
+            <EditForm Model="draft" OnValidSubmit="Create">
+                <DataAnnotationsValidator />
+                <div class="cluster">
+                    <InputText class="form-control" style="max-width:14rem;" placeholder="@L["Common.Name"]"
+                               @bind-Value="draft.DisplayName" />
+                    <InputText class="form-control" style="max-width:18rem;" type="email" placeholder="@L["Common.Email"]"
+                               @bind-Value="draft.Email" autocomplete="off" />
+                    <InputText class="form-control" style="max-width:14rem;" type="password"
+                               placeholder="@L["AdminUsers.PasswordPlaceholder"]" @bind-Value="draft.Password" autocomplete="new-password" />
+                    <InputSelect class="form-select" style="max-width:9rem;" @bind-Value="draft.Role">
+                        <option value="User">@L["Enum.UserRole.User"]</option>
+                        <option value="Admin">@L["Enum.UserRole.Admin"]</option>
+                    </InputSelect>
+                    <button type="submit" class="btn btn-primary" disabled="@busy">@L["Common.Add"]</button>
+                </div>
+                <ValidationSummary class="small-muted mt-2" />
+            </EditForm>
+        </div>
+    </div>
+
+    <input class="form-control mb-3" style="max-width:20rem;" placeholder="@L["AdminUsers.FilterPlaceholder"]"
+           @bind="search" @bind:event="oninput" />
+
+    @if (loading)
+    {
+        <Loading />
+    }
+    else if (users.Count == 0)
+    {
+        <EmptyState Icon="👤" Title="@L["AdminUsers.EmptyTitle"]" Description="@L["AdminUsers.EmptyDescription"]" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table-g">
+                <thead>
+                    <tr>
+                        <th>@L["Common.Name"]</th><th>@L["Common.Email"]</th><th>@L["AdminUsers.ColRole"]</th><th>@L["AdminUsers.ColJoined"]</th><th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var user in Filtered)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@user.DisplayName</strong>
+                                @if (user.IsCurrentUser)
+                                {
+                                    <span class="pill pill-outline ms-2">@L["AdminUsers.You"]</span>
+                                }
+                                @if (user.IsLockedOut)
+                                {
+                                    <span class="pill pill-warning ms-2" title="@L["AdminUsers.LockedHint"]">@L["AdminUsers.Locked"]</span>
+                                }
+                            </td>
+                            <td>@user.Email</td>
+                            <td>
+                                <span class="pill @(user.Role == "Admin" ? "pill-olive" : "pill-outline")">@L[$"Enum.UserRole.{user.Role}"]</span>
+                            </td>
+                            <td>@L.ShortDate(user.CreatedAtUtc.ToLocalTime())</td>
+                            <td style="text-align:right;">
+                                @if (passwordFor == user.Id)
+                                {
+                                    <div class="cluster" style="justify-content:flex-end;">
+                                        <input class="form-control form-control-sm" style="max-width:14rem;" type="password"
+                                               placeholder="@L["AdminUsers.NewPasswordPlaceholder"]" @bind="newPassword" @bind:event="oninput"
+                                               autocomplete="new-password" />
+                                        <button class="btn btn-primary btn-sm" @onclick="() => SavePassword(user)"
+                                                disabled="@(busy || newPassword.Length < 8)">@L["Common.Save"]</button>
+                                        <button class="btn btn-ghost btn-sm" @onclick="CancelInline" disabled="@busy">@L["Common.Cancel"]</button>
+                                    </div>
+                                }
+                                else if (removeFor == user.Id)
+                                {
+                                    <div class="cluster" style="justify-content:flex-end;">
+                                        <span class="small-muted">@L["AdminUsers.ConfirmRemove", user.DisplayName]</span>
+                                        <button class="btn btn-danger-soft btn-sm" @onclick="() => Remove(user)" disabled="@busy">@L["AdminUsers.YesRemove"]</button>
+                                        <button class="btn btn-ghost btn-sm" @onclick="CancelInline" disabled="@busy">@L["Common.Cancel"]</button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="cluster" style="justify-content:flex-end;">
+                                        <button class="btn btn-outline-g btn-sm" @onclick="() => StartPassword(user.Id)" disabled="@busy">
+                                            @L["AdminUsers.ChangePassword"]
+                                        </button>
+                                        @* Իրեն ջնջելը server-ը մերժում է — կոճակը նախապես թաքցնում ենք *@
+                                        @if (!user.IsCurrentUser)
+                                        {
+                                            <button class="btn btn-danger-soft btn-sm" @onclick="() => StartRemove(user.Id)" disabled="@busy">
+                                                @L["Common.Remove"]
+                                            </button>
+                                        }
+                                    </div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    private List<AdminUserDto> users = new();
+    private AdminUserCreateDto draft = new();
+    private string search = string.Empty;
+    private bool loading = true;
+    private bool busy;
+    private string? error;
+    private Dictionary<string, string[]>? errors;
+    private string? status;
+
+    // Տողի ներսի inline վիճակները — միաժամանակ միայն մեկը կարող է բաց լինել
+    private Guid? passwordFor;
+    private Guid? removeFor;
+    private string newPassword = string.Empty;
+
+    private IEnumerable<AdminUserDto> Filtered =>
+        string.IsNullOrWhiteSpace(search)
+            ? users
+            : users.Where(u => u.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase)
+                            || u.Email.Contains(search, StringComparison.OrdinalIgnoreCase));
+
+    protected override Task OnInitializedAsync() => Reload();
+
+    private void StartPassword(Guid id)
+    {
+        passwordFor = id;
+        removeFor = null;
+        newPassword = string.Empty;
+    }
+
+    private void StartRemove(Guid id)
+    {
+        removeFor = id;
+        passwordFor = null;
+    }
+
+    private void CancelInline()
+    {
+        passwordFor = null;
+        removeFor = null;
+        newPassword = string.Empty;
+    }
+
+    private Task Create() => Run(async () =>
+    {
+        var created = await Admin.CreateUserAsync(draft);
+        draft = new AdminUserCreateDto();
+        status = L["AdminUsers.StatusAdded", created.DisplayName, created.Email];
+        await Reload();
+    });
+
+    private Task SavePassword(AdminUserDto user) => Run(async () =>
+    {
+        await Admin.SetUserPasswordAsync(user.Id, newPassword);
+        CancelInline();
+        status = L["AdminUsers.StatusPasswordUpdated", user.DisplayName];
+        await Reload(); // lockout-ի նշանը հանելու համար
+    });
+
+    private Task Remove(AdminUserDto user) => Run(async () =>
+    {
+        await Admin.DeleteUserAsync(user.Id);
+        CancelInline();
+        status = L["AdminUsers.StatusRemoved", user.DisplayName];
+        await Reload();
+    });
+
+    private async Task Run(Func<Task> action)
+    {
+        busy = true;
+        error = null;
+        errors = null;
+        status = null;
+
+        try
+        {
+            await action();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+            errors = ex.ValidationErrors;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task Reload()
+    {
+        loading = true;
+
+        try
+        {
+            users = await Admin.GetUsersAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+}

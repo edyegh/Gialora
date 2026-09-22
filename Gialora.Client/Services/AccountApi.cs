@@ -1,4 +1,5 @@
 // Gialora.Client/Services/AccountApi.cs
+using Gialora.Client.Localization;
 using Gialora.Client.Auth;
 using Gialora.Shared.Dtos;
 
@@ -8,7 +9,7 @@ public class AccountApi : ApiClientBase
 {
     private readonly TokenAuthStateProvider _authState;
 
-    public AccountApi(HttpClient http, TokenAuthStateProvider authState) : base(http)
+    public AccountApi(HttpClient http, TokenAuthStateProvider authState, Localizer localizer) : base(http, localizer)
     {
         _authState = authState;
     }

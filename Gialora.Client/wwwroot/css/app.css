@@ -625,3 +625,20 @@ a:hover { color: var(--terracotta-dark); }
 }
 
 code { color: var(--terracotta-dark); background: var(--sand-deep); padding: .1rem .3rem; border-radius: 4px; }
+
+/* Language switcher in the header */
+.lang-select {
+    margin-left: .35rem;
+    padding: .35rem .6rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: .88rem;
+    cursor: pointer;
+}
+.lang-select:hover { background: var(--sand); color: var(--ink); }
+@media (max-width: 900px) {
+    .lang-select { margin: .3rem 0 0; }
+}

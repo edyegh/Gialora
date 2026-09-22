@@ -10,15 +10,15 @@
 @inject RecipeApi RecipeCatalog
 @inject NavigationManager Navigation
 
-<PageTitle>@(IsNew ? "New recipe" : "Edit recipe") — Gialora</PageTitle>
+<PageTitle>@(IsNew ? L["Admin.NewRecipe"] : L["AdminRecipeEdit.EditRecipe"]) — Gialora</PageTitle>
 
 <section class="section container-narrow">
     <div class="page-header row-between">
         <div>
-            <p class="eyebrow">Admin</p>
-            <h1 style="margin:0;">@(IsNew ? "New recipe" : model.Title)</h1>
+            <p class="eyebrow">@L["Nav.Admin"]</p>
+            <h1 style="margin:0;">@(IsNew ? L["Admin.NewRecipe"] : model.Title)</h1>
         </div>
-        <a class="btn btn-outline-g btn-sm" href="admin/recipes">← All recipes</a>
+        <a class="btn btn-outline-g btn-sm" href="admin/recipes">← @L["AdminRecipeEdit.AllRecipes"]</a>
     </div>
 
     <ErrorAlert Message="@error" Errors="validationErrors" />
@@ -36,114 +36,114 @@
     {
         <div class="card-g mb-4">
             <div class="card-g-body stack">
-                <h2 style="margin:0;">Basics</h2>
+                <h2 style="margin:0;">@L["AdminRecipeEdit.Basics"]</h2>
 
                 <div>
-                    <label class="form-label" for="title">Title</label>
+                    <label class="form-label" for="title">@L["Common.Title"]</label>
                     <input id="title" class="form-control" @bind="model.Title" maxlength="200" />
                 </div>
 
                 <div>
-                    <label class="form-label" for="description">Short description</label>
+                    <label class="form-label" for="description">@L["AdminRecipeEdit.ShortDescription"]</label>
                     <textarea id="description" class="form-control" rows="2" maxlength="1000"
                               @bind="model.Description"></textarea>
                 </div>
 
                 <div>
-                    <label class="form-label" for="image">Image URL</label>
+                    <label class="form-label" for="image">@L["AdminRecipeEdit.ImageUrl"]</label>
                     <input id="image" class="form-control" @bind="model.ImageUrl" maxlength="500" />
                 </div>
 
                 <div class="cluster">
                     <div>
-                        <label class="form-label" for="meal">Meal</label>
+                        <label class="form-label" for="meal">@L["AdminRecipes.ColMeal"]</label>
                         <select id="meal" class="form-select" @bind="model.MealType">
-                            @foreach (var v in Enum.GetValues<MealType>()) { <option value="@v">@v</option> }
+                            @foreach (var v in Enum.GetValues<MealType>()) { <option value="@v">@L.Enum(v)</option> }
                         </select>
                     </div>
                     <div>
-                        <label class="form-label" for="cuisine">Cuisine</label>
+                        <label class="form-label" for="cuisine">@L["AdminRecipeEdit.Cuisine"]</label>
                         <select id="cuisine" class="form-select" @bind="model.Cuisine">
-                            @foreach (var v in Enum.GetValues<CuisineType>()) { <option value="@v">@v</option> }
+                            @foreach (var v in Enum.GetValues<CuisineType>()) { <option value="@v">@L.Enum(v)</option> }
                         </select>
                     </div>
                     <div>
-                        <label class="form-label" for="diet">Diet</label>
+                        <label class="form-label" for="diet">@L["AdminRecipes.ColDiet"]</label>
                         <select id="diet" class="form-select" @bind="model.DietType">
-                            @foreach (var v in Enum.GetValues<DietType>()) { <option value="@v">@v</option> }
+                            @foreach (var v in Enum.GetValues<DietType>()) { <option value="@v">@L.Enum(v)</option> }
                         </select>
                     </div>
                     <div>
-                        <label class="form-label" for="protein">Main protein</label>
+                        <label class="form-label" for="protein">@L["AdminRecipeEdit.MainProtein"]</label>
                         <select id="protein" class="form-select" @bind="model.PrimaryProtein">
-                            @foreach (var v in Enum.GetValues<ProteinType>()) { <option value="@v">@v</option> }
+                            @foreach (var v in Enum.GetValues<ProteinType>()) { <option value="@v">@L.Enum(v)</option> }
                         </select>
                     </div>
                     <div>
-                        <label class="form-label" for="difficulty">Difficulty</label>
+                        <label class="form-label" for="difficulty">@L["AdminRecipeEdit.Difficulty"]</label>
                         <select id="difficulty" class="form-select" @bind="model.Difficulty">
-                            @foreach (var v in Enum.GetValues<DifficultyLevel>()) { <option value="@v">@v</option> }
+                            @foreach (var v in Enum.GetValues<DifficultyLevel>()) { <option value="@v">@L.Enum(v)</option> }
                         </select>
                     </div>
                 </div>
 
                 <div class="cluster">
                     <div>
-                        <label class="form-label" for="prep">Prep (min)</label>
+                        <label class="form-label" for="prep">@L["AdminRecipeEdit.PrepMin"]</label>
                         <input id="prep" class="form-control" style="max-width:7rem;" type="number" min="0" max="600"
                                @bind="model.PrepTimeMinutes" />
                     </div>
                     <div>
-                        <label class="form-label" for="cook">Cook (min)</label>
+                        <label class="form-label" for="cook">@L["AdminRecipeEdit.CookMin"]</label>
                         <input id="cook" class="form-control" style="max-width:7rem;" type="number" min="0" max="600"
                                @bind="model.CookTimeMinutes" />
                     </div>
                     <div>
-                        <label class="form-label" for="servings">Servings</label>
+                        <label class="form-label" for="servings">@L["Common.ServingsLabel"]</label>
                         <input id="servings" class="form-control" style="max-width:7rem;" type="number" min="1" max="50"
                                @bind="model.Servings" />
                     </div>
                     <div>
-                        <label class="form-label" for="minage">Suitable from (months)</label>
+                        <label class="form-label" for="minage">@L["AdminRecipeEdit.SuitableFrom"]</label>
                         <input id="minage" class="form-control" style="max-width:9rem;" type="number" min="0" max="1200"
                                @bind="model.MinAgeMonths" />
                     </div>
                     <div>
-                        <label class="form-label" for="cost">Cost per serving</label>
+                        <label class="form-label" for="cost">@L["AdminRecipeEdit.CostPerServing"]</label>
                         <input id="cost" class="form-control" style="max-width:9rem;" type="number" step="0.01" min="0"
                                @bind="model.EstimatedCostPerServing" />
                     </div>
                 </div>
 
                 <div>
-                    <span class="form-label d-block">Characteristics</span>
+                    <span class="form-label d-block">@L["AdminRecipeEdit.Characteristics"]</span>
                     <div class="cluster">
                         <label class="chip-check @(model.IsKidFriendly ? "is-on" : null)">
-                            <input type="checkbox" @bind="model.IsKidFriendly" /> Kid-friendly
+                            <input type="checkbox" @bind="model.IsKidFriendly" /> @L["Recipe.Tag.KidFriendly"]
                         </label>
                         <label class="chip-check @(model.IsFreezerFriendly ? "is-on" : null)">
-                            <input type="checkbox" @bind="model.IsFreezerFriendly" /> ❄ Freezes well
+                            <input type="checkbox" @bind="model.IsFreezerFriendly" /> @L["Recipe.Tag.FreezesWell"]
                         </label>
                         <label class="chip-check @(model.IsLunchboxFriendly ? "is-on" : null)">
-                            <input type="checkbox" @bind="model.IsLunchboxFriendly" /> Lunchbox
+                            <input type="checkbox" @bind="model.IsLunchboxFriendly" /> @L["Recipe.Tag.Lunchbox"]
                         </label>
                         <label class="chip-check @(model.IsHighProtein ? "is-on" : null)">
-                            <input type="checkbox" @bind="model.IsHighProtein" /> High protein
+                            <input type="checkbox" @bind="model.IsHighProtein" /> @L["Recipe.Tag.HighProtein"]
                         </label>
                         <label class="chip-check @(model.IsIronRich ? "is-on" : null)">
-                            <input type="checkbox" @bind="model.IsIronRich" /> Iron-rich
+                            <input type="checkbox" @bind="model.IsIronRich" /> @L["Recipe.Tag.IronRich"]
                         </label>
                         <label class="chip-check @(model.IsBatchFriendly ? "is-on" : null)">
-                            <input type="checkbox" @bind="model.IsBatchFriendly" /> Batch cook
+                            <input type="checkbox" @bind="model.IsBatchFriendly" /> @L["Recipe.Tag.BatchCook"]
                         </label>
                     </div>
                 </div>
 
                 <div>
-                    <label class="form-label" for="tags">Tags</label>
+                    <label class="form-label" for="tags">@L["AdminRecipeEdit.Tags"]</label>
                     <input id="tags" class="form-control" @bind="tagsText"
-                           placeholder="quick, kid-friendly, one-pot" />
-                    <p class="form-text">Comma separated. New tags are created automatically.</p>
+                           placeholder="@L["AdminRecipeEdit.TagsPlaceholder"]" />
+                    <p class="form-text">@L["AdminRecipeEdit.TagsHint"]</p>
                 </div>
             </div>
         </div>
@@ -151,18 +151,24 @@
         @* ---------------------------------------------------- ingredients *@
         <div class="card-g mb-4">
             <div class="card-g-body">
-                <h2 class="mb-3">Ingredients</h2>
+                <h2 class="mb-3">@L["RecipeDetail.Ingredients"]</h2>
 
                 @if (model.Ingredients.Count == 0)
                 {
-                    <p class="small-muted">No ingredients yet. A recipe needs at least one.</p>
+                    <p class="small-muted">@L["AdminRecipeEdit.NoIngredients"]</p>
                 }
                 else
                 {
                     <div class="table-wrap mb-3">
                         <table class="table-g">
                             <thead>
-                                <tr><th>Ingredient</th><th>Quantity</th><th>Unit</th><th>Note</th><th></th></tr>
+                                <tr>
+                                    <th>@L["AdminRecipeEdit.ColIngredient"]</th>
+                                    <th>@L["AdminRecipeEdit.ColQuantity"]</th>
+                                    <th>@L["AdminRecipeEdit.ColUnit"]</th>
+                                    <th>@L["AdminRecipeEdit.ColNote"]</th>
+                                    <th></th>
+                                </tr>
                             </thead>
                             <tbody>
                                 @for (var i = 0; i < model.Ingredients.Count; i++)
@@ -179,17 +185,17 @@
                                             <select class="form-select" style="max-width:9rem;" @bind="line.Unit">
                                                 @foreach (var u in Enum.GetValues<UnitOfMeasure>())
                                                 {
-                                                    <option value="@u">@u</option>
+                                                    <option value="@u">@L.Enum(u)</option>
                                                 }
                                             </select>
                                         </td>
                                         <td>
                                             <input class="form-control" style="max-width:11rem;"
-                                                   placeholder="finely chopped" @bind="line.Note" />
+                                                   placeholder="@L["AdminRecipeEdit.NotePlaceholder"]" @bind="line.Note" />
                                         </td>
                                         <td style="text-align:right;">
                                             <button class="btn btn-danger-soft btn-sm"
-                                                    @onclick="() => model.Ingredients.RemoveAt(index)">Remove</button>
+                                                    @onclick="() => model.Ingredients.RemoveAt(index)">@L["Common.Remove"]</button>
                                         </td>
                                     </tr>
                                 }
@@ -200,15 +206,15 @@
 
                 <div class="cluster">
                     <select class="form-select" style="max-width:16rem;" @bind="selectedIngredientId">
-                        <option value="">Choose an ingredient…</option>
+                        <option value="">@L["AdminRecipeEdit.ChooseIngredient"]</option>
                         @foreach (var ingredient in ingredients)
                         {
                             <option value="@ingredient.Id">@ingredient.Name</option>
                         }
                     </select>
                     <button class="btn btn-primary" @onclick="AddIngredient"
-                            disabled="@string.IsNullOrEmpty(selectedIngredientId)">Add ingredient</button>
-                    <a class="btn btn-outline-g" href="admin/ingredients">Manage ingredients</a>
+                            disabled="@string.IsNullOrEmpty(selectedIngredientId)">@L["AdminRecipeEdit.AddIngredient"]</button>
+                    <a class="btn btn-outline-g" href="admin/ingredients">@L["AdminRecipeEdit.ManageIngredients"]</a>
                 </div>
             </div>
         </div>
@@ -216,21 +222,21 @@
         @* ------------------------------------------------------- method *@
         <div class="card-g mb-4">
             <div class="card-g-body">
-                <h2 class="mb-2">Method</h2>
-                <p class="form-text mb-2">One step per line.</p>
+                <h2 class="mb-2">@L["RecipeDetail.Method"]</h2>
+                <p class="form-text mb-2">@L["AdminRecipeEdit.OneStepPerLine"]</p>
                 <textarea class="form-control" rows="8" @bind="model.Instructions"></textarea>
             </div>
         </div>
 
         <div class="cluster">
             <button class="btn btn-primary" @onclick="Save" disabled="@busy">
-                @(busy ? "Saving..." : IsNew ? "Create as draft" : "Save changes")
+                @(busy ? L["Common.Saving"] : IsNew ? L["AdminRecipeEdit.CreateAsDraft"] : L["Common.SaveChanges"])
             </button>
 
             @if (!IsNew)
             {
                 <label class="chip-check @(isPublished ? "is-on" : null)">
-                    <input type="checkbox" @bind="isPublished" /> Published
+                    <input type="checkbox" @bind="isPublished" /> @L["Common.Published"]
                 </label>
             }
         </div>
@@ -270,7 +276,7 @@
 
                 if (existing is null)
                 {
-                    error = "Recipe not found.";
+                    error = L["RecipeDetail.NotFoundTitle"];
                     return;
                 }
 
@@ -329,7 +335,7 @@
     };
 
     private string NameOf(Guid ingredientId) =>
-        ingredients.FirstOrDefault(i => i.Id == ingredientId)?.Name ?? "(unknown)";
+        ingredients.FirstOrDefault(i => i.Id == ingredientId)?.Name ?? L["AdminRecipeEdit.Unknown"];
 
     private void AddIngredient()
     {
@@ -340,7 +346,7 @@
         // ուստի կանխում ենք այստեղ, հասկանալի հաղորդագրությամբ։
         if (model.Ingredients.Any(i => i.IngredientId == id))
         {
-            error = "That ingredient is already in the list — edit its quantity instead.";
+            error = L["AdminRecipeEdit.DuplicateIngredient"];
             return;
         }
 
@@ -384,7 +390,7 @@
 
             model.IsPublished = isPublished;
             await Admin.UpdateRecipeAsync(RecipeId!.Value, model);
-            status = "Saved.";
+            status = L["Common.Saved"];
         }
         catch (ApiException ex)
         {

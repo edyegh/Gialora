@@ -24,7 +24,7 @@
         }
 
         <div class="meta-row mb-2">
-            <span>⏱ @Recipe.TotalTimeMinutes min</span>
+            <span>⏱ @L["Recipe.Minutes", Recipe.TotalTimeMinutes]</span>
             <span>🍽 @Recipe.Servings</span>
             @if (Recipe.RatingCount > 0)
             {
@@ -33,11 +33,11 @@
         </div>
 
         <div class="cluster">
-            @if (Recipe.IsFreezerFriendly) { <span class="pill pill-sea">❄ Freezes</span> }
-            @if (Recipe.IsKidFriendly) { <span class="pill pill-olive">Kid-friendly</span> }
-            @if (Recipe.IsIronRich) { <span class="pill pill-terracotta">Iron-rich</span> }
-            @if (Recipe.IsBatchFriendly) { <span class="pill pill-outline">Batch</span> }
-            @if (!Recipe.IsPublished) { <span class="pill pill-warning">Draft</span> }
+            @if (Recipe.IsFreezerFriendly) { <span class="pill pill-sea">❄ @L["Recipe.Tag.Freezes"]</span> }
+            @if (Recipe.IsKidFriendly) { <span class="pill pill-olive">@L["Recipe.Tag.KidFriendly"]</span> }
+            @if (Recipe.IsIronRich) { <span class="pill pill-terracotta">@L["Recipe.Tag.IronRich"]</span> }
+            @if (Recipe.IsBatchFriendly) { <span class="pill pill-outline">@L["Recipe.Tag.Batch"]</span> }
+            @if (!Recipe.IsPublished) { <span class="pill pill-warning">@L["Common.Draft"]</span> }
         </div>
     </div>
 </article>

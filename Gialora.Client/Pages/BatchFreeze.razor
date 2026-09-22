@@ -3,11 +3,11 @@
 @attribute [Authorize]
 @using Gialora.Shared.Enums
 
-<PageTitle>Batch &amp; freeze — Gialora</PageTitle>
+<PageTitle>@L["Nav.Batch"] — Gialora</PageTitle>
 
 <PlanLauncher PlanType="MealPlanType.BatchAndFreeze"
-              Eyebrow="Batch &amp; freeze"
-              Title="Prepare more, cook less"
-              Description="One cooking session, several meals in the freezer. Only recipes that genuinely reheat and freeze well are considered."
-              ButtonLabel="Plan a batch session"
+              Eyebrow="@L["Nav.Batch"]"
+              Title="@L["Home.BatchGo"]"
+              Description="@L["Batch.Description"]"
+              ButtonLabel="@L["Batch.Button"]"
               DefaultDays="3" />

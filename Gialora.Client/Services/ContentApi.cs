@@ -1,4 +1,5 @@
 // Gialora.Client/Services/ContentApi.cs
+using Gialora.Client.Localization;
 using Gialora.Shared.Dtos;
 
 namespace Gialora.Client.Services;
@@ -13,7 +14,7 @@ namespace Gialora.Client.Services;
 /// </summary>
 public class ContentApi : ApiClientBase
 {
-    public ContentApi(HttpClient http) : base(http) { }
+    public ContentApi(HttpClient http, Localizer localizer) : base(http, localizer) { }
 
     public Task<PagedResult<BlogPostSummaryDto>> GetPostsAsync(int page = 1, int pageSize = 10) =>
         GetAsync<PagedResult<BlogPostSummaryDto>>($"api/blog?page={page}&pageSize={pageSize}");

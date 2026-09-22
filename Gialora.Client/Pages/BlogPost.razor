@@ -3,7 +3,7 @@
 @using Gialora.Client.Services
 @inject ContentApi Content
 
-<PageTitle>@(post?.Title ?? "Blog") — Gialora</PageTitle>
+<PageTitle>@(post?.Title ?? L["Nav.Blog"]) — Gialora</PageTitle>
 
 <section class="section container-narrow">
     @if (loading)
@@ -12,8 +12,8 @@
     }
     else if (post is null)
     {
-        <EmptyState Icon="📖" Title="Post not found">
-            <a class="btn btn-primary" href="blog">Back to the blog</a>
+        <EmptyState Icon="📖" Title="@L["BlogPost.NotFound"]">
+            <a class="btn btn-primary" href="blog">@L["BlogPost.BackToBlog"]</a>
         </EmptyState>
     }
     else
@@ -21,7 +21,7 @@
         <article>
             <div class="page-header">
                 <p class="eyebrow">
-                    @(post.PublishedAtUtc?.ToLocalTime().ToString("d MMMM yyyy")) · @post.AuthorName
+                    @(post.PublishedAtUtc is { } published ? L.LongDate(published.ToLocalTime()) : null) · @post.AuthorName
                 </p>
                 <h1 style="margin:0;">@post.Title</h1>
             </div>
@@ -33,7 +33,7 @@
                 <p>@paragraph</p>
             }
 
-            <p class="mt-4"><a href="blog">← All posts</a></p>
+            <p class="mt-4"><a href="blog">← @L["BlogPost.AllPosts"]</a></p>
         </article>
     }
 </section>

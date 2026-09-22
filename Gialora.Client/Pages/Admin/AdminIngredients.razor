@@ -7,39 +7,36 @@
 @inject AdminApi Admin
 @inject RecipeApi RecipeCatalog
 
-<PageTitle>Admin · Ingredients — Gialora</PageTitle>
+<PageTitle>@L["Nav.Admin"] · @L["Admin.Ingredients"] — Gialora</PageTitle>
 
 <section class="section container-wide">
     <div class="page-header row-between">
         <div>
-            <p class="eyebrow">Admin</p>
-            <h1 style="margin:0;">Ingredients</h1>
-            <p class="small-muted" style="margin:.35rem 0 0;">
-                Categories decide how the shopping list is grouped; allergen flags decide
-                which recipes the planner can safely suggest.
-            </p>
+            <p class="eyebrow">@L["Nav.Admin"]</p>
+            <h1 style="margin:0;">@L["Admin.Ingredients"]</h1>
+            <p class="small-muted" style="margin:.35rem 0 0;">@L["AdminIngredients.Lede"]</p>
         </div>
-        <a class="btn btn-outline-g" href="admin/recipes">← Recipes</a>
+        <a class="btn btn-outline-g" href="admin/recipes">← @L["Nav.Recipes"]</a>
     </div>
 
     <ErrorAlert Message="@error" />
 
     <div class="card-g mb-4">
         <div class="card-g-body">
-            <p class="eyebrow mb-2">Add an ingredient</p>
+            <p class="eyebrow mb-2">@L["AdminIngredients.AddIngredient"]</p>
             <div class="cluster">
-                <input class="form-control" style="max-width:14rem;" placeholder="Name" @bind="draft.Name" />
+                <input class="form-control" style="max-width:14rem;" placeholder="@L["Common.Name"]" @bind="draft.Name" />
 
                 <select class="form-select" style="max-width:12rem;" @bind="draft.Category">
-                    @foreach (var c in Enum.GetValues<IngredientCategory>()) { <option value="@c">@c</option> }
+                    @foreach (var c in Enum.GetValues<IngredientCategory>()) { <option value="@c">@L.Enum(c)</option> }
                 </select>
 
                 <select class="form-select" style="max-width:10rem;" @bind="draft.DefaultUnit">
-                    @foreach (var u in Enum.GetValues<UnitOfMeasure>()) { <option value="@u">@u</option> }
+                    @foreach (var u in Enum.GetValues<UnitOfMeasure>()) { <option value="@u">@L.Enum(u)</option> }
                 </select>
 
                 <button class="btn btn-primary" @onclick="Create"
-                        disabled="@(busy || string.IsNullOrWhiteSpace(draft.Name))">Add</button>
+                        disabled="@(busy || string.IsNullOrWhiteSpace(draft.Name))">@L["Common.Add"]</button>
             </div>
 
             <div class="cluster mt-2">
@@ -49,17 +46,17 @@
                     <label class="chip-check @(isOn ? "is-on" : null)">
                         <input type="checkbox" checked="@isOn"
                                @onchange="e => flag.Set(draft, (bool)(e.Value ?? false))" />
-                        @flag.Label
+                        @L[flag.LabelKey]
                     </label>
                 }
                 <label class="chip-check @(draft.IsPantryStaple ? "is-on" : null)">
-                    <input type="checkbox" @bind="draft.IsPantryStaple" /> Pantry staple
+                    <input type="checkbox" @bind="draft.IsPantryStaple" /> @L["AdminIngredients.PantryStaple"]
                 </label>
             </div>
         </div>
     </div>
 
-    <input class="form-control mb-3" style="max-width:20rem;" placeholder="Filter…"
+    <input class="form-control mb-3" style="max-width:20rem;" placeholder="@L["Common.FilterPlaceholder"]"
            @bind="search" @bind:event="oninput" />
 
     @if (loading)
@@ -72,8 +69,8 @@
             <table class="table-g">
                 <thead>
                     <tr>
-                        <th>Name</th><th>Category</th><th>Default unit</th>
-                        <th>Allergens</th><th>Used in</th><th></th>
+                        <th>@L["Common.Name"]</th><th>@L["AdminIngredients.ColCategory"]</th><th>@L["AdminIngredients.ColDefaultUnit"]</th>
+                        <th>@L["AdminIngredients.ColAllergens"]</th><th>@L["AdminIngredients.ColUsedIn"]</th><th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -84,28 +81,28 @@
                                 <strong>@ingredient.Name</strong>
                                 @if (ingredient.IsPantryStaple)
                                 {
-                                    <span class="pill pill-outline ms-2">staple</span>
+                                    <span class="pill pill-outline ms-2">@L["AdminIngredients.Staple"]</span>
                                 }
                             </td>
-                            <td>@ingredient.Category</td>
-                            <td>@ingredient.DefaultUnit</td>
+                            <td>@L.Enum(ingredient.Category)</td>
+                            <td>@L.Enum(ingredient.DefaultUnit)</td>
                             <td>
                                 <div class="cluster">
-                                    @foreach (var label in AllergenLabels(ingredient))
+                                    @foreach (var flag in AllergenFlagsOf(ingredient))
                                     {
-                                        <span class="pill pill-terracotta">@label</span>
+                                        <span class="pill pill-terracotta">@L[flag.LabelKey]</span>
                                     }
                                 </div>
                             </td>
-                            <td>@ingredient.UsedInRecipeCount recipe(s)</td>
+                            <td>@L["AdminIngredients.RecipeCount", ingredient.UsedInRecipeCount]</td>
                             <td style="text-align:right;">
                                 @* Օգտագործվողը ջնջելը server-ը մերժում է 409-ով —
                                    կոճակը նախապես անջատում ենք, որ սխալ չառաջանա *@
                                 <button class="btn btn-danger-soft btn-sm"
                                         @onclick="() => Delete(ingredient.Id)"
                                         disabled="@(busy || ingredient.UsedInRecipeCount > 0)"
-                                        title="@(ingredient.UsedInRecipeCount > 0 ? "In use by recipes" : "Delete")">
-                                    Delete
+                                        title="@(ingredient.UsedInRecipeCount > 0 ? L["AdminIngredients.InUse"] : L["Common.Delete"])">
+                                    @L["Common.Delete"]
                                 </button>
                             </td>
                         </tr>
@@ -117,17 +114,18 @@
 </section>
 
 @code {
-    private record AllergenFlag(string Label, Func<IngredientCreateDto, bool> Get, Action<IngredientCreateDto, bool> Set);
+    private record AllergenFlag(string LabelKey, Func<IngredientCreateDto, bool> Get, Action<IngredientCreateDto, bool> Set,
+                                Func<IngredientDto, bool> Has);
 
     private static readonly AllergenFlag[] AllergenFlags =
     {
-        new("Gluten", d => d.ContainsGluten, (d, v) => d.ContainsGluten = v),
-        new("Dairy", d => d.ContainsDairy, (d, v) => d.ContainsDairy = v),
-        new("Nuts", d => d.ContainsNuts, (d, v) => d.ContainsNuts = v),
-        new("Egg", d => d.ContainsEgg, (d, v) => d.ContainsEgg = v),
-        new("Fish", d => d.ContainsFish, (d, v) => d.ContainsFish = v),
-        new("Shellfish", d => d.ContainsShellfish, (d, v) => d.ContainsShellfish = v),
-        new("Soy", d => d.ContainsSoy, (d, v) => d.ContainsSoy = v)
+        new("Allergen.Gluten", d => d.ContainsGluten, (d, v) => d.ContainsGluten = v, i => i.ContainsGluten),
+        new("Allergen.Dairy", d => d.ContainsDairy, (d, v) => d.ContainsDairy = v, i => i.ContainsDairy),
+        new("Allergen.Nuts", d => d.ContainsNuts, (d, v) => d.ContainsNuts = v, i => i.ContainsNuts),
+        new("Allergen.Egg", d => d.ContainsEgg, (d, v) => d.ContainsEgg = v, i => i.ContainsEgg),
+        new("Allergen.Fish", d => d.ContainsFish, (d, v) => d.ContainsFish = v, i => i.ContainsFish),
+        new("Allergen.Shellfish", d => d.ContainsShellfish, (d, v) => d.ContainsShellfish = v, i => i.ContainsShellfish),
+        new("Allergen.Soy", d => d.ContainsSoy, (d, v) => d.ContainsSoy = v, i => i.ContainsSoy)
     };
 
     private List<IngredientDto> ingredients = new();
@@ -144,16 +142,7 @@
 
     protected override Task OnInitializedAsync() => Reload();
 
-    private static IEnumerable<string> AllergenLabels(IngredientDto i)
-    {
-        if (i.ContainsGluten) yield return "gluten";
-        if (i.ContainsDairy) yield return "dairy";
-        if (i.ContainsNuts) yield return "nuts";
-        if (i.ContainsEgg) yield return "egg";
-        if (i.ContainsFish) yield return "fish";
-        if (i.ContainsShellfish) yield return "shellfish";
-        if (i.ContainsSoy) yield return "soy";
-    }
+    private static IEnumerable<AllergenFlag> AllergenFlagsOf(IngredientDto i) => AllergenFlags.Where(f => f.Has(i));
 
     private async Task Create()
     {

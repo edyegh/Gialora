@@ -1,4 +1,5 @@
 // Gialora.Client/Services/AdminApi.cs
+using Gialora.Client.Localization;
 using Gialora.Shared.Dtos;
 
 namespace Gialora.Client.Services;
@@ -6,7 +7,7 @@ namespace Gialora.Client.Services;
 /// <summary>Admin panel-ի ամբողջ մակերեսը (app structure §11, §12)։</summary>
 public class AdminApi : ApiClientBase
 {
-    public AdminApi(HttpClient http) : base(http) { }
+    public AdminApi(HttpClient http, Localizer localizer) : base(http, localizer) { }
 
     // --- Recipes ---
 
@@ -73,4 +74,17 @@ public class AdminApi : ApiClientBase
         PutAsync($"api/blog/{id}", dto);
 
     public Task DeletePostAsync(Guid id) => DeleteAsync($"api/blog/{id}");
+
+    // --- Users ---
+
+    public Task<List<AdminUserDto>> GetUsersAsync() =>
+        GetAsync<List<AdminUserDto>>("api/admin/users");
+
+    public Task<AdminUserDto> CreateUserAsync(AdminUserCreateDto dto) =>
+        PostAsync<AdminUserDto>("api/admin/users", dto);
+
+    public Task SetUserPasswordAsync(Guid id, string newPassword) =>
+        PutAsync($"api/admin/users/{id}/password", new AdminSetPasswordDto { NewPassword = newPassword });
+
+    public Task DeleteUserAsync(Guid id) => DeleteAsync($"api/admin/users/{id}");
 }

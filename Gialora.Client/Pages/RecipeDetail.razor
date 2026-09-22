@@ -6,25 +6,25 @@
 @using Gialora.Shared.Enums
 @inject RecipeApi Recipes
 
-<PageTitle>@(recipe?.Title ?? "Recipe") — Gialora</PageTitle>
+<PageTitle>@(recipe?.Title ?? L["RecipeDetail.Title"]) — Gialora</PageTitle>
 
 <section class="section container-narrow">
     @if (loading)
     {
-        <Loading Message="Loading recipe..." />
+        <Loading Message="@L["RecipeDetail.Loading"]" />
     }
     else if (recipe is null)
     {
-        <EmptyState Icon="🍽️" Title="Recipe not found"
-                    Description="It may have been unpublished or removed.">
-            <a class="btn btn-primary" href="recipes">Browse recipes</a>
+        <EmptyState Icon="🍽️" Title="@L["RecipeDetail.NotFoundTitle"]"
+                    Description="@L["RecipeDetail.NotFoundDescription"]">
+            <a class="btn btn-primary" href="recipes">@L["Common.BrowseRecipes"]</a>
         </EmptyState>
     }
     else
     {
         <article>
             <div class="page-header">
-                <p class="eyebrow">@recipe.MealType · @recipe.Cuisine</p>
+                <p class="eyebrow">@L.Enum(recipe.MealType) · @L.Enum(recipe.Cuisine)</p>
                 <h1 style="margin:0 0 .5rem;">@recipe.Title</h1>
 
                 @if (!string.IsNullOrWhiteSpace(recipe.Description))
@@ -33,11 +33,11 @@
                 }
 
                 <div class="meta-row mt-2">
-                    <span>⏱ @recipe.PrepTimeMinutes min prep + @recipe.CookTimeMinutes min cook</span>
-                    <span>@recipe.Difficulty</span>
+                    <span>⏱ @L["RecipeDetail.PrepCook", recipe.PrepTimeMinutes, recipe.CookTimeMinutes]</span>
+                    <span>@L.Enum(recipe.Difficulty)</span>
                     @if (recipe.MinAgeMonths > 0)
                     {
-                        <span>👶 From @AgeLabel(recipe.MinAgeMonths)</span>
+                        <span>👶 @L["RecipeDetail.FromAge", AgeLabel(recipe.MinAgeMonths)]</span>
                     }
                     @if (ratings is { RatingCount: > 0 })
                     {
@@ -46,12 +46,12 @@
                 </div>
 
                 <div class="cluster mt-3">
-                    @if (recipe.IsFreezerFriendly) { <span class="pill pill-sea">❄ Freezes well</span> }
-                    @if (recipe.IsKidFriendly) { <span class="pill pill-olive">Kid-friendly</span> }
-                    @if (recipe.IsLunchboxFriendly) { <span class="pill pill-olive">Lunchbox</span> }
-                    @if (recipe.IsHighProtein) { <span class="pill pill-terracotta">High protein</span> }
-                    @if (recipe.IsIronRich) { <span class="pill pill-terracotta">Iron-rich</span> }
-                    @if (recipe.IsBatchFriendly) { <span class="pill pill-outline">Batch cook</span> }
+                    @if (recipe.IsFreezerFriendly) { <span class="pill pill-sea">❄ @L["Recipe.FreezesWell"]</span> }
+                    @if (recipe.IsKidFriendly) { <span class="pill pill-olive">@L["Recipe.Tag.KidFriendly"]</span> }
+                    @if (recipe.IsLunchboxFriendly) { <span class="pill pill-olive">@L["Recipe.Tag.Lunchbox"]</span> }
+                    @if (recipe.IsHighProtein) { <span class="pill pill-terracotta">@L["Recipe.Tag.HighProtein"]</span> }
+                    @if (recipe.IsIronRich) { <span class="pill pill-terracotta">@L["Recipe.Tag.IronRich"]</span> }
+                    @if (recipe.IsBatchFriendly) { <span class="pill pill-outline">@L["Recipe.Tag.BatchCook"]</span> }
                     @foreach (var tag in recipe.Tags)
                     {
                         <span class="pill pill-outline">@tag</span>
@@ -63,7 +63,7 @@
                         <div class="cluster mt-3">
                             <button class="btn @(isFavorite ? "btn-primary" : "btn-outline-g")"
                                     @onclick="ToggleFavorite" disabled="@busy">
-                                @(isFavorite ? "★ Saved" : "☆ Save recipe")
+                                @(isFavorite ? $"★ {L["RecipeDetail.Saved"]}" : $"☆ {L["RecipeDetail.SaveRecipe"]}")
                             </button>
                         </div>
                     </Authorized>
@@ -75,24 +75,22 @@
             <div class="card-g mb-4">
                 <div class="card-g-body">
                     <div class="row-between mb-3">
-                        <h2 style="margin:0;">Ingredients</h2>
+                        <h2 style="margin:0;">@L["RecipeDetail.Ingredients"]</h2>
 
                         @* Serving scaler — app structure §3-ի "4 → 6 servings" օրինակը։
                            Հաշվարկը client-ում է, որ սահիկը ակնթարթային զգացվի։ *@
                         <div class="cluster">
                             <button class="btn btn-ghost btn-sm" @onclick="() => AdjustServings(-1)"
-                                    disabled="@(servings <= 1)" aria-label="Fewer servings">−</button>
-                            <span><strong>@servings</strong> servings</span>
+                                    disabled="@(servings <= 1)" aria-label="@L["RecipeDetail.FewerServings"]">−</button>
+                            <span><strong>@servings</strong> @L["Common.Servings"]</span>
                             <button class="btn btn-ghost btn-sm" @onclick="() => AdjustServings(1)"
-                                    disabled="@(servings >= 20)" aria-label="More servings">+</button>
+                                    disabled="@(servings >= 20)" aria-label="@L["RecipeDetail.MoreServings"]">+</button>
                         </div>
                     </div>
 
                     @if (servings != recipe.Servings)
                     {
-                        <p class="small-muted mb-2">
-                            Scaled from the original @recipe.Servings servings.
-                        </p>
+                        <p class="small-muted mb-2">@L["RecipeDetail.ScaledFrom", recipe.Servings]</p>
                     }
 
                     @foreach (var ingredient in recipe.Ingredients)
@@ -106,7 +104,7 @@
                                 }
                                 @if (ingredient.IsOptional)
                                 {
-                                    <span class="pill pill-outline ms-2">optional</span>
+                                    <span class="pill pill-outline ms-2">@L["ListView.Optional"]</span>
                                 }
                             </span>
                             <span class="ingredient-qty">@Scaled(ingredient)</span>
@@ -119,7 +117,7 @@
             {
                 <div class="card-g mb-4">
                     <div class="card-g-body">
-                        <h2 class="mb-3">Method</h2>
+                        <h2 class="mb-3">@L["RecipeDetail.Method"]</h2>
                         <ol class="step-list">
                             @foreach (var step in recipe.Steps)
                             {
@@ -134,23 +132,21 @@
                 <Authorized>
                     <div class="card-g">
                         <div class="card-g-body">
-                            <h2 class="mb-1">How did it go?</h2>
-                            <p class="small-muted mb-3">
-                                This shapes what we suggest next week — the planner learns from it.
-                            </p>
+                            <h2 class="mb-1">@L["RecipeDetail.HowDidItGo"]</h2>
+                            <p class="small-muted mb-3">@L["RecipeDetail.FeedbackHint"]</p>
 
                             <div class="cluster mb-3">
                                 <button class="reaction-btn @(feedback.Reaction == FeedbackReaction.Liked ? "is-on" : null)"
-                                        @onclick="() => SetReaction(FeedbackReaction.Liked)" title="Liked it">👍</button>
+                                        @onclick="() => SetReaction(FeedbackReaction.Liked)" title="@L["RecipeDetail.LikedIt"]">👍</button>
                                 <button class="reaction-btn @(feedback.Reaction == FeedbackReaction.Disliked ? "is-on" : null)"
-                                        @onclick="() => SetReaction(FeedbackReaction.Disliked)" title="Did not like it">👎</button>
+                                        @onclick="() => SetReaction(FeedbackReaction.Disliked)" title="@L["RecipeDetail.DidNotLikeIt"]">👎</button>
 
                                 <span class="ms-2 cluster">
                                     @for (var star = 1; star <= 5; star++)
                                     {
                                         var value = star;
                                         <button class="btn btn-ghost btn-sm star" @onclick="() => SetRating(value)"
-                                                aria-label="@($"Rate {value} out of 5")">
+                                                aria-label="@L["RecipeDetail.RateOutOf", value]">
                                             @(feedback.Rating >= value ? "★" : "☆")
                                         </button>
                                     }
@@ -159,23 +155,23 @@
 
                             <div class="cluster mb-3">
                                 <label class="chip-check @(feedback.TooDifficult ? "is-on" : null)">
-                                    <input type="checkbox" @bind="feedback.TooDifficult" /> Too difficult
+                                    <input type="checkbox" @bind="feedback.TooDifficult" /> @L["RecipeDetail.TooDifficult"]
                                 </label>
                                 <label class="chip-check @(feedback.KidsDidNotEat ? "is-on" : null)">
-                                    <input type="checkbox" @bind="feedback.KidsDidNotEat" /> Kids didn't eat it
+                                    <input type="checkbox" @bind="feedback.KidsDidNotEat" /> @L["RecipeDetail.KidsDidNotEat"]
                                 </label>
                                 <label class="chip-check @(feedback.TookTooLong ? "is-on" : null)">
-                                    <input type="checkbox" @bind="feedback.TookTooLong" /> Took too long
+                                    <input type="checkbox" @bind="feedback.TookTooLong" /> @L["RecipeDetail.TookTooLong"]
                                 </label>
                             </div>
 
                             <textarea class="form-control mb-3" rows="2" maxlength="1000"
-                                      placeholder="Anything worth remembering for next time?"
+                                      placeholder="@L["RecipeDetail.CommentPlaceholder"]"
                                       @bind="feedback.Comment"></textarea>
 
                             <div class="cluster">
                                 <button class="btn btn-primary" @onclick="SaveFeedback" disabled="@busy">
-                                    Save feedback
+                                    @L["RecipeDetail.SaveFeedback"]
                                 </button>
                                 @if (!string.IsNullOrEmpty(feedbackStatus))
                                 {
@@ -271,34 +267,17 @@
         UnitOfMeasure.Piece or UnitOfMeasure.Can or UnitOfMeasure.Pack
         or UnitOfMeasure.Slice or UnitOfMeasure.Bunch or UnitOfMeasure.Clove;
 
-    private static string Format(decimal quantity, UnitOfMeasure unit)
+    private string Format(decimal quantity, UnitOfMeasure unit)
     {
         var rounded = Math.Round(quantity, 2, MidpointRounding.AwayFromZero);
         var number = rounded == Math.Truncate(rounded) ? ((long)rounded).ToString() : rounded.ToString("0.##");
 
-        return unit == UnitOfMeasure.Piece ? number : $"{number} {Abbreviation(unit)}";
+        // Միավորի հապավումը բառարանից է ("Unit.Gram" → g / գ / γρ)
+        return unit == UnitOfMeasure.Piece ? number : $"{number} {L[$"Unit.{unit}"]}";
     }
 
-    private static string Abbreviation(UnitOfMeasure unit) => unit switch
-    {
-        UnitOfMeasure.Gram => "g",
-        UnitOfMeasure.Kilogram => "kg",
-        UnitOfMeasure.Milliliter => "ml",
-        UnitOfMeasure.Liter => "l",
-        UnitOfMeasure.Teaspoon => "tsp",
-        UnitOfMeasure.Tablespoon => "tbsp",
-        UnitOfMeasure.Cup => "cup",
-        UnitOfMeasure.Pinch => "pinch",
-        UnitOfMeasure.Bunch => "bunch",
-        UnitOfMeasure.Clove => "clove",
-        UnitOfMeasure.Slice => "slice",
-        UnitOfMeasure.Can => "can",
-        UnitOfMeasure.Pack => "pack",
-        _ => string.Empty
-    };
-
-    private static string AgeLabel(int months) =>
-        months < 24 ? $"{months} months" : $"{months / 12} years";
+    private string AgeLabel(int months) =>
+        months < 24 ? L["RecipeDetail.Months", months] : L["RecipeDetail.Years", months / 12];
 
     private void SetReaction(FeedbackReaction reaction) =>
         // Կրկնակի սեղմումը հանում է ռեակցիան — toggle, ոչ թե միակողմանի ընտրություն
@@ -345,7 +324,7 @@
         {
             await Recipes.SaveFeedbackAsync(recipe.Id, feedback);
             ratings = await Recipes.GetRatingsAsync(recipe.Id);
-            feedbackStatus = "Saved — thanks. Next week's plan will take it into account.";
+            feedbackStatus = L["RecipeDetail.FeedbackSaved"];
         }
         catch (ApiException ex)
         {

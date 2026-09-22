@@ -5,15 +5,15 @@
 @using Gialora.Shared.Enums
 @inject PlannerApi Planner
 
-<PageTitle>My plans — Gialora</PageTitle>
+<PageTitle>@L["Plans.Title"] — Gialora</PageTitle>
 
 <section class="section container-wide">
     <div class="page-header row-between">
         <div>
-            <p class="eyebrow">Meal plans</p>
-            <h1 style="margin:0;">Your plans</h1>
+            <p class="eyebrow">@L["Plans.Eyebrow"]</p>
+            <h1 style="margin:0;">@L["Plans.Heading"]</h1>
         </div>
-        <a class="btn btn-primary" href="weekly">Plan a new week</a>
+        <a class="btn btn-primary" href="weekly">@L["Plans.PlanNewWeek"]</a>
     </div>
 
     <ErrorAlert Message="@error" />
@@ -24,9 +24,9 @@
     }
     else if (plans.Count == 0)
     {
-        <EmptyState Icon="🗓️" Title="No plans yet"
-                    Description="Generate your first week and it will show up here.">
-            <a class="btn btn-primary" href="weekly">Plan my week</a>
+        <EmptyState Icon="🗓️" Title="@L["Plans.EmptyTitle"]"
+                    Description="@L["Plans.EmptyDescription"]">
+            <a class="btn btn-primary" href="weekly">@L["Common.PlanMyWeek"]</a>
         </EmptyState>
     }
     else
@@ -36,23 +36,23 @@
             {
                 <a class="card-g card-link" href="plans/@plan.Id">
                     <div class="card-g-body">
-                        <p class="eyebrow mb-1">@plan.PlanType · @plan.Status</p>
+                        <p class="eyebrow mb-1">@L.Enum(plan.PlanType) · @L.Enum(plan.Status)</p>
                         <h3 class="recipe-title">@plan.Name</h3>
 
                         <div class="meta-row mb-2">
-                            <span>@plan.Days.Count day(s)</span>
-                            <span>@plan.Days.Sum(d => d.Entries.Count) meals</span>
+                            <span>@L["Plans.Days", plan.Days.Count]</span>
+                            <span>@L["Plans.Meals", plan.Days.Sum(d => d.Entries.Count)]</span>
                             <span>🍽 @plan.ServingsPerMeal</span>
                         </div>
 
                         <div class="cluster">
                             @if (plan.ShoppingListId is not null)
                             {
-                                <span class="pill pill-olive">🛒 Shopping list ready</span>
+                                <span class="pill pill-olive">🛒 @L["Plans.ShoppingListReady"]</span>
                             }
                             @if (plan.Status == MealPlanStatus.Accepted)
                             {
-                                <span class="pill pill-sea">Accepted</span>
+                                <span class="pill pill-sea">@L.Enum(MealPlanStatus.Accepted)</span>
                             }
                         </div>
                     </div>

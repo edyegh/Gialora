@@ -1,4 +1,5 @@
 // Gialora.Client/Services/PlannerApi.cs
+using Gialora.Client.Localization;
 using Gialora.Shared.Dtos;
 
 namespace Gialora.Client.Services;
@@ -8,7 +9,7 @@ namespace Gialora.Client.Services;
 /// </summary>
 public class PlannerApi : ApiClientBase
 {
-    public PlannerApi(HttpClient http) : base(http) { }
+    public PlannerApi(HttpClient http, Localizer localizer) : base(http, localizer) { }
 
     // --- Family ---
 

@@ -2,9 +2,10 @@
 
 <div class="loading-row">
     <span class="spinner-g" aria-hidden="true"></span>
-    <span>@Message</span>
+    <span>@(Message ?? L["Common.Loading"])</span>
 </div>
 
 @code {
-    [Parameter] public string Message { get; set; } = "Loading...";
+    /// <summary>Լռելյայն՝ թարգմանված "Loading..."։</summary>
+    [Parameter] public string? Message { get; set; }
 }
