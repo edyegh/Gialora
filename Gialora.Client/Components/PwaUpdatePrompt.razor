@@ -1,0 +1,81 @@
+@* Gialora.Client/Components/PwaUpdatePrompt.razor
+   Տեղադրված հավելվածում նոր տարբերակը ակտիվանում է միայն բոլոր պատուհանները
+   փակելուց հետո։ Հավելվածը չեն փակում — ուստի հարցնում ենք ուղիղ։
+   JS-ի կողմը index.html-ի window.gialoraPwa-ն է։ *@
+
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (_updateReady)
+{
+    <div class="pwa-update" role="status">
+        <span class="pwa-update-text">@L["Pwa.UpdateReady"]</span>
+
+        <button type="button" class="btn btn-primary btn-sm" @onclick="ApplyAsync">
+            @L["Pwa.Update"]
+        </button>
+
+        <button type="button" class="pwa-update-dismiss" @onclick="Dismiss" title="@L["Pwa.Later"]">
+            <span aria-hidden="true">&times;</span>
+            <span class="visually-hidden">@L["Pwa.Later"]</span>
+        </button>
+    </div>
+}
+
+@code {
+    private bool _updateReady;
+    private DotNetObjectReference<PwaUpdatePrompt>? _selfRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        _selfRef = DotNetObjectReference.Create(this);
+
+        try
+        {
+            await JS.InvokeVoidAsync("gialoraPwa.setListener", _selfRef);
+        }
+        catch (JSException)
+        {
+            // Service worker-ը չգրանցվեց (http://, private mode)։ Թարմացման
+            // հուշում պետք չէ — էջը այսպես էլ միշտ թարմ է։
+        }
+    }
+
+    /// <summary>Կանչվում է JS-ից, երբ նոր worker-ը տեղադրվել է և սպասում է։</summary>
+    [JSInvokable]
+    public Task OnUpdateReady()
+    {
+        _updateReady = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ApplyAsync() => await JS.InvokeVoidAsync("gialoraPwa.apply");
+
+    private void Dismiss() => _updateReady = false;
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            // Առանց սրա JS-ը կպահեր արդեն ազատված .NET հղումը և թարմացման
+            // պահին invokeMethodAsync-ը կընկներ։
+            await JS.InvokeVoidAsync("gialoraPwa.clearListener");
+        }
+        catch (JSException)
+        {
+            // gialoraPwa-ն չի բեռնվել — մաքրելու բան չկա։
+        }
+        finally
+        {
+            _selfRef?.Dispose();
+
+            // ԴԻՏԱՎՈՐՅԱԼ ուղիղ կանչ. renderer-ը IAsyncDisposable բաղադրիչի
+            // սինխրոն Dispose()-ը կարող է ԲԱՑ ԹՈՂՆԵԼ, իսկ այնտեղ է Localizer-ի
+            // բաժանորդագրությունից դուրս գալը։ Կրկնակի կանչը անվնաս է։
+            base.Dispose();
+        }
+    }
+}

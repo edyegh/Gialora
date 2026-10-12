@@ -9,6 +9,11 @@
          InvariantCulture-ով։ ICU-ի ամբողջ տվյալների հավաքածուն (≈1.1 ՄԲ)
          browser-ը ոչ մի բանի համար չի օգտագործում, ուստի չենք ուղարկում։ -->
     <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- PWA։ publish-ի ժամանակ գեներացվում է wwwroot/service-worker-assets.js-ը՝
+         բոլոր ֆայլերի ցանկը integrity hash-երով, որը service-worker.published.js-ը
+         կարդում է precache անելու համար։ -->
+    <ServiceWorkerAssetsManifest>service-worker-assets.js</ServiceWorkerAssetsManifest>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,6 +30,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Gialora.Shared\Gialora.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- dev-ում գործում է դատարկ service-worker.js-ը, publish-ում այն փոխարինվում է
+         PublishedContent-ով։ Առանց դրա `dotnet run`-ը մատուցեր էր cache-ված հին UI։ -->
+    <ServiceWorker Include="wwwroot\service-worker.js"
+                   PublishedContent="wwwroot\service-worker.published.js" />
   </ItemGroup>
 
 </Project>

@@ -642,3 +642,142 @@ code { color: var(--terracotta-dark); background: var(--sand-deep); padding: .1r
 @media (max-width: 900px) {
     .lang-select { margin: .3rem 0 0; }
 }
+
+/* ------------------------------------------------- installed app (PWA) */
+
+/* Թարմացման հուշումը։ Նստում է header-ից ՎԵՐԵՎ, հոսքի մեջ (ոչ fixed) —
+   այդպես sticky nav-ը չի ծածկում և էջի բովանդակությունը չի թռչում։ */
+.pwa-update {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    flex-wrap: wrap;
+    padding: .6rem 1.25rem;
+    padding-top: calc(.6rem + env(safe-area-inset-top));
+    padding-left: max(1.25rem, env(safe-area-inset-left));
+    padding-right: max(1.25rem, env(safe-area-inset-right));
+    background: var(--olive);
+    color: #fff;
+    font-size: .92rem;
+}
+
+.pwa-update-text { flex: 1; min-width: 12ch; }
+
+.pwa-update .btn-primary {
+    background: var(--cream);
+    border-color: var(--cream);
+    color: var(--olive-dark);
+    font-weight: 600;
+}
+
+.pwa-update .btn-primary:hover {
+    background: #fff;
+    border-color: #fff;
+    color: var(--olive-dark);
+}
+
+.pwa-update-dismiss {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, .8);
+    font-size: 1.3rem;
+    line-height: 1;
+    padding: 0 .2rem;
+    cursor: pointer;
+}
+
+.pwa-update-dismiss:hover { color: #fff; }
+
+/* Հուշումը ինքն է safe-area-ի գագաթը վերցնում, ուստի header-ը չպիտի կրկնի։ */
+.pwa-update + .site-header { padding-top: 0; }
+
+/* Տեղադրման հուշումը։ Նույն կառուցվածքը, բայց terracotta՝ թարմացման
+   olive bar-ից տարբերելու համար (երկուսը միաժամանակ հազվադեպ են երևում)։ */
+.pwa-install {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    flex-wrap: wrap;
+    padding: .6rem 1.25rem;
+    padding-top: calc(.6rem + env(safe-area-inset-top));
+    padding-left: max(1.25rem, env(safe-area-inset-left));
+    padding-right: max(1.25rem, env(safe-area-inset-right));
+    background: var(--terracotta);
+    color: #fff;
+    font-size: .92rem;
+}
+
+.pwa-install-text { flex: 1; min-width: 12ch; }
+
+.pwa-install .btn-primary {
+    background: var(--cream);
+    border-color: var(--cream);
+    color: var(--terracotta-dark);
+    font-weight: 600;
+}
+
+.pwa-install .btn-primary:hover {
+    background: #fff;
+    border-color: #fff;
+    color: var(--terracotta-dark);
+}
+
+.pwa-install-dismiss {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, .8);
+    font-size: 1.3rem;
+    line-height: 1;
+    padding: 0 .2rem;
+    cursor: pointer;
+}
+
+.pwa-install-dismiss:hover { color: #fff; }
+
+/* Հուշումն ինքը safe-area-ի գագաթը վերցնում է — header-ը թող չկրկնի։
+   (Թարմացման bar-ի հետ իրար հետևից դնելն էլ է աշխատում՝ երկուսն էլ հոսքի մեջ են։) */
+.pwa-install + .site-header,
+.pwa-update + .pwa-install + .site-header { padding-top: 0; }
+
+
+/* index.html-ը viewport-fit=cover է, ուստի էջը հասնում է էկրանի եզրերին։
+   Առանց այս insets-ի՝ iPhone-ի notch-ը կուտեր sticky header-ը, իսկ
+   home indicator-ը՝ footer-ի վերջին տողը։ Browser-ում, որտեղ կտրվածք չկա,
+   env()-ները 0 են, ուստի կայքի տեսքը չի փոխվում։ */
+
+.site-header {
+    padding-top: env(safe-area-inset-top);
+}
+
+.container-narrow {
+    padding-left: max(1.25rem, env(safe-area-inset-left));
+    padding-right: max(1.25rem, env(safe-area-inset-right));
+}
+
+.container-wide {
+    padding-left: max(1.25rem, env(safe-area-inset-left));
+    padding-right: max(1.25rem, env(safe-area-inset-right));
+}
+
+.site-footer {
+    padding-bottom: calc(1.75rem + env(safe-area-inset-bottom));
+}
+
+/* 100vh-ը բջջային browser-ներում հաշվում է ԱՌԱՆՑ հասցեի տողի, ուստի էջը
+   ցատկոտում է scroll-ի ժամանակ։ dvh-ը չափվում է իրական տեսանելի մասով։ */
+@supports (height: 100dvh) {
+    .page { min-height: 100dvh; }
+}
+
+@media (display-mode: standalone) {
+    /* Տեղադրված հավելվածում ներքև քաշելը ամբողջ WASM-ը վերաբեռնում էր։
+       Native հավելվածն այդպես չի վարվում — անջատում ենք։ */
+    html, body {
+        overscroll-behavior-y: contain;
+    }
+
+    /* Հպումի մոխրագույն ուղղանկյունը զուտ browser-ի վարք է։ */
+    body {
+        -webkit-tap-highlight-color: transparent;
+    }
+}

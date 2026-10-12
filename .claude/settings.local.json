@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -oE \"#[0-9a-fA-F]{3,6}\" Gialora.Client/wwwroot/css/app.css)"
+    ]
+  }
+}

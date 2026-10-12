@@ -3,7 +3,9 @@
 
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover — standalone-ում էջը հասնում է iPhone-ի notch-ի տակ,
+         safe-area-inset-*-ը app.css-ն է կարգավորում։ -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Gialora — Mediterranean meals, planned</title>
     <meta name="description" content="Tell Gialora about your family and it will plan the week, keep meals varied and turn it all into one consolidated shopping list." />
     <base href="/" />
@@ -11,6 +13,17 @@
     <link rel="stylesheet" href="css/app.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
     <link href="Gialora.Client.styles.css" rel="stylesheet" />
+
+    <!-- PWA։ սրանցով է browser-ը առաջարկում "Տեղադրել հավելվածը"։ -->
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#5c6f47" />
+
+    <!-- iOS-ը manifest-ի display/icons-ը լիարժեք չի կարդում — իրենն առանձին է ուզում։ -->
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Gialora" />
 </head>
 
 <body>
@@ -46,7 +59,135 @@
         };
     </script>
 
+    <script>
+        // PWA-ի ՏԵՂԱԴՐՈՒՄԸ։ Browser-ի "beforeinstallprompt"-ը բռնում ենք, որ
+        // հավելվածն ունենա ԻՐ "Տեղադրել" կոճակը (PwaInstallPrompt.razor), ոչ թե
+        // սպասի browser-ի թաքուն menu-ին։ iOS Safari-ն այս event-ը չունի — այնտեղ
+        // ցույց ենք տալիս "Share → Add to Home Screen" հուշումը։
+        //
+        // ՈՒՇԱԴՐՈՒԹՅՈՒՆ. event-ը կարող է հնչել դեռ Blazor-ի բեռնվելուց ԱՌԱՋ, ուստի
+        // listener-ը գրանցում ենք հիմա և deferred prompt-ը պահում, մինչև .NET-ը գա։
+        window.gialoraInstall = (() => {
+            let deferred = null;     // բռնված beforeinstallprompt event-ը
+            let listener = null;     // PwaInstallPrompt.razor-ի հղումը
+
+            const isStandalone = () =>
+                window.matchMedia('(display-mode: standalone)').matches
+                || window.navigator.standalone === true;   // iOS-ի դրոշը
+
+            const isIos = () => {
+                const ua = window.navigator.userAgent;
+                const ios = /iphone|ipad|ipod/i.test(ua)
+                    || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1); // iPadOS 13+
+                // Միայն Safari-ն; Chrome/Firefox iOS-ում "Add to Home Screen" չունեն
+                const safari = /safari/i.test(ua) && !/crios|fxios|edgios/i.test(ua);
+                return ios && safari;
+            };
+
+            const notify = () => listener?.invokeMethodAsync('OnStateChanged');
+
+            window.addEventListener('beforeinstallprompt', e => {
+                e.preventDefault();   // browser-ի ինքնաշխատ banner-ը չցուցադրվի
+                deferred = e;
+                notify();
+            });
+
+            window.addEventListener('appinstalled', () => {
+                deferred = null;      // տեղադրվեց — կոճակը թաքցնում ենք
+                notify();
+            });
+
+            return {
+                setListener(dotNetRef) {
+                    listener = dotNetRef;
+                    notify();         // արդեն բռնած prompt-ի դեպքում՝ անմիջապես ցույց
+                },
+                clearListener() { listener = null; },
+                getState() {
+                    return {
+                        canInstall: deferred !== null,
+                        isIos: isIos(),
+                        isStandalone: isStandalone()
+                    };
+                },
+                async prompt() {
+                    if (!deferred) return 'unavailable';
+                    deferred.prompt();
+                    const choice = await deferred.userChoice;
+                    deferred = null;  // ըստ ստանդարտի՝ event-ը մեկանգամյա է
+                    notify();
+                    return choice.outcome;   // 'accepted' | 'dismissed'
+                }
+            };
+        })();
+    </script>
+
     <script src="_framework/blazor.webassembly.js"></script>
+
+    <script>
+        // PWA-ի կառավարումը։ Նոր service worker-ը ըստ ստանդարտի սպասում է, մինչև
+        // հավելվածի ԲՈԼՈՐ պատուհանները փակվեն։ Տեղադրված հավելվածը մարդիկ երբեք
+        // չեն փակում, ուստի առանց այս հուշման օգտատերը կմնար հին տարբերակի վրա։
+        window.gialoraPwa = (() => {
+            let waiting = null;      // թարմացված, բայց դեռ չակտիվացած worker-ը
+            let listener = null;     // PwaUpdatePrompt.razor-ի հղումը
+
+            const announce = worker => {
+                waiting = worker;
+                listener?.invokeMethodAsync('OnUpdateReady');
+            };
+
+            const watch = registration => {
+                // controller-ի առկայությունը նշանակում է, որ սա ԱՌԱՋԻՆ տեղադրումը չէ,
+                // այլ թարմացում — առաջին անգամ հուշում ցույց տալը անիմաստ կլիներ։
+                if (registration.waiting && navigator.serviceWorker.controller)
+                    announce(registration.waiting);
+
+                registration.addEventListener('updatefound', () => {
+                    const installing = registration.installing;
+                    if (!installing) return;
+
+                    installing.addEventListener('statechange', () => {
+                        if (installing.state === 'installed' && navigator.serviceWorker.controller)
+                            announce(installing);
+                    });
+                });
+            };
+
+            if ('serviceWorker' in navigator) {
+                // load-ից հետո, որ precache-ի ներբեռնումը չմրցի առաջին render-ի հետ։
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('service-worker.js')
+                        .then(watch)
+                        .catch(err => {
+                            // http://, private mode, արգելափակված storage — հավելվածը
+                            // պարզապես շարունակում է աշխատել սովորական կայքի պես։
+                            console.warn('Gialora: service worker registration failed.', err);
+                        });
+                });
+            }
+
+            return {
+                setListener(dotNetRef) {
+                    listener = dotNetRef;
+                    if (waiting) dotNetRef.invokeMethodAsync('OnUpdateReady');
+                },
+                clearListener() {
+                    listener = null;
+                },
+                apply() {
+                    if (!waiting) { location.reload(); return; }
+
+                    // Վերաբեռնում ենք միայն նոր worker-ի ղեկը վերցնելուց ՀԵՏՈ,
+                    // այլապես էջը նորից հին cache-ից կբացվեր։
+                    navigator.serviceWorker.addEventListener(
+                        'controllerchange', () => location.reload(), { once: true });
+
+                    waiting.postMessage({ type: 'SKIP_WAITING' });
+                }
+            };
+        })();
+    </script>
 </body>
 
 </html>

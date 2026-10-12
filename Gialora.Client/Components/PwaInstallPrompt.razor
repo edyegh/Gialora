@@ -1,0 +1,114 @@
+@* Gialora.Client/Components/PwaInstallPrompt.razor
+   Հավելվածի ԻՐ "Տեղադրել" կոճակը։ Browser-ի ինքնաշխատ հուշումը հեշտ է բաց թողնել,
+   իսկ iOS-ում այն ԸՆԴՀԱՆՐԱՊԵՍ չկա — ուստի ցույց ենք տալիս մեր սեփականը։
+   JS-ի կողմը index.html-ի window.gialoraInstall-ն է։ *@
+
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (_show)
+{
+    <div class="pwa-install" role="region" aria-label="@L["Pwa.Install"]">
+        <span class="pwa-install-text">
+            @(_iosHint ? L["Pwa.IosInstallHint"] : L["Pwa.InstallPrompt"])
+        </span>
+
+        @if (!_iosHint)
+        {
+            <button type="button" class="btn btn-primary btn-sm" @onclick="InstallAsync">
+                @L["Pwa.Install"]
+            </button>
+        }
+
+        <button type="button" class="pwa-install-dismiss" @onclick="Dismiss" title="@L["Pwa.Later"]">
+            <span aria-hidden="true">&times;</span>
+            <span class="visually-hidden">@L["Pwa.Later"]</span>
+        </button>
+    </div>
+}
+
+@code {
+    private bool _canInstall;   // Android/Chromium — browser-ը առաջարկում է prompt
+    private bool _iosHint;      // iOS Safari — ձեռքով "Add to Home Screen" հուշում
+    private bool _dismissed;
+    private DotNetObjectReference<PwaInstallPrompt>? _selfRef;
+
+    private bool _show => !_dismissed && (_canInstall || _iosHint);
+
+    // JS-ի getState()-ը camelCase է վերադարձնում; Blazor-ի interop JSON-ը
+    // case-insensitive է, ուստի PascalCase record-ը ճիշտ է լցվում։
+    private sealed record InstallState(bool CanInstall, bool IsIos, bool IsStandalone);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        _selfRef = DotNetObjectReference.Create(this);
+
+        try
+        {
+            await JS.InvokeVoidAsync("gialoraInstall.setListener", _selfRef);
+        }
+        catch (JSException)
+        {
+            // gialoraInstall-ը չբեռնվեց — տեղադրման կոճակ պետք չէ։
+        }
+    }
+
+    /// <summary>Կանչվում է JS-ից՝ prompt բռնվելիս, տեղադրվելիս կամ listener կապվելիս։</summary>
+    [JSInvokable]
+    public async Task OnStateChanged()
+    {
+        try
+        {
+            var state = await JS.InvokeAsync<InstallState>("gialoraInstall.getState");
+            // Արդեն տեղադրված (standalone) հավելվածում կոճակը ԵՐԲԵՔ չենք ցույց տալիս։
+            _canInstall = state.CanInstall && !state.IsStandalone;
+            _iosHint = state.IsIos && !state.IsStandalone;
+        }
+        catch (JSException)
+        {
+            _canInstall = false;
+            _iosHint = false;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task InstallAsync()
+    {
+        try
+        {
+            // Արդյունքն ինքնին պետք չէ — prompt()-ը notify է անում, որը
+            // OnStateChanged-ով թարմացնում է վիճակը (deferred-ն արդեն սպառված է)։
+            await JS.InvokeAsync<string>("gialoraInstall.prompt");
+        }
+        catch (JSException)
+        {
+            // prompt-ն անհասանելի դարձավ — հաջորդ OnStateChanged-ը կթաքցնի կոճակը։
+        }
+    }
+
+    private void Dismiss() => _dismissed = true;
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("gialoraInstall.clearListener");
+        }
+        catch (JSException)
+        {
+            // gialoraInstall-ը չի բեռնվել — մաքրելու բան չկա։
+        }
+        finally
+        {
+            _selfRef?.Dispose();
+
+            // PwaUpdatePrompt-ի պես. renderer-ը IAsyncDisposable-ի սինխրոն
+            // Dispose()-ը կարող է բաց թողնել, իսկ այնտեղ է Localizer-ից դուրս գալը։
+            base.Dispose();
+        }
+    }
+}

@@ -1,0 +1,56 @@
+{
+  "name": "Gialora — Mediterranean meals, planned",
+  "short_name": "Gialora",
+  "description": "Tell Gialora about your family and it will plan the week, keep meals varied and turn it all into one consolidated shopping list.",
+  "id": "/",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": [ "window-controls-overlay", "standalone" ],
+  "orientation": "portrait-primary",
+  "background_color": "#f6f1e7",
+  "theme_color": "#5c6f47",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": [ "food", "lifestyle", "productivity" ],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Plan my week",
+      "short_name": "Weekly",
+      "url": "./weekly",
+      "icons": [ { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" } ]
+    },
+    {
+      "name": "Shopping list",
+      "short_name": "Shopping",
+      "url": "./shopping-lists",
+      "icons": [ { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" } ]
+    },
+    {
+      "name": "Browse recipes",
+      "short_name": "Recipes",
+      "url": "./recipes",
+      "icons": [ { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" } ]
+    }
+  ]
+}
