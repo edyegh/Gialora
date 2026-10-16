@@ -11,13 +11,14 @@ public class IngredientDto
     public UnitOfMeasure DefaultUnit { get; set; }
     public IngredientCategory Category { get; set; }
 
-    public bool ContainsGluten { get; set; }
-    public bool ContainsDairy { get; set; }
-    public bool ContainsNuts { get; set; }
-    public bool ContainsEgg { get; set; }
-    public bool ContainsFish { get; set; }
-    public bool ContainsShellfish { get; set; }
-    public bool ContainsSoy { get; set; }
+    /// <summary>Ինչ ալերգեններ է պարունակում (admin-ի որոշումը, ոչ թե անվանից գուշակված)։</summary>
+    public List<Allergen> Allergens { get; set; } = new();
+
+    /// <summary>
+    /// false = admin-ը ալերգենները դեռ չի ստուգել (օր.՝ CSV import-ով ստեղծված)։
+    /// Ալերգիա ունեցող ընտանիքին այդ բաղադրիչով ռեցեպտները չեն առաջարկվում։
+    /// </summary>
+    public bool AllergensReviewed { get; set; }
 
     public bool IsPantryStaple { get; set; }
 
@@ -33,13 +34,8 @@ public class IngredientCreateDto
     public UnitOfMeasure DefaultUnit { get; set; } = UnitOfMeasure.Gram;
     public IngredientCategory Category { get; set; } = IngredientCategory.Other;
 
-    public bool ContainsGluten { get; set; }
-    public bool ContainsDairy { get; set; }
-    public bool ContainsNuts { get; set; }
-    public bool ContainsEgg { get; set; }
-    public bool ContainsFish { get; set; }
-    public bool ContainsShellfish { get; set; }
-    public bool ContainsSoy { get; set; }
+    /// <summary>Admin-ի ձևով պահելը նշանակում է՝ ալերգենները ստուգված են (AllergensReviewed = true)։</summary>
+    public List<Allergen> Allergens { get; set; } = new();
 
     public bool IsPantryStaple { get; set; }
 }

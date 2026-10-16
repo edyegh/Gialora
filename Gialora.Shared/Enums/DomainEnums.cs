@@ -145,3 +145,27 @@ public enum BudgetLevel
     Medium = 2,
     High = 3
 }
+
+/// <summary>
+/// ԵՄ-ի 14 հիմնական ալերգենները (Regulation 1169/2011, Annex II)։ Ընտանիքը դրանք
+/// ընտրում է ցանկից, admin-ը՝ նշում ամեն բաղադրիչի վրա — engine-ը համեմատում է
+/// ԱՅՍ արժեքները, ոչ թե ազատ տեքստ (որը կոդում բառերի ցուցակով գուշակել չի կարելի)։
+/// Պահվում է ԱՆՎԱՆԲ, ուստի հերթականությունը փոխելը անվտանգ է։
+/// </summary>
+public enum Allergen
+{
+    Gluten = 0,
+    Crustaceans = 1,
+    Eggs = 2,
+    Fish = 3,
+    Peanuts = 4,
+    Soy = 5,
+    Milk = 6,
+    TreeNuts = 7,
+    Celery = 8,
+    Mustard = 9,
+    Sesame = 10,
+    Sulphites = 11,
+    Lupin = 12,
+    Molluscs = 13
+}

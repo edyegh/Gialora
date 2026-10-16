@@ -36,9 +36,7 @@ public static class FamilyPlanningInput
         var members = EatingMembers(family);
 
         // Ալերգիաները ՄԻԱՎՈՐՎՈՒՄ են — մեկի ալերգիան ամբողջ ընտանիքի սահմանափակումն է
-        var allergies = members
-            .SelectMany(m => m.Allergies)
-            .Concat(members.SelectMany(m => m.DietaryRestrictions))
+        static HashSet<string> Texts(IEnumerable<string> items) => items
             .Select(a => a.Trim().ToLowerInvariant())
             .Where(a => a.Length > 0)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -69,7 +67,9 @@ public static class FamilyPlanningInput
                 .Select(p => p!.Value)
                 .ToHashSet(),
             DislikedIngredients = family.DislikedIngredients.ToHashSet(StringComparer.OrdinalIgnoreCase),
-            Allergies = allergies,
+            Allergens = members.SelectMany(m => m.Allergens).ToHashSet(),
+            OtherAllergies = Texts(members.SelectMany(m => m.OtherAllergies)),
+            RestrictionTerms = Texts(members.SelectMany(m => m.DietaryRestrictions)),
             YoungestAgeMonths = youngest == int.MaxValue ? null : youngest,
             HasChildren = children.Count > 0,
 

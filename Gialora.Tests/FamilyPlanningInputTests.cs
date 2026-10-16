@@ -17,7 +17,7 @@ public class FamilyPlanningInputTests
         bool active = true,
         FamilyMemberType type = FamilyMemberType.Adult,
         int? age = null,
-        string[]? allergies = null,
+        Allergen[]? allergens = null,
         string[]? restrictions = null,
         string[]? goals = null,
         bool deleted = false) => new()
@@ -27,7 +27,7 @@ public class FamilyPlanningInputTests
             IsDeleted = deleted,
             MemberType = type,
             Age = age,
-            Allergies = (allergies ?? Array.Empty<string>()).ToList(),
+            Allergens = (allergens ?? Array.Empty<Allergen>()).ToList(),
             DietaryRestrictions = (restrictions ?? Array.Empty<string>()).ToList(),
             Goals = (goals ?? Array.Empty<string>()).ToList()
         };
@@ -43,14 +43,14 @@ public class FamilyPlanningInputTests
     public void Inactive_member_allergies_and_restrictions_are_ignored()
     {
         var family = FamilyOf(
-            Member("Ana", allergies: new[] { "dairy" }),
-            Member("Ben", active: false, allergies: new[] { "nuts" }, restrictions: new[] { "gluten" }));
+            Member("Ana", allergens: new[] { Allergen.Milk }),
+            Member("Ben", active: false, allergens: new[] { Allergen.Peanuts }, restrictions: new[] { "no pork" }));
 
         var constraints = FamilyPlanningInput.BuildConstraints(family);
 
-        Assert.Contains("dairy", constraints.Allergies);
-        Assert.DoesNotContain("nuts", constraints.Allergies);
-        Assert.DoesNotContain("gluten", constraints.Allergies);
+        Assert.Contains(Allergen.Milk, constraints.Allergens);
+        Assert.DoesNotContain(Allergen.Peanuts, constraints.Allergens);
+        Assert.DoesNotContain("no pork", constraints.RestrictionTerms);
     }
 
     [Fact]
@@ -97,14 +97,14 @@ public class FamilyPlanningInputTests
     [Fact]
     public void Reactivating_a_member_brings_their_rules_back()
     {
-        var ben = Member("Ben", active: false, allergies: new[] { "fish" });
+        var ben = Member("Ben", active: false, allergens: new[] { Allergen.Fish });
         var family = FamilyOf(Member("Ana"), ben);
 
-        Assert.DoesNotContain("fish", FamilyPlanningInput.BuildConstraints(family).Allergies);
+        Assert.DoesNotContain(Allergen.Fish, FamilyPlanningInput.BuildConstraints(family).Allergens);
 
         ben.IsActive = true;
 
-        Assert.Contains("fish", FamilyPlanningInput.BuildConstraints(family).Allergies);
+        Assert.Contains(Allergen.Fish, FamilyPlanningInput.BuildConstraints(family).Allergens);
     }
 
     [Fact]
@@ -135,9 +135,9 @@ public class FamilyPlanningInputTests
     {
         var family = FamilyOf(
             Member("Ana"),
-            Member("Gone", deleted: true, allergies: new[] { "soy" }));
+            Member("Gone", deleted: true, allergens: new[] { Allergen.Soy }));
 
         Assert.Equal(1, FamilyPlanningInput.DefaultServings(family));
-        Assert.DoesNotContain("soy", FamilyPlanningInput.BuildConstraints(family).Allergies);
+        Assert.DoesNotContain(Allergen.Soy, FamilyPlanningInput.BuildConstraints(family).Allergens);
     }
 }

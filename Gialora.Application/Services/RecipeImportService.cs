@@ -38,11 +38,11 @@ public class RecipeImportService : IRecipeImportService
     public string GetTemplateCsv()
     {
         var builder = new StringBuilder();
-        builder.AppendLine("recipe,description,mealtype,cuisine,difficulty,diettype,protein,servings,preptime,cooktime,minagemonths,freezer,lunchbox,kidfriendly,highprotein,ironrich,batch,image,tags,ingredient,quantity,unit,category,note,optional,instructions");
-        builder.AppendLine("Chicken meatballs,Soft Mediterranean meatballs kids love,Dinner,Mediterranean,Easy,Meat,Chicken,4,15,20,12,yes,yes,yes,yes,no,yes,,\"kid-friendly|high-protein\",Chicken mince,500,Gram,Meat,,no,\"Mix everything|Shape into balls|Bake 20 min at 200C\"");
-        builder.AppendLine("Chicken meatballs,,,,,,,,,,,,,,,,,,,Egg,1,Piece,DairyAndEggs,,no,");
-        builder.AppendLine("Chicken meatballs,,,,,,,,,,,,,,,,,,,Onion,100,Gram,Vegetables,finely chopped,no,");
-        builder.AppendLine("Chicken meatballs,,,,,,,,,,,,,,,,,,,Breadcrumbs,50,Gram,Pantry,,no,");
+        builder.AppendLine("recipe,description,mealtype,cuisine,difficulty,diettype,protein,servings,preptime,cooktime,minagemonths,freezer,lunchbox,kidfriendly,highprotein,ironrich,batch,image,tags,ingredient,quantity,unit,category,allergens,note,optional,instructions");
+        builder.AppendLine("Chicken meatballs,Soft Mediterranean meatballs kids love,Dinner,Mediterranean,Easy,Meat,Chicken,4,15,20,12,yes,yes,yes,yes,no,yes,,\"kid-friendly|high-protein\",Chicken mince,500,Gram,Meat,none,,no,\"Mix everything|Shape into balls|Bake 20 min at 200C\"");
+        builder.AppendLine("Chicken meatballs,,,,,,,,,,,,,,,,,,,Egg,1,Piece,DairyAndEggs,Eggs,,no,");
+        builder.AppendLine("Chicken meatballs,,,,,,,,,,,,,,,,,,,Onion,100,Gram,Vegetables,none,finely chopped,no,");
+        builder.AppendLine("Chicken meatballs,,,,,,,,,,,,,,,,,,,Breadcrumbs,50,Gram,Pantry,Gluten,,no,");
         return builder.ToString();
     }
 
@@ -256,6 +256,22 @@ public class RecipeImportService : IRecipeImportService
                     DefaultUnit = ParseEnum(Value(row, columns, "unit"), UnitOfMeasure.Gram)
                 };
 
+                // "allergens" սյունակը՝ "TreeNuts|Milk" կամ "none"։ Դատարկ/սխալ արժեքի դեպքում
+                // բաղադրիչը մնում է ՉՍՏՈՒԳՎԱԾ — ալերգիա ունեցող ընտանիքները այն չեն ստանա,
+                // մինչև admin-ը չնշի (Admin → Ingredients → "Needs allergen review")։
+                var allergenCell = Value(row, columns, "allergens");
+                if (TryParseAllergens(allergenCell, out var allergens))
+                {
+                    ingredient.Allergens = allergens;
+                    ingredient.AllergensReviewed = true;
+                }
+                else if (!string.IsNullOrWhiteSpace(allergenCell))
+                {
+                    result.Warnings.Add(
+                        $"\"{title}\": ingredient \"{ingredientName}\" has unknown allergens \"{allergenCell}\" — " +
+                        "it was created as needing allergen review.");
+                }
+
                 _db.Ingredients.Add(ingredient);
                 ingredientCache[key] = ingredient;
                 result.IngredientsCreated++;
@@ -306,6 +322,35 @@ public class RecipeImportService : IRecipeImportService
         Enum.TryParse<TEnum>(value.Trim().Replace(" ", "").Replace("-", ""), ignoreCase: true, out var parsed)
             ? parsed
             : fallback;
+
+    /// <summary>
+    /// "TreeNuts|Milk", "tree nuts | milk" կամ "none" (= ստուգված է, ալերգեն չկա)։
+    /// Թվային արժեքները ("4") դիտավորյալ չեն ընդունվում, ինչպես և անհայտ անունները —
+    /// կասկածելի արժեքը ավելի լավ է թողնել չստուգված, քան սխալ "անվտանգ" նշել։
+    /// </summary>
+    private static bool TryParseAllergens(string value, out List<Allergen> allergens)
+    {
+        allergens = new List<Allergen>();
+        var cell = value.Trim();
+
+        if (cell.Length == 0)
+            return false;
+
+        if (cell.Equals("none", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        foreach (var token in cell.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var name = token.Replace(" ", "").Replace("-", "");
+            if (name.All(char.IsDigit) || !Enum.TryParse<Allergen>(name, ignoreCase: true, out var allergen))
+                return false;
+
+            if (!allergens.Contains(allergen))
+                allergens.Add(allergen);
+        }
+
+        return allergens.Count > 0;
+    }
 
     private static int ParseInt(string value, int fallback, int min, int max) =>
         int.TryParse(value.Trim(), out var parsed) ? Math.Clamp(parsed, min, max) : fallback;

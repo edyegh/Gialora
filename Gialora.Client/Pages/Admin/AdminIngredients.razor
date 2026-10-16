@@ -39,25 +39,33 @@
                         disabled="@(busy || string.IsNullOrWhiteSpace(draft.Name))">@L["Common.Add"]</button>
             </div>
 
+            <p class="small-muted mt-3 mb-1">@L["AdminIngredients.ContainsAllergens"]</p>
+            <AllergenPicker Selected="draft.Allergens" Disabled="busy" />
+
             <div class="cluster mt-2">
-                @foreach (var flag in AllergenFlags)
-                {
-                    var isOn = flag.Get(draft);
-                    <label class="chip-check @(isOn ? "is-on" : null)">
-                        <input type="checkbox" checked="@isOn"
-                               @onchange="e => flag.Set(draft, (bool)(e.Value ?? false))" />
-                        @L[flag.LabelKey]
-                    </label>
-                }
                 <label class="chip-check @(draft.IsPantryStaple ? "is-on" : null)">
                     <input type="checkbox" @bind="draft.IsPantryStaple" /> @L["AdminIngredients.PantryStaple"]
                 </label>
             </div>
+            <p class="form-text mb-0">@L["AdminIngredients.AllergenHint"]</p>
         </div>
     </div>
 
-    <input class="form-control mb-3" style="max-width:20rem;" placeholder="@L["Common.FilterPlaceholder"]"
-           @bind="search" @bind:event="oninput" />
+    @if (UnreviewedCount > 0)
+    {
+        @* Չստուգված բաղադրիչով ռեցեպտները ալերգիա ունեցող ընտանիքներին չեն առաջարկվում *@
+        <div class="alert alert-warning">
+            @L["AdminIngredients.UnreviewedWarning", UnreviewedCount]
+        </div>
+    }
+
+    <div class="cluster mb-3">
+        <input class="form-control" style="max-width:20rem;" placeholder="@L["Common.FilterPlaceholder"]"
+               @bind="search" @bind:event="oninput" />
+        <label class="chip-check @(onlyUnreviewed ? "is-on" : null)">
+            <input type="checkbox" @bind="onlyUnreviewed" /> @L["AdminIngredients.NeedsReviewFilter", UnreviewedCount]
+        </label>
+    </div>
 
     @if (loading)
     {
@@ -88,14 +96,24 @@
                             <td>@L.Enum(ingredient.DefaultUnit)</td>
                             <td>
                                 <div class="cluster">
-                                    @foreach (var flag in AllergenFlagsOf(ingredient))
+                                    @if (!ingredient.AllergensReviewed)
                                     {
-                                        <span class="pill pill-terracotta">@L[flag.LabelKey]</span>
+                                        <span class="pill pill-outline">⚠ @L["AdminIngredients.NeedsReview"]</span>
+                                    }
+                                    @foreach (var allergen in ingredient.Allergens)
+                                    {
+                                        <span class="pill pill-terracotta">@L.Enum(allergen)</span>
+                                    }
+                                    @if (ingredient.AllergensReviewed && ingredient.Allergens.Count == 0)
+                                    {
+                                        <span class="small-muted">@L["AdminIngredients.NoAllergens"]</span>
                                     }
                                 </div>
                             </td>
                             <td>@L["AdminIngredients.RecipeCount", ingredient.UsedInRecipeCount]</td>
-                            <td style="text-align:right;">
+                            <td style="text-align:right; white-space:nowrap;">
+                                <button class="btn btn-outline-g btn-sm" @onclick="() => StartEdit(ingredient)"
+                                        disabled="@busy">@L["AdminIngredients.ReviewAllergens"]</button>
                                 @* Օգտագործվողը ջնջելը server-ը մերժում է 409-ով —
                                    կոճակը նախապես անջատում ենք, որ սխալ չառաջանա *@
                                 <button class="btn btn-danger-soft btn-sm"
@@ -106,6 +124,23 @@
                                 </button>
                             </td>
                         </tr>
+
+                        @if (editingId == ingredient.Id)
+                        {
+                            <tr>
+                                <td colspan="6">
+                                    <div class="stack">
+                                        <p class="eyebrow" style="margin:0;">@L["AdminIngredients.AllergensOf", ingredient.Name]</p>
+                                        <AllergenPicker Selected="edit.Allergens" Disabled="busy" />
+                                        <p class="form-text mb-0">@L["AdminIngredients.SaveMarksReviewed"]</p>
+                                        <div class="cluster">
+                                            <button class="btn btn-primary btn-sm" @onclick="SaveEdit" disabled="@busy">@L["Common.Save"]</button>
+                                            <button class="btn btn-outline-g btn-sm" @onclick="() => editingId = null" disabled="@busy">@L["Common.Cancel"]</button>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
                     }
                 </tbody>
             </table>
@@ -114,35 +149,64 @@
 </section>
 
 @code {
-    private record AllergenFlag(string LabelKey, Func<IngredientCreateDto, bool> Get, Action<IngredientCreateDto, bool> Set,
-                                Func<IngredientDto, bool> Has);
-
-    private static readonly AllergenFlag[] AllergenFlags =
-    {
-        new("Allergen.Gluten", d => d.ContainsGluten, (d, v) => d.ContainsGluten = v, i => i.ContainsGluten),
-        new("Allergen.Dairy", d => d.ContainsDairy, (d, v) => d.ContainsDairy = v, i => i.ContainsDairy),
-        new("Allergen.Nuts", d => d.ContainsNuts, (d, v) => d.ContainsNuts = v, i => i.ContainsNuts),
-        new("Allergen.Egg", d => d.ContainsEgg, (d, v) => d.ContainsEgg = v, i => i.ContainsEgg),
-        new("Allergen.Fish", d => d.ContainsFish, (d, v) => d.ContainsFish = v, i => i.ContainsFish),
-        new("Allergen.Shellfish", d => d.ContainsShellfish, (d, v) => d.ContainsShellfish = v, i => i.ContainsShellfish),
-        new("Allergen.Soy", d => d.ContainsSoy, (d, v) => d.ContainsSoy = v, i => i.ContainsSoy)
-    };
-
     private List<IngredientDto> ingredients = new();
     private IngredientCreateDto draft = new();
     private string search = string.Empty;
+    private bool onlyUnreviewed;
+
+    // Եղած բաղադրիչի ալերգենների վերանայումը (inline տող)
+    private Guid? editingId;
+    private IngredientUpdateDto edit = new();
+
+    private int UnreviewedCount => ingredients.Count(i => !i.AllergensReviewed);
     private bool loading = true;
     private bool busy;
     private string? error;
 
-    private IEnumerable<IngredientDto> Filtered =>
-        string.IsNullOrWhiteSpace(search)
-            ? ingredients
-            : ingredients.Where(i => i.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<IngredientDto> Filtered => ingredients
+        .Where(i => !onlyUnreviewed || !i.AllergensReviewed)
+        .Where(i => string.IsNullOrWhiteSpace(search) || i.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
 
     protected override Task OnInitializedAsync() => Reload();
 
-    private static IEnumerable<AllergenFlag> AllergenFlagsOf(IngredientDto i) => AllergenFlags.Where(f => f.Has(i));
+    private void StartEdit(IngredientDto ingredient)
+    {
+        editingId = ingredient.Id;
+
+        // PUT-ը փոխարինում է ամբողջը — մնացած դաշտերը պահում ենք ինչպես կան
+        edit = new IngredientUpdateDto
+        {
+            Name = ingredient.Name,
+            Category = ingredient.Category,
+            DefaultUnit = ingredient.DefaultUnit,
+            IsPantryStaple = ingredient.IsPantryStaple,
+            Allergens = ingredient.Allergens.ToList()
+        };
+    }
+
+    private async Task SaveEdit()
+    {
+        if (editingId is not { } id)
+            return;
+
+        busy = true;
+        error = null;
+
+        try
+        {
+            await Admin.UpdateIngredientAsync(id, edit);
+            editingId = null;
+            await Reload();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
 
     private async Task Create()
     {

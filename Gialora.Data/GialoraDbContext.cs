@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Gialora.Data.Entities;
+using Gialora.Shared.Enums;
 
 namespace Gialora.Data;
 
@@ -42,6 +43,17 @@ public class GialoraDbContext : DbContext
             v => v.Aggregate(0, (acc, s) => HashCode.Combine(acc, s.GetHashCode())),
             v => v.ToList());
 
+        // List<Allergen> <-> "TreeNuts|Milk"։ ԱՆՎԱՆԲ, ոչ թե թվով — enum-ի հերթականությունը
+        // փոխելը չպիտի փոխի պահված տվյալի իմաստը։ Անհայտ անունը (հին/սխալ տվյալ) բաց է թողնվում։
+        var allergenConverter = new ValueConverter<List<Allergen>, string>(
+            v => FormatAllergens(v),
+            v => ParseAllergens(v));
+
+        var allergenComparer = new ValueComparer<List<Allergen>>(
+            (a, b) => a != null && b != null && a.SequenceEqual(b),
+            v => v.Aggregate(0, (acc, x) => HashCode.Combine(acc, x.GetHashCode())),
+            v => v.ToList());
+
         // ---------------- User ----------------
         modelBuilder.Entity<User>(b =>
         {
@@ -65,7 +77,8 @@ public class GialoraDbContext : DbContext
         {
             b.Property(fm => fm.Name).HasMaxLength(100).IsRequired();
             b.Property(fm => fm.DietaryRestrictions).HasConversion(csvConverter).Metadata.SetValueComparer(csvComparer);
-            b.Property(fm => fm.Allergies).HasConversion(csvConverter).Metadata.SetValueComparer(csvComparer);
+            b.Property(fm => fm.Allergens).HasConversion(allergenConverter).Metadata.SetValueComparer(allergenComparer);
+            b.Property(fm => fm.OtherAllergies).HasConversion(csvConverter).Metadata.SetValueComparer(csvComparer);
             b.Property(fm => fm.Goals).HasConversion(csvConverter).Metadata.SetValueComparer(csvComparer);
             b.Ignore(fm => fm.EffectiveAgeMonths); // հաշվարկվող — column չէ
 
@@ -105,6 +118,7 @@ public class GialoraDbContext : DbContext
         {
             b.Property(i => i.Name).HasMaxLength(120).IsRequired();
             b.HasIndex(i => i.Name).IsUnique().HasFilter("[IsDeleted] = 0");
+            b.Property(i => i.Allergens).HasConversion(allergenConverter).Metadata.SetValueComparer(allergenComparer);
             b.HasQueryFilter(i => !i.IsDeleted);
         });
 
@@ -296,6 +310,19 @@ public class GialoraDbContext : DbContext
             b.HasQueryFilter(p => !p.IsDeleted);
         });
     }
+
+    // ValueConverter-ի lambda-ն expression tree է, որտեղ "out var" չի թույլատրվում —
+    // ուստի parse/format-ը առանձին մեթոդներ են։
+    private static string FormatAllergens(List<Allergen> allergens) =>
+        string.Join("|", allergens.Distinct().OrderBy(a => a.ToString()).Select(a => a.ToString()));
+
+    private static List<Allergen> ParseAllergens(string value) =>
+        value.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+             .Select(s => Enum.TryParse<Allergen>(s, out var a) && Enum.IsDefined(a) ? (Allergen?)a : null)
+             .Where(a => a.HasValue)
+             .Select(a => a!.Value)
+             .Distinct()
+             .ToList();
 
     /// <summary>
     /// UpdatedAtUtc-ը ձեռքով դնելը ամեն service-ում մոռացվում էր — կենտրոնացնում ենք այստեղ։

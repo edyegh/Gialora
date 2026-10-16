@@ -36,14 +36,14 @@ public class PlanningCandidate
     /// <summary>Քանի՞ բանջարեղեն կա — "include vegetables X times" կանոնի համար։</summary>
     public int VegetableCount { get; init; }
 
-    /// <summary>Ալերգենների դրոշները՝ ամբողջ ռեցեպտի մակարդակով (ցանկացած բաղադրիչից)։</summary>
-    public bool ContainsGluten { get; init; }
-    public bool ContainsDairy { get; init; }
-    public bool ContainsNuts { get; init; }
-    public bool ContainsEgg { get; init; }
-    public bool ContainsFish { get; init; }
-    public bool ContainsShellfish { get; init; }
-    public bool ContainsSoy { get; init; }
+    /// <summary>Ռեցեպտի ալերգենները՝ բոլոր բաղադրիչների նշումների միավորումը։</summary>
+    public HashSet<Allergen> Allergens { get; init; } = new();
+
+    /// <summary>
+    /// Գոնե մեկ բաղադրիչի ալերգենները admin-ը դեռ չի ստուգել։ Ալերգիա ունեցող
+    /// ընտանիքի համար սա նշանակում է "անհայտ" = "ոչ անվտանգ"։
+    /// </summary>
+    public bool HasUnreviewedIngredients { get; init; }
 
     /// <summary>Feedback/favorite-ից եկող նախնական միավորը (−1 … +2)։</summary>
     public double HistoryScore { get; set; }
@@ -60,7 +60,20 @@ public class PlanningConstraints
 
     public HashSet<ProteinType> ExcludedProteins { get; init; } = new();
     public HashSet<string> DislikedIngredients { get; init; } = new(StringComparer.OrdinalIgnoreCase);
-    public HashSet<string> Allergies { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Ակտիվ անդամների ընտրած ալերգենները — ամենախիստ hard rule-ը։</summary>
+    public HashSet<Allergen> Allergens { get; init; } = new();
+
+    /// <summary>"Other" ալերգիաները (ցանկում չկան) — ստուգվում են միայն բաղադրիչի անվամբ։</summary>
+    public HashSet<string> OtherAllergies { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Անդամների ազատ տեքստով սահմանափակումները ("no pork")՝ բաղադրիչի անվամբ։
+    /// Ալերգիա չեն, ուստի չստուգված բաղադրիչների կանոնը սրանց վրա չի տարածվում։
+    /// </summary>
+    public HashSet<string> RestrictionTerms { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Ընտանիքն ունի՞ որևէ ալերգիա (ցանկից կամ "Other")։</summary>
+    public bool HasAnyAllergy => Allergens.Count > 0 || OtherAllergies.Count > 0;
 
     /// <summary>Ընտանիքի ամենափոքր անդամի տարիքը ամիսներով (null = երեխա չկա)։</summary>
     public int? YoungestAgeMonths { get; init; }

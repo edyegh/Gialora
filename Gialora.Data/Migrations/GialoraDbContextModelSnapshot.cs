@@ -145,7 +145,7 @@ namespace Gialora.Data.Migrations
                     b.Property<int?>("AgeMonths")
                         .HasColumnType("int");
 
-                    b.Property<string>("Allergies")
+                    b.Property<string>("Allergens")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
@@ -176,6 +176,10 @@ namespace Gialora.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("OtherAllergies")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
@@ -261,29 +265,15 @@ namespace Gialora.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Allergens")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("AllergensReviewed")
+                        .HasColumnType("bit");
+
                     b.Property<int>("Category")
                         .HasColumnType("int");
-
-                    b.Property<bool>("ContainsDairy")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("ContainsEgg")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("ContainsFish")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("ContainsGluten")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("ContainsNuts")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("ContainsShellfish")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("ContainsSoy")
-                        .HasColumnType("bit");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");

@@ -18,8 +18,8 @@ public class MealPlanningEngineTests
         int minutes = 30,
         int minAgeMonths = 0,
         DietType diet = DietType.Meat,
-        bool nuts = false,
-        bool fish = false,
+        Allergen[]? allergens = null,
+        bool unreviewed = false,
         bool freezer = false,
         bool batch = false,
         int vegetables = 0,
@@ -38,8 +38,8 @@ public class MealPlanningEngineTests
             IsFreezerFriendly = freezer,
             IsBatchFriendly = batch,
             VegetableCount = vegetables,
-            ContainsNuts = nuts,
-            ContainsFish = fish,
+            Allergens = (allergens ?? Array.Empty<Allergen>()).ToHashSet(),
+            HasUnreviewedIngredients = unreviewed,
             CostPerServing = cost,
             IngredientNames = ingredients.ToHashSet(StringComparer.OrdinalIgnoreCase),
             IngredientIds = ingredients.Select(_ => Guid.NewGuid()).ToHashSet()
@@ -49,12 +49,14 @@ public class MealPlanningEngineTests
         int maxMinutes = 60,
         DietType? diet = null,
         int? youngestAgeMonths = null,
-        params string[] allergies) => new()
+        Allergen[]? allergens = null,
+        params string[] otherAllergies) => new()
         {
             MaxCookingTimeMinutes = maxMinutes,
             DietPreference = diet,
             YoungestAgeMonths = youngestAgeMonths,
-            Allergies = allergies.ToHashSet(StringComparer.OrdinalIgnoreCase)
+            Allergens = (allergens ?? Array.Empty<Allergen>()).ToHashSet(),
+            OtherAllergies = otherAllergies.ToHashSet(StringComparer.OrdinalIgnoreCase)
         };
 
     // ------------------------------------------------------------ hard filters
@@ -75,27 +77,27 @@ public class MealPlanningEngineTests
     {
         var pool = new[]
         {
-            Recipe("Tahini dip", nuts: true),
-            Recipe("Tomato pasta")
+            Recipe("Tahini dip", allergens: new[] { Allergen.Sesame }),
+            Recipe("Tomato pasta", allergens: new[] { Allergen.Gluten })
         };
 
-        var allowed = _engine.Filter(pool, Constraints(allergies: "nuts"));
+        var allowed = _engine.Filter(pool, Constraints(allergens: new[] { Allergen.Sesame }));
 
         Assert.Single(allowed);
         Assert.Equal("Tomato pasta", allowed[0].Title);
     }
 
     [Fact]
-    public void An_unrecognised_allergy_falls_back_to_matching_ingredient_names()
+    public void An_other_allergy_not_in_the_list_falls_back_to_matching_ingredient_names()
     {
         // Being over-cautious is the correct failure mode for an allergy.
         var pool = new[]
         {
-            Recipe("Celery soup", ingredients: new[] { "Celery", "Onion" }),
+            Recipe("Kiwi salad", ingredients: new[] { "Kiwi", "Mint" }),
             Recipe("Tomato pasta", ingredients: new[] { "Tomato", "Pasta" })
         };
 
-        var allowed = _engine.Filter(pool, Constraints(allergies: "celery"));
+        var allowed = _engine.Filter(pool, Constraints(otherAllergies: "kiwi"));
 
         Assert.Single(allowed);
         Assert.Equal("Tomato pasta", allowed[0].Title);

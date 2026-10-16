@@ -98,9 +98,9 @@
                                 <li>🚫 @L["Launcher.NoProteins", string.Join(", ", family.Preferences.ExcludedProteins)]</li>
                             }
 
-                            @if (allergies.Count > 0)
+                            @if (AllergyNames.Count > 0)
                             {
-                                <li>⚠️ @L["Launcher.Allergies", string.Join(", ", allergies)]</li>
+                                <li>⚠️ @L["Launcher.Allergies", string.Join(", ", AllergyNames)]</li>
                             }
 
                             @if (family.Preferences.DislikedIngredients.Count > 0)
@@ -129,7 +129,12 @@
         { MealType.Breakfast, MealType.Lunch, MealType.Dinner };
 
     private FamilyDto? family;
-    private List<string> allergies = new();
+    private List<Allergen> allergens = new();
+    private List<string> otherAllergies = new();
+
+    // Render-ի ժամանակ, ոչ թե բեռնելիս — լեզուն փոխելիս անունները պիտի թարգմանվեն
+    private List<string> AllergyNames =>
+        allergens.Select(a => L.Enum(a)).Concat(otherAllergies).ToList();
     private List<string> inactiveMembers = new();
 
     private int daysCount;
@@ -162,9 +167,10 @@
             // Միայն ակտիվների ալերգիաները — ոչ ակտիվինը պլանը չի սահմանափակում
             var eating = family.Members.Where(m => m.IsActive).ToList();
 
-            allergies = eating
-                .SelectMany(m => m.Allergies)
-                .Distinct()
+            allergens = eating.SelectMany(m => m.Allergens).Distinct().ToList();
+            otherAllergies = eating
+                .SelectMany(m => m.OtherAllergies)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             inactiveMembers = family.Members

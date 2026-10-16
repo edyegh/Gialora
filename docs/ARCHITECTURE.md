@@ -133,7 +133,7 @@ Every persisted entity except the pure join tables derives from `BaseEntity`.
 
 Excluded proteins are persisted by name rather than by numeric value so the database stays readable and so reordering the `ProteinType` enum cannot silently corrupt existing rows.
 
-**FamilyMember** — Name, MemberType (`Adult` / `Child`), Age, AgeMonths, IsActive, DietaryRestrictions, Allergies, Goals. `EffectiveAgeMonths` is a computed property (`AgeMonths ?? Age * 12`) mapped as `Ignore` — it exists for the engine, not for the database. `IsActive` (default `true`) switches a member off without deleting them: while inactive, their allergies, restrictions, goals, age and portion are excluded from planning (`FamilyPlanningInput`), so the next generated plan and its shopping list reflect only the people actually eating.
+**FamilyMember** — Name, MemberType (`Adult` / `Child`), Age, AgeMonths, IsActive, DietaryRestrictions, Allergens (a list of the `Allergen` enum, stored by name), OtherAllergies (free text for anything not on the list), Goals. `EffectiveAgeMonths` is a computed property (`AgeMonths ?? Age * 12`) mapped as `Ignore` — it exists for the engine, not for the database. `IsActive` (default `true`) switches a member off without deleting them: while inactive, their allergies, restrictions, goals, age and portion are excluded from planning (`FamilyPlanningInput`), so the next generated plan and its shopping list reflect only the people actually eating.
 
 ### 3.3 Recipes as data, not articles
 
@@ -155,7 +155,7 @@ This is the single most important design decision in the project. A recipe is no
 
 `PrimaryProtein` exists specifically to support the planning rule *"don't repeat the same protein two days in a row"*. Without a first-class field, that rule would require guessing from ingredient names.
 
-**Ingredient** — Name (unique), DefaultUnit, Category, seven allergen flags (gluten, dairy, nuts, egg, fish, shellfish, soy) and IsPantryStaple.
+**Ingredient** — Name (unique among non-deleted rows), DefaultUnit, Category, Allergens (the EU-14 `Allergen` values it contains, stored by name, e.g. `Milk|TreeNuts`), AllergensReviewed and IsPantryStaple. An admin decides an ingredient's allergens once (almond flour → TreeNuts, pesto → TreeNuts + Milk); nothing is inferred from the name. `AllergensReviewed` is false until an admin saves the ingredient — CSV-created ingredients without a valid `allergens` cell, and every ingredient that existed before the `StructuredAllergens` migration, start unreviewed.
 
 The `Category` is the supermarket aisle. It is what allows the shopping list to be grouped the way people actually shop, rather than grouped by recipe.
 
@@ -238,9 +238,9 @@ It lives in `Gialora.Application/Planning/` and is a pure class with no database
 
 ### 4.1 Inputs
 
-**PlanningCandidate** — a flattened recipe: identity, classification, total minutes, minimum age, characteristic flags, cost, the set of ingredient Ids, ingredient names, tags, a vegetable count, aggregate allergen flags, and a `HistoryScore`.
+**PlanningCandidate** — a flattened recipe: identity, classification, total minutes, minimum age, characteristic flags, cost, the set of ingredient Ids, ingredient names, tags, a vegetable count, the union of its ingredients' `Allergens`, `HasUnreviewedIngredients`, and a `HistoryScore`.
 
-**PlanningConstraints** — the family's rules: maximum cooking time, diet preference, preferred cuisine, budget, freezer preference, excluded proteins, disliked ingredients, the union of all members' allergies, the youngest child's age in months, and whether there are children at all.
+**PlanningConstraints** — the family's rules: maximum cooking time, diet preference, preferred cuisine, budget, freezer preference, excluded proteins, disliked ingredients, the union of all active members' `Allergens` and `OtherAllergies`, their dietary restrictions as `RestrictionTerms`, the youngest child's age in months, and whether there are children at all.
 
 **PlanningRequest** — the constraints plus the number of slots to fill, the plan type, whether to optimise for ingredient reuse, the set of recipe Ids already used (locked meals), and a random seed.
 
@@ -254,13 +254,13 @@ A candidate that fails any of these is removed from consideration entirely. It i
 | Diet | A vegetarian household accepts vegetarian and vegan recipes; a vegan household accepts only vegan; a pescatarian household accepts anything that is not meat. |
 | Excluded proteins | The "no fish" rule. Direct match on `PrimaryProtein`. |
 | Age | If the youngest child is 24 months, a recipe with `MinAgeMonths = 36` is excluded. |
-| Allergies | Known allergens map to the ingredient flags. Unknown allergy strings fall back to matching against ingredient names. |
+| Allergies | Blocked if any ingredient is marked with a ticked `Allergen`; if the family has any allergy, also blocked when any ingredient is unreviewed; "Other" allergies match ingredient names. |
 | Disliked ingredients | Substring match against ingredient names; the whole recipe is excluded. |
 | Budget | `Low` allows up to 3 per serving, `Medium` up to 6, `High` and `Any` are unlimited. Recipes with no cost recorded are never excluded on price. |
 
 Two of these deserve comment.
 
-**Allergies are the strictest rule in the system.** They are never softened into a score. For an allergy string the engine does not recognise, it falls back to matching the text against ingredient names — deliberately over-cautious. Excluding a few extra recipes is an inconvenience; suggesting a meal that sends a child to hospital is not.
+**Allergies are the strictest rule in the system.** They are never softened into a score, and they are structured: families tick allergens from the EU-14 list and the engine compares them with the allergens admins marked on each ingredient. There is no synonym list in code — free text cannot be guessed reliably (and the UI is in three languages). An ingredient nobody has reviewed counts as unsafe for any family with an allergy. Only the "Other" allergies fall back to matching ingredient names, and the UI says so. This is deliberately over-cautious. Excluding a few extra recipes is an inconvenience; suggesting a meal that sends a child to hospital is not.
 
 **Allergies are unioned across the household.** One member's nut allergy is the whole family's constraint, because the family eats together.
 

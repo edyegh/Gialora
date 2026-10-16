@@ -431,13 +431,8 @@ public class MealPlanService : IMealPlanService
                     ri.IngredientId,
                     ri.Ingredient.Name,
                     ri.Ingredient.Category,
-                    ri.Ingredient.ContainsGluten,
-                    ri.Ingredient.ContainsDairy,
-                    ri.Ingredient.ContainsNuts,
-                    ri.Ingredient.ContainsEgg,
-                    ri.Ingredient.ContainsFish,
-                    ri.Ingredient.ContainsShellfish,
-                    ri.Ingredient.ContainsSoy
+                    ri.Ingredient.Allergens,
+                    ri.Ingredient.AllergensReviewed
                 }).ToList()
             })
             .ToListAsync();
@@ -466,13 +461,9 @@ public class MealPlanService : IMealPlanService
             Tags = r.Tags.ToHashSet(StringComparer.OrdinalIgnoreCase),
             VegetableCount = r.Ingredients.Count(i =>
                 i.Category is IngredientCategory.Vegetables or IngredientCategory.Fruit),
-            ContainsGluten = r.Ingredients.Any(i => i.ContainsGluten),
-            ContainsDairy = r.Ingredients.Any(i => i.ContainsDairy),
-            ContainsNuts = r.Ingredients.Any(i => i.ContainsNuts),
-            ContainsEgg = r.Ingredients.Any(i => i.ContainsEgg),
-            ContainsFish = r.Ingredients.Any(i => i.ContainsFish),
-            ContainsShellfish = r.Ingredients.Any(i => i.ContainsShellfish),
-            ContainsSoy = r.Ingredients.Any(i => i.ContainsSoy),
+            // Ռեցեպտը պարունակում է իր ցանկացած բաղադրիչի ալերգենը
+            Allergens = r.Ingredients.SelectMany(i => i.Allergens).ToHashSet(),
+            HasUnreviewedIngredients = r.Ingredients.Any(i => !i.AllergensReviewed),
             HistoryScore = history.GetValueOrDefault(r.Id)
         }).ToList();
     }

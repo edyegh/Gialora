@@ -83,13 +83,7 @@ public class DbSeeder
         string Name,
         IngredientCategory Category,
         UnitOfMeasure Unit,
-        bool Gluten = false,
-        bool Dairy = false,
-        bool Nuts = false,
-        bool Egg = false,
-        bool Fish = false,
-        bool Shellfish = false,
-        bool Soy = false,
+        Allergen[]? Allergens = null,
         bool Staple = false);
 
     private static readonly IngredientSpec[] Catalog =
@@ -100,15 +94,15 @@ public class DbSeeder
         new("Chicken thighs", IngredientCategory.Meat, UnitOfMeasure.Gram),
         new("Beef mince", IngredientCategory.Meat, UnitOfMeasure.Gram),
         new("Lamb mince", IngredientCategory.Meat, UnitOfMeasure.Gram),
-        new("Salmon fillet", IngredientCategory.Fish, UnitOfMeasure.Gram, Fish: true),
-        new("White fish fillet", IngredientCategory.Fish, UnitOfMeasure.Gram, Fish: true),
+        new("Salmon fillet", IngredientCategory.Fish, UnitOfMeasure.Gram, [Allergen.Fish]),
+        new("White fish fillet", IngredientCategory.Fish, UnitOfMeasure.Gram, [Allergen.Fish]),
 
         // Dairy & eggs
-        new("Egg", IngredientCategory.DairyAndEggs, UnitOfMeasure.Piece, Egg: true),
-        new("Greek yogurt", IngredientCategory.DairyAndEggs, UnitOfMeasure.Gram, Dairy: true),
-        new("Feta cheese", IngredientCategory.DairyAndEggs, UnitOfMeasure.Gram, Dairy: true),
-        new("Parmesan", IngredientCategory.DairyAndEggs, UnitOfMeasure.Gram, Dairy: true),
-        new("Milk", IngredientCategory.DairyAndEggs, UnitOfMeasure.Milliliter, Dairy: true),
+        new("Egg", IngredientCategory.DairyAndEggs, UnitOfMeasure.Piece, [Allergen.Eggs]),
+        new("Greek yogurt", IngredientCategory.DairyAndEggs, UnitOfMeasure.Gram, [Allergen.Milk]),
+        new("Feta cheese", IngredientCategory.DairyAndEggs, UnitOfMeasure.Gram, [Allergen.Milk]),
+        new("Parmesan", IngredientCategory.DairyAndEggs, UnitOfMeasure.Gram, [Allergen.Milk]),
+        new("Milk", IngredientCategory.DairyAndEggs, UnitOfMeasure.Milliliter, [Allergen.Milk]),
 
         // Vegetables
         new("Onion", IngredientCategory.Vegetables, UnitOfMeasure.Gram),
@@ -123,7 +117,7 @@ public class DbSeeder
         new("Spinach", IngredientCategory.Vegetables, UnitOfMeasure.Gram),
         new("Potato", IngredientCategory.Vegetables, UnitOfMeasure.Gram),
         new("Sweet potato", IngredientCategory.Vegetables, UnitOfMeasure.Gram),
-        new("Celery", IngredientCategory.Vegetables, UnitOfMeasure.Gram),
+        new("Celery", IngredientCategory.Vegetables, UnitOfMeasure.Gram, [Allergen.Celery]),
         new("Broccoli", IngredientCategory.Vegetables, UnitOfMeasure.Gram),
 
         // Fruit
@@ -131,12 +125,12 @@ public class DbSeeder
         new("Olives", IngredientCategory.Fruit, UnitOfMeasure.Gram),
 
         // Grains & legumes
-        new("Pasta", IngredientCategory.Grains, UnitOfMeasure.Gram, Gluten: true),
-        new("Couscous", IngredientCategory.Grains, UnitOfMeasure.Gram, Gluten: true),
+        new("Pasta", IngredientCategory.Grains, UnitOfMeasure.Gram, [Allergen.Gluten]),
+        new("Couscous", IngredientCategory.Grains, UnitOfMeasure.Gram, [Allergen.Gluten]),
         new("Rice", IngredientCategory.Grains, UnitOfMeasure.Gram),
-        new("Bulgur", IngredientCategory.Grains, UnitOfMeasure.Gram, Gluten: true),
-        new("Breadcrumbs", IngredientCategory.Pantry, UnitOfMeasure.Gram, Gluten: true),
-        new("Pita bread", IngredientCategory.Bakery, UnitOfMeasure.Piece, Gluten: true),
+        new("Bulgur", IngredientCategory.Grains, UnitOfMeasure.Gram, [Allergen.Gluten]),
+        new("Breadcrumbs", IngredientCategory.Pantry, UnitOfMeasure.Gram, [Allergen.Gluten]),
+        new("Pita bread", IngredientCategory.Bakery, UnitOfMeasure.Piece, [Allergen.Gluten]),
         new("Red lentils", IngredientCategory.Legumes, UnitOfMeasure.Gram),
         new("Chickpeas", IngredientCategory.Legumes, UnitOfMeasure.Gram),
         new("White beans", IngredientCategory.Legumes, UnitOfMeasure.Gram),
@@ -151,8 +145,8 @@ public class DbSeeder
         new("Black pepper", IngredientCategory.HerbsAndSpices, UnitOfMeasure.Teaspoon, Staple: true),
         new("Olive oil", IngredientCategory.OilsAndVinegars, UnitOfMeasure.Tablespoon, Staple: true),
         new("Chopped tomatoes", IngredientCategory.Pantry, UnitOfMeasure.Can),
-        new("Vegetable stock", IngredientCategory.Pantry, UnitOfMeasure.Milliliter),
-        new("Tahini", IngredientCategory.Pantry, UnitOfMeasure.Tablespoon, Nuts: true),
+        new("Vegetable stock", IngredientCategory.Pantry, UnitOfMeasure.Milliliter, [Allergen.Celery]),
+        new("Tahini", IngredientCategory.Pantry, UnitOfMeasure.Tablespoon, [Allergen.Sesame]),
         new("Tomato paste", IngredientCategory.Pantry, UnitOfMeasure.Tablespoon)
     };
 
@@ -161,23 +155,30 @@ public class DbSeeder
         var existing = await _db.Ingredients.ToDictionaryAsync(i => i.Name, StringComparer.OrdinalIgnoreCase);
         var created = 0;
 
+        var reviewed = 0;
+
         foreach (var spec in Catalog)
         {
-            if (existing.ContainsKey(spec.Name))
+            if (existing.TryGetValue(spec.Name, out var known))
+            {
+                // Migration-ից հետո հին seed բաղադրիչները "չստուգված" են. seed-ի տվյալները
+                // ստուգված են, ուստի կիրառում ենք — բայց ԵՐԲԵՔ չենք փոխում admin-ի որոշումը։
+                if (!known.AllergensReviewed)
+                {
+                    known.Allergens = (spec.Allergens ?? []).ToList();
+                    known.AllergensReviewed = true;
+                    reviewed++;
+                }
                 continue;
+            }
 
             var ingredient = new Ingredient
             {
                 Name = spec.Name,
                 Category = spec.Category,
                 DefaultUnit = spec.Unit,
-                ContainsGluten = spec.Gluten,
-                ContainsDairy = spec.Dairy,
-                ContainsNuts = spec.Nuts,
-                ContainsEgg = spec.Egg,
-                ContainsFish = spec.Fish,
-                ContainsShellfish = spec.Shellfish,
-                ContainsSoy = spec.Soy,
+                Allergens = (spec.Allergens ?? []).ToList(),
+                AllergensReviewed = true,
                 IsPantryStaple = spec.Staple
             };
 
@@ -186,10 +187,10 @@ public class DbSeeder
             created++;
         }
 
-        if (created > 0)
+        if (created > 0 || reviewed > 0)
         {
             await _db.SaveChangesAsync();
-            _logger.LogInformation("Seeded {Count} ingredients", created);
+            _logger.LogInformation("Seeded {Created} ingredients, applied allergens to {Reviewed}", created, reviewed);
         }
 
         return existing;

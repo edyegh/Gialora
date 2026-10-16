@@ -175,7 +175,8 @@ public class FamilyService : IFamilyService
         member.AgeMonths = dto.AgeMonths;
         member.IsActive = dto.IsActive;
         member.DietaryRestrictions = NormalizeList(dto.DietaryRestrictions);
-        member.Allergies = NormalizeList(dto.Allergies);
+        member.Allergens = dto.Allergens.Where(a => Enum.IsDefined(a)).Distinct().ToList();
+        member.OtherAllergies = NormalizeList(dto.OtherAllergies);
         member.Goals = dto.Goals.Select(g => g.Trim()).Where(g => g.Length > 0).Distinct().ToList();
     }
 
@@ -225,7 +226,8 @@ public class FamilyService : IFamilyService
         AgeMonths = m.AgeMonths,
         IsActive = m.IsActive,
         DietaryRestrictions = m.DietaryRestrictions,
-        Allergies = m.Allergies,
+        Allergens = m.Allergens,
+        OtherAllergies = m.OtherAllergies,
         Goals = m.Goals
     };
 }

@@ -115,13 +115,9 @@ public class IngredientService : IIngredientService
     {
         ingredient.DefaultUnit = dto.DefaultUnit;
         ingredient.Category = dto.Category;
-        ingredient.ContainsGluten = dto.ContainsGluten;
-        ingredient.ContainsDairy = dto.ContainsDairy;
-        ingredient.ContainsNuts = dto.ContainsNuts;
-        ingredient.ContainsEgg = dto.ContainsEgg;
-        ingredient.ContainsFish = dto.ContainsFish;
-        ingredient.ContainsShellfish = dto.ContainsShellfish;
-        ingredient.ContainsSoy = dto.ContainsSoy;
+        ingredient.Allergens = dto.Allergens.Where(a => Enum.IsDefined(a)).Distinct().ToList();
+        // Admin-ի ձևով պահելը = admin-ը ալերգենները ստուգեց (թեկուզ ոչ մեկը չնշեց)
+        ingredient.AllergensReviewed = true;
         ingredient.IsPantryStaple = dto.IsPantryStaple;
     }
 
@@ -133,13 +129,8 @@ public class IngredientService : IIngredientService
         Name = i.Name,
         DefaultUnit = i.DefaultUnit,
         Category = i.Category,
-        ContainsGluten = i.ContainsGluten,
-        ContainsDairy = i.ContainsDairy,
-        ContainsNuts = i.ContainsNuts,
-        ContainsEgg = i.ContainsEgg,
-        ContainsFish = i.ContainsFish,
-        ContainsShellfish = i.ContainsShellfish,
-        ContainsSoy = i.ContainsSoy,
+        Allergens = i.Allergens,
+        AllergensReviewed = i.AllergensReviewed,
         IsPantryStaple = i.IsPantryStaple,
         UsedInRecipeCount = i.RecipeIngredients.Count
     };
@@ -152,13 +143,8 @@ public class IngredientService : IIngredientService
             Name = i.Name,
             DefaultUnit = i.DefaultUnit,
             Category = i.Category,
-            ContainsGluten = i.ContainsGluten,
-            ContainsDairy = i.ContainsDairy,
-            ContainsNuts = i.ContainsNuts,
-            ContainsEgg = i.ContainsEgg,
-            ContainsFish = i.ContainsFish,
-            ContainsShellfish = i.ContainsShellfish,
-            ContainsSoy = i.ContainsSoy,
+            Allergens = i.Allergens,
+            AllergensReviewed = i.AllergensReviewed,
             IsPantryStaple = i.IsPantryStaple,
             UsedInRecipeCount = usage
         };

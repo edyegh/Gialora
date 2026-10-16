@@ -1,0 +1,37 @@
+@* Gialora.Client/Components/AllergenPicker.razor
+   ԵՄ-ի 14 ալերգենների checkbox-ների ցանկը։ Նույն ցանկն է ընտանիքի էջում (ինչից
+   է անդամը ալերգիկ) և admin-ի բաղադրիչների էջում (ինչ է պարունակում բաղադրիչը) —
+   engine-ը հենց այս երկուսն է համեմատում, ուստի դրանք ՊԻՏԻ նույն ցանկից լինեն։
+   Selected list-ը փոխվում է տեղում։ *@
+@using Gialora.Shared.Enums
+
+<div class="cluster">
+    @foreach (var allergen in All)
+    {
+        var isOn = Selected.Contains(allergen);
+        <label class="chip-check @(isOn ? "is-on" : null)">
+            <input type="checkbox" checked="@isOn" disabled="@Disabled"
+                   @onchange="e => Toggle(allergen, (bool)(e.Value ?? false))" />
+            @L.Enum(allergen)
+        </label>
+    }
+</div>
+
+@code {
+    // Այբբենական կարգով՝ ըստ ԹԱՐԳՄԱՆՎԱԾ անվան, ոչ թե enum-ի թվի
+    private IEnumerable<Allergen> All => Enum.GetValues<Allergen>().OrderBy(a => L.Enum(a));
+
+    [Parameter, EditorRequired] public List<Allergen> Selected { get; set; } = new();
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private async Task Toggle(Allergen allergen, bool isOn)
+    {
+        if (isOn && !Selected.Contains(allergen))
+            Selected.Add(allergen);
+        else if (!isOn)
+            Selected.Remove(allergen);
+
+        await OnChanged.InvokeAsync();
+    }
+}

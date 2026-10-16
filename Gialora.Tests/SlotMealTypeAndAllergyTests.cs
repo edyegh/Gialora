@@ -8,8 +8,9 @@ namespace Gialora.Tests;
 /// Regression tests for two engine bugs found in review:
 ///  1. The engine ignored meal type, so with Breakfast + Dinner selected a dinner
 ///     stew could be placed in a breakfast slot.
-///  2. Free-text allergies only matched a handful of exact tokens, so "tree nuts",
-///     "almonds", "peanut allergy" or "shrimp" let unsafe recipes through.
+///  2. Free-text allergies were guessed from a word list, so anything the list
+///     missed ("almond powder", Armenian/Greek input) let unsafe recipes through.
+///     Allergies are now structured (see the allergy section below).
 /// </summary>
 public class SlotMealTypeAndAllergyTests
 {
@@ -19,8 +20,8 @@ public class SlotMealTypeAndAllergyTests
         string title,
         MealType mealType = MealType.Dinner,
         ProteinType protein = ProteinType.Chicken,
-        bool nuts = false,
-        bool shellfish = false,
+        Allergen[]? allergens = null,
+        bool unreviewed = false,
         params string[] ingredients) => new()
         {
             RecipeId = Guid.NewGuid(),
@@ -29,16 +30,21 @@ public class SlotMealTypeAndAllergyTests
             DietType = DietType.Meat,
             PrimaryProtein = protein,
             TotalMinutes = 30,
-            ContainsNuts = nuts,
-            ContainsShellfish = shellfish,
+            Allergens = (allergens ?? Array.Empty<Allergen>()).ToHashSet(),
+            HasUnreviewedIngredients = unreviewed,
             IngredientNames = ingredients.ToHashSet(StringComparer.OrdinalIgnoreCase),
             IngredientIds = ingredients.Select(_ => Guid.NewGuid()).ToHashSet()
         };
 
-    private static PlanningConstraints Allergic(params string[] allergies) => new()
+    private static PlanningConstraints Allergic(params Allergen[] allergens) => Allergic(null, allergens);
+
+    private static PlanningConstraints Allergic(string? other, params Allergen[] allergens) => new()
     {
         MaxCookingTimeMinutes = 60,
-        Allergies = allergies.ToHashSet(StringComparer.OrdinalIgnoreCase)
+        Allergens = allergens.ToHashSet(),
+        OtherAllergies = other is null
+            ? new(StringComparer.OrdinalIgnoreCase)
+            : new(StringComparer.OrdinalIgnoreCase) { other }
     };
 
     // ------------------------------------------------------------ meal types
@@ -118,65 +124,91 @@ public class SlotMealTypeAndAllergyTests
     }
 
     // ------------------------------------------------------------ allergies
+    //
+    // Allergies are structured: the family ticks allergens from the EU-14 list and
+    // admins mark each ingredient with the allergens it contains. The engine compares
+    // the two — it never guesses from free text, so a compound like "Almond flour" is
+    // caught because it is MARKED TreeNuts, not because its name contains "almond".
 
-    [Theory]
-    [InlineData("tree nuts")]
-    [InlineData("Tree-Nuts")]
-    [InlineData("peanut allergy")]
-    [InlineData("almonds")]
-    [InlineData("nut free")]
-    public void Free_text_nut_allergies_block_recipes_flagged_as_containing_nuts(string allergy)
+    [Fact]
+    public void A_ticked_allergen_blocks_recipes_with_an_ingredient_marked_with_it()
     {
-        var pool = new[] { Recipe("Walnut cake", nuts: true, ingredients: "Walnuts"), Recipe("Plain rice", ingredients: "Rice") };
+        var pool = new[]
+        {
+            Recipe("Almond biscuits", allergens: new[] { Allergen.TreeNuts, Allergen.Gluten }, ingredients: "Almond flour"),
+            Recipe("Plain rice", ingredients: "Rice")
+        };
 
-        var allowed = _engine.Filter(pool, Allergic(allergy));
+        var allowed = _engine.Filter(pool, Allergic(Allergen.TreeNuts));
 
         Assert.Equal("Plain rice", Assert.Single(allowed).Title);
     }
 
     [Fact]
-    public void A_plural_allergy_matches_a_singular_ingredient_name_even_without_a_flag()
+    public void Allergen_matching_uses_the_marks_not_the_name()
     {
-        // The flag is missing (bad data) — the ingredient name must still catch it
-        var pool = new[] { Recipe("Almond biscuits", ingredients: "Almond flour"), Recipe("Plain rice", ingredients: "Rice") };
+        // Named innocently, but marked as containing sesame (e.g. a spice blend)
+        var pool = new[] { Recipe("Herb crust chicken", allergens: new[] { Allergen.Sesame }, ingredients: "Za'atar") };
 
-        var allowed = _engine.Filter(pool, Allergic("almonds"));
-
-        Assert.Equal("Plain rice", Assert.Single(allowed).Title);
-    }
-
-    [Theory]
-    [InlineData("shrimp")]
-    [InlineData("prawns")]
-    [InlineData("mussels")]
-    public void Specific_shellfish_names_use_the_shellfish_flag(string allergy)
-    {
-        var pool = new[] { Recipe("Seafood stew", shellfish: true, ingredients: "Mixed seafood"), Recipe("Plain rice", ingredients: "Rice") };
-
-        var allowed = _engine.Filter(pool, Allergic(allergy));
-
-        Assert.Equal("Plain rice", Assert.Single(allowed).Title);
+        Assert.Empty(_engine.Filter(pool, Allergic(Allergen.Sesame)));
     }
 
     [Fact]
-    public void A_dietary_restriction_phrased_as_no_x_matches_the_ingredient()
+    public void Peanuts_and_tree_nuts_are_separate_allergens()
     {
-        var pool = new[] { Recipe("Pork chops", ingredients: "Pork loin"), Recipe("Plain rice", ingredients: "Rice") };
+        var pool = new[] { Recipe("Walnut cake", allergens: new[] { Allergen.TreeNuts }, ingredients: "Walnuts") };
 
-        var allowed = _engine.Filter(pool, Allergic("no pork"));
+        Assert.Single(_engine.Filter(pool, Allergic(Allergen.Peanuts)));
+        Assert.Empty(_engine.Filter(pool, Allergic(Allergen.TreeNuts)));
+    }
 
-        Assert.Equal("Plain rice", Assert.Single(allowed).Title);
+    [Fact]
+    public void Unreviewed_ingredients_are_unsafe_for_a_family_with_any_allergy()
+    {
+        // Created by CSV import, nobody has checked its allergens yet
+        var pool = new[]
+        {
+            Recipe("Imported curry", unreviewed: true, ingredients: "Curry paste"),
+            Recipe("Plain rice", ingredients: "Rice")
+        };
+
+        Assert.Equal("Plain rice", Assert.Single(_engine.Filter(pool, Allergic(Allergen.Celery))).Title);
+        Assert.Equal("Plain rice", Assert.Single(_engine.Filter(pool, Allergic(other: "kiwi"))).Title);
+    }
+
+    [Fact]
+    public void Unreviewed_ingredients_are_fine_for_a_family_without_allergies()
+    {
+        var pool = new[] { Recipe("Imported curry", unreviewed: true, ingredients: "Curry paste") };
+
+        Assert.Single(_engine.Filter(pool, Allergic()));
+    }
+
+    [Fact]
+    public void A_dietary_restriction_does_not_trigger_the_unreviewed_rule()
+    {
+        var constraints = new PlanningConstraints
+        {
+            MaxCookingTimeMinutes = 60,
+            RestrictionTerms = new(StringComparer.OrdinalIgnoreCase) { "no pork" }
+        };
+        var pool = new[]
+        {
+            Recipe("Imported curry", unreviewed: true, ingredients: "Curry paste"),
+            Recipe("Pork chops", ingredients: "Pork loin")
+        };
+
+        Assert.Equal("Imported curry", Assert.Single(_engine.Filter(pool, constraints)).Title);
     }
 
     [Theory]
-    [InlineData("none")]
-    [InlineData("  ")]
-    public void A_placeholder_allergy_blocks_nothing(string allergy)
+    [InlineData("kiwi")]
+    [InlineData("Kiwis")]
+    [InlineData("kiwi allergy")]
+    public void Other_allergies_not_in_the_list_match_ingredient_names(string other)
     {
-        var pool = new[] { Recipe("Walnut cake", nuts: true, ingredients: "Walnuts"), Recipe("Plain rice", ingredients: "Rice") };
+        var pool = new[] { Recipe("Fruit salad", ingredients: "Kiwi"), Recipe("Plain rice", ingredients: "Rice") };
 
-        var allowed = _engine.Filter(pool, Allergic(allergy));
-
-        Assert.Equal(2, allowed.Count);
+        Assert.Equal("Plain rice", Assert.Single(_engine.Filter(pool, Allergic(other: other))).Title);
     }
 }

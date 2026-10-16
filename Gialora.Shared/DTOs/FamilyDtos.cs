@@ -16,7 +16,16 @@ public class FamilyMemberDto
     public bool IsActive { get; set; } = true;
 
     public List<string> DietaryRestrictions { get; set; } = new();
-    public List<string> Allergies { get; set; } = new();
+
+    /// <summary>Ցանկից ընտրված ալերգենները — engine-ը դրանք ստուգում է բաղադրիչների նշումների հետ։</summary>
+    public List<Allergen> Allergens { get; set; } = new();
+
+    /// <summary>
+    /// "Other" — ցանկում չեղած ալերգիաներ (օր.՝ "kiwi")։ Սրանք կարելի է ստուգել
+    /// ՄԻԱՅՆ բաղադրիչի անվամբ, ուստի UI-ը պիտի ասի, որ դա ավելի թույլ ստուգում է։
+    /// </summary>
+    public List<string> OtherAllergies { get; set; } = new();
+
     public List<string> Goals { get; set; } = new();
 }
 
@@ -88,7 +97,8 @@ public class FamilyMemberCreateDto
     public bool IsActive { get; set; } = true;
 
     public List<string> DietaryRestrictions { get; set; } = new();
-    public List<string> Allergies { get; set; } = new();
+    public List<Allergen> Allergens { get; set; } = new();
+    public List<string> OtherAllergies { get; set; } = new();
     public List<string> Goals { get; set; } = new();
 }
 

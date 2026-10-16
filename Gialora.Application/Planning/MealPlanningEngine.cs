@@ -73,7 +73,11 @@ public class MealPlanningEngine : IMealPlanningEngine
             return false;
 
         // Ալերգիա — սա ամենակարևոր hard rule-ն է, երբեք soft score չի դառնում
-        if (ViolatesAllergy(candidate, constraints.Allergies))
+        if (ViolatesAllergy(candidate, constraints))
+            return false;
+
+        // Անդամների ազատ տեքստով սահմանափակումները ("no pork")
+        if (constraints.RestrictionTerms.Any(term => MentionsIngredient(candidate, term)))
             return false;
 
         // Չսիրած բաղադրիչներ
@@ -107,52 +111,48 @@ public class MealPlanningEngine : IMealPlanningEngine
         _ => true
     };
 
-    private static bool ViolatesAllergy(PlanningCandidate candidate, IReadOnlyCollection<string> allergies)
-        => allergies.Any(allergy => AllergyBlocks(candidate, allergy));
-
-    // Ալերգիաները ազատ տեքստ են ("tree nuts", "almonds", "peanut allergy", "shrimp"),
-    // ուստի բառերը (եզակի թվով) համեմատում ենք յուրաքանչյուր դրոշի հոմանիշների հետ։
-    private static readonly string[] GlutenWords = { "gluten", "wheat", "celiac", "coeliac", "barley", "rye", "spelt" };
-    private static readonly string[] DairyWords = { "dairy", "milk", "lactose", "casein", "whey", "cheese", "butter", "cream", "yogurt", "yoghurt" };
-    private static readonly string[] NutWords = { "nut", "peanut", "treenut", "almond", "walnut", "hazelnut", "cashew", "pistachio", "pecan", "macadamia" };
-    private static readonly string[] EggWords = { "egg" };
-    private static readonly string[] FishWords = { "fish", "seafood", "salmon", "tuna", "cod", "anchovy", "sardine", "mackerel", "trout", "seabass" };
-    private static readonly string[] ShellfishWords = { "shellfish", "seafood", "crustacean", "shrimp", "prawn", "crab", "lobster", "mollusc", "mollusk", "mussel", "clam", "oyster", "scallop", "squid", "octopus" };
-    private static readonly string[] SoyWords = { "soy", "soya", "soybean", "tofu", "edamame" };
-
-    // Բառեր, որ ալերգենի անուն չեն ("peanut allergy", "gluten-free", "no pork")
-    private static readonly HashSet<string> NonAllergenWords = new(StringComparer.OrdinalIgnoreCase)
+    /// <summary>
+    /// Ալերգիայի ստուգումը։ Հիմնականը ԿԱՌՈՒՑՎԱԾՔԱՅԻՆ է՝ ընտանիքի ընտրած ալերգենները
+    /// համեմատվում են բաղադրիչների վրա admin-ի դրած նշումների հետ — կոդը ոչինչ չի
+    /// գուշակում անունից (այդ պատճառով "Almond flour"-ը կբռնվի միայն եթե admin-ը
+    /// այն նշել է TreeNuts, և ահա թե ինչու չստուգված բաղադրիչը համարվում է վտանգավոր)։
+    /// </summary>
+    private static bool ViolatesAllergy(PlanningCandidate candidate, PlanningConstraints constraints)
     {
-        "allergy", "allergie", "allergic", "intolerance", "intolerant", "sensitivity",
+        if (candidate.Allergens.Overlaps(constraints.Allergens))
+            return true;
+
+        // Անհայտը = ոչ անվտանգ։ Առանց սրա նոր (CSV-ով ստեղծված) բաղադրիչը, որի
+        // ալերգենները ոչ ոք չի նշել, լուռ "անվտանգ" կհամարվեր։
+        if (constraints.HasAnyAllergy && candidate.HasUnreviewedIngredients)
+            return true;
+
+        // "Other" — ցանկում չկա, ուստի միակ հնարավորը բաղադրիչի անունն է
+        return constraints.OtherAllergies.Any(term => MentionsIngredient(candidate, term));
+    }
+
+    // Բառեր, որ ալերգենի/բաղադրիչի անուն չեն ("kiwi allergy", "no pork", "celery-free")
+    private static readonly HashSet<string> FillerWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "allergy", "allergies", "allergic", "intolerance", "intolerant", "sensitivity",
         "free", "no", "not", "none", "without", "avoid", "to", "and", "or", "of", "the", "a"
     };
 
-    private static bool AllergyBlocks(PlanningCandidate candidate, string allergy)
+    /// <summary>
+    /// Ազատ տեքստի ամենապարզ համեմատությունը բաղադրիչի անվան հետ (եզակի թիվ, լրացուցիչ
+    /// բառերը դուրս)։ Դիտավորյալ ՉԿԱ հոմանիշների ցանկ — դա ալերգենների ցանկի գործն է։
+    /// </summary>
+    private static bool MentionsIngredient(PlanningCandidate candidate, string text)
     {
-        var text = allergy.Trim().ToLowerInvariant().Replace('-', ' ').Replace('_', ' ');
-        var words = text
+        var words = text.Trim().ToLowerInvariant().Replace('-', ' ').Replace('_', ' ')
             .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(w => !NonAllergenWords.Contains(w))
+            .Where(w => !FillerWords.Contains(w))
             .Select(Singular)
             .ToList();
 
         if (words.Count == 0)
             return false;
 
-        bool Mentions(string[] synonyms) => words.Any(synonyms.Contains);
-
-        if ((candidate.ContainsGluten && Mentions(GlutenWords)) ||
-            (candidate.ContainsDairy && Mentions(DairyWords)) ||
-            (candidate.ContainsNuts && Mentions(NutWords)) ||
-            (candidate.ContainsEgg && Mentions(EggWords)) ||
-            (candidate.ContainsFish && Mentions(FishWords)) ||
-            (candidate.ContainsShellfish && Mentions(ShellfishWords)) ||
-            (candidate.ContainsSoy && Mentions(SoyWords)))
-            return true;
-
-        // Դրոշներից բացի՝ նաև բաղադրիչի անունով (դրոշը կարող է սխալ նշված լինել, կամ
-        // ալերգենը դրոշ չունի՝ "sesame")։ Ավելի լավ է մի քանի ռեցեպտ ավելորդ բացառել,
-        // քան ալերգիկ ճաշ առաջարկել — ուստի ամբողջ արտահայտությունը ԵՎ ամեն բառը։
         var terms = words.Where(w => w.Length >= 3).Append(string.Join(' ', words)).Distinct().ToList();
 
         return candidate.IngredientNames.Any(name =>

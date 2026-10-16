@@ -27,7 +27,12 @@ public class FamilyMember : BaseEntity
 
     // CSV-ով պահվող ցուցակներ (օր. ["vegetarian", "gluten-free"])
     public List<string> DietaryRestrictions { get; set; } = new();
-    public List<string> Allergies { get; set; } = new();
+
+    /// <summary>Ցանկից ընտրված ալերգենները (անուններով՝ "Peanuts|Sesame")։</summary>
+    public List<Allergen> Allergens { get; set; } = new();
+
+    /// <summary>Ցանկում չեղածները ("kiwi") — ստուգվում են միայն բաղադրիչի անվամբ։</summary>
+    public List<string> OtherAllergies { get; set; } = new();
 
     /// <summary>Ազատ նպատակներ՝ "more iron", "picky eater" (app structure §1)։</summary>
     public List<string> Goals { get; set; } = new();

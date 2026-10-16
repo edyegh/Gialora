@@ -77,9 +77,14 @@
                                         <td>@(member.Age is null ? "—" : $"{member.Age}")</td>
                                         <td>
                                             <div class="cluster">
-                                                @foreach (var allergy in member.Allergies)
+                                                @foreach (var allergen in member.Allergens)
                                                 {
-                                                    <span class="pill pill-terracotta">⚠ @allergy</span>
+                                                    <span class="pill pill-terracotta">⚠ @L.Enum(allergen)</span>
+                                                }
+                                                @foreach (var other in member.OtherAllergies)
+                                                {
+                                                    @* "Other"-ը ստուգվում է միայն անվամբ — նշում ենք տարբեր ձևով *@
+                                                    <span class="pill pill-terracotta" title="@L["Family.OtherAllergyTooltip"]">⚠ @other*</span>
                                                 }
                                                 @foreach (var restriction in member.DietaryRestrictions)
                                                 {
@@ -91,11 +96,31 @@
                                                 }
                                             </div>
                                         </td>
-                                        <td style="text-align:right;">
+                                        <td style="text-align:right; white-space:nowrap;">
+                                            <button class="btn btn-outline-g btn-sm"
+                                                    @onclick="() => StartEditAllergies(member)" disabled="@busy">@L["Family.EditAllergies"]</button>
                                             <button class="btn btn-danger-soft btn-sm"
                                                     @onclick="() => RemoveMember(member.Id)" disabled="@busy">@L["Common.Remove"]</button>
                                         </td>
                                     </tr>
+
+                                    @if (editingMemberId == member.Id)
+                                    {
+                                        <tr>
+                                            <td colspan="6">
+                                                <div class="stack">
+                                                    <p class="eyebrow" style="margin:0;">@L["Family.AllergiesOf", member.Name]</p>
+                                                    <AllergenPicker Selected="editAllergens" Disabled="busy" />
+                                                    <input class="form-control" style="max-width:24rem;"
+                                                           placeholder="@L["Family.OtherAllergiesPlaceholder"]" @bind="editOtherAllergies" />
+                                                    <div class="cluster">
+                                                        <button class="btn btn-primary btn-sm" @onclick="() => SaveAllergies(member)" disabled="@busy">@L["Common.Save"]</button>
+                                                        <button class="btn btn-outline-g btn-sm" @onclick="() => editingMemberId = null" disabled="@busy">@L["Common.Cancel"]</button>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
                                 }
                             </tbody>
                         </table>
@@ -120,13 +145,19 @@
                                placeholder="@L["Family.ColAge"]" @bind="newMember.Age" />
 
                         <input class="form-control" style="max-width:15rem;"
-                               placeholder="@L["Family.AllergiesPlaceholder"]" @bind="newMemberAllergies" />
-
-                        <input class="form-control" style="max-width:15rem;"
                                placeholder="@L["Family.GoalsPlaceholder"]" @bind="newMemberGoals" />
 
                         <button class="btn btn-primary" @onclick="AddMember"
                                 disabled="@(busy || string.IsNullOrWhiteSpace(newMember.Name))">@L["Common.Add"]</button>
+                    </div>
+
+                    @* Ալերգիաները ցանկից են, ոչ թե ազատ տեքստ. engine-ը համեմատում է դրանք
+                       բաղադրիչների վրա admin-ի դրած նշումների հետ (տե՛ս AllergenPicker)։ *@
+                    <div class="stack" style="gap:.5rem;">
+                        <span class="small-muted">@L["Family.AllergensLabel"]</span>
+                        <AllergenPicker Selected="newMember.Allergens" Disabled="busy" />
+                        <input class="form-control" style="max-width:24rem;"
+                               placeholder="@L["Family.OtherAllergiesPlaceholder"]" @bind="newMemberOtherAllergies" />
                     </div>
 
                     @* Նպատակները ազատ տեքստ էին, և user-ը չէր իմանում, թե որոնք են
@@ -153,6 +184,7 @@
                     }
 
                     <p class="form-text">@L["Family.AllergiesHint"]</p>
+                    <div class="alert alert-warning mb-0" role="note">@L["Family.CheckLabels"]</div>
                 </div>
             </div>
         </div>
@@ -256,7 +288,12 @@
     private FamilyPreferencesDto preferences = new();
 
     private FamilyMemberCreateDto newMember = new();
-    private string newMemberAllergies = string.Empty;
+    private string newMemberOtherAllergies = string.Empty;
+
+    // Եղած անդամի ալերգիաների խմբագրումը (inline տող աղյուսակում)
+    private Guid? editingMemberId;
+    private List<Allergen> editAllergens = new();
+    private string editOtherAllergies = string.Empty;
     private string newMemberGoals = string.Empty;
 
     // Ցանկը գալիս է Shared-ից, ոչ թե այստեղ պատճենված — էջը չի կարող խոստանալ
@@ -352,18 +389,46 @@
 
     private Task AddMember() => Run(async () =>
     {
-        newMember.Allergies = SplitList(newMemberAllergies);
+        newMember.OtherAllergies = SplitList(newMemberOtherAllergies);
         newMember.Goals = SplitList(newMemberGoals);
 
         await Planner.AddMemberAsync(newMember);
 
         newMember = new FamilyMemberCreateDto();
-        newMemberAllergies = string.Empty;
+        newMemberOtherAllergies = string.Empty;
         newMemberGoals = string.Empty;
 
         family = await Planner.GetFamilyAsync();
         RefreshUnrecognisedGoals();
         status = L["Family.StatusMemberAdded"];
+    });
+
+    private void StartEditAllergies(FamilyMemberDto member)
+    {
+        editingMemberId = member.Id;
+        editAllergens = member.Allergens.ToList(); // պատճեն — Cancel-ը չպիտի փոխի ցուցադրվածը
+        editOtherAllergies = string.Join(", ", member.OtherAllergies);
+    }
+
+    // PUT-ը փոխարինում է ԱՄԲՈՂՋ անդամը, ուստի մնացած դաշտերը ուղարկում ենք անփոփոխ
+    private Task SaveAllergies(FamilyMemberDto member) => Run(async () =>
+    {
+        await Planner.UpdateMemberAsync(member.Id, new FamilyMemberUpdateDto
+        {
+            Name = member.Name,
+            MemberType = member.MemberType,
+            Age = member.Age,
+            AgeMonths = member.AgeMonths,
+            IsActive = member.IsActive,
+            DietaryRestrictions = member.DietaryRestrictions,
+            Allergens = editAllergens,
+            OtherAllergies = SplitList(editOtherAllergies),
+            Goals = member.Goals
+        });
+
+        editingMemberId = null;
+        family = await Planner.GetFamilyAsync();
+        status = L["Family.StatusAllergiesSaved", member.Name];
     });
 
     private Task RemoveMember(Guid memberId) => Run(async () =>
