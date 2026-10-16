@@ -39,4 +39,9 @@
                    PublishedContent="wwwroot\service-worker.published.js" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- localhost-ի API հասցեն միայն dev-ի համար է — production-ում չենք ուղարկում։ -->
+    <Content Update="wwwroot\appsettings.Development.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
 </Project>

@@ -83,6 +83,13 @@ public class PlanningRequest
     /// <summary>Քանի՞ ճաշ ենք ընտրում (օր × ճաշատեսակ)։</summary>
     public int SlotCount { get; init; } = 5;
 
+    /// <summary>
+    /// Յուրաքանչյուր slot-ի ճաշատեսակը (Count == SlotCount)։ Տրված լինելու դեպքում
+    /// slot-ը լցվում է ՄԻԱՅՆ իր տեսակի ռեցեպտով — այլապես ընթրիքը կընկներ
+    /// նախաճաշի տեղը։ null = ցանկացած թեկնածու ցանկացած slot-ի համար։
+    /// </summary>
+    public IReadOnlyList<MealType>? SlotMealTypes { get; init; }
+
     public MealPlanType PlanType { get; init; } = MealPlanType.Weekly;
 
     /// <summary>"Plan my week using as few different ingredients as possible" (app structure §5)։</summary>
@@ -99,6 +106,13 @@ public class PlanningResult
 {
     /// <summary>Ընտրված ռեցեպտները՝ պլանավորված հերթականությամբ։</summary>
     public List<PlanningCandidate> Selection { get; init; } = new();
+
+    /// <summary>
+    /// Selection[i]-ի slot-ի համարը։ SlotMealTypes-ի դեպքում որոշ slot-եր կարող են
+    /// դատարկ մնալ (այդ տեսակի ռեցեպտները սպառվեցին), ուստի Selection-ի ինդեքսը
+    /// այլևս slot-ի ինդեքսը չէ — service-ը պիտի սրանով տեղադրի ճաշերը։
+    /// </summary>
+    public List<int> SlotIndexes { get; init; } = new();
 
     /// <summary>Ինչ կանոններ կիրառվեցին / ինչ չհաջողվեց — UI-ում ցույց ենք տալիս։</summary>
     public List<string> Notes { get; init; } = new();

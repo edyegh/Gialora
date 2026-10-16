@@ -73,7 +73,8 @@ namespace Gialora.Data.Migrations
                     b.HasIndex("AuthorId");
 
                     b.HasIndex("Slug")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("BlogPosts");
                 });
@@ -307,7 +308,8 @@ namespace Gialora.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("Ingredients");
                 });
@@ -527,7 +529,8 @@ namespace Gialora.Data.Migrations
                     b.HasIndex("CreatedByAdminId");
 
                     b.HasIndex("Slug")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.HasIndex("IsPublished", "MealType", "DietType");
 
@@ -616,7 +619,7 @@ namespace Gialora.Data.Migrations
 
                     b.HasIndex("MealPlanId")
                         .IsUnique()
-                        .HasFilter("[MealPlanId] IS NOT NULL");
+                        .HasFilter("[MealPlanId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("ShoppingLists");
                 });
@@ -707,7 +710,8 @@ namespace Gialora.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("Tags");
                 });

@@ -32,7 +32,10 @@ public class FeedbackService : IFeedbackService
             .FirstOrDefaultAsync()
             ?? throw new NotFoundException("Recipe not found.");
 
+        // IgnoreQueryFilters — ջնջված feedback-ը պիտի վերականգնենք (ներքևում IsDeleted = false),
+        // ոչ թե նորը ավելացնենք. (RecipeId, UserId) unique index-ը ջնջվածն էլ է հաշվում։
         var feedback = await _db.Feedbacks
+            .IgnoreQueryFilters()
             .FirstOrDefaultAsync(f => f.RecipeId == recipeId && f.UserId == userId);
 
         if (feedback is null)

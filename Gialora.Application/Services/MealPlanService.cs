@@ -59,6 +59,8 @@ public class MealPlanService : IMealPlanService
         {
             Constraints = constraints,
             SlotCount = daysCount * mealTypes.Count,
+            // Slot-երը օր առ օր են՝ [Day1 Breakfast, Day1 Dinner, Day2 Breakfast, ...]
+            SlotMealTypes = Enumerable.Range(0, daysCount).SelectMany(_ => mealTypes).ToList(),
             PlanType = dto.PlanType,
             OptimizeIngredientReuse = dto.OptimizeIngredientReuse,
             Seed = Random.Shared.Next()
@@ -79,15 +81,21 @@ public class MealPlanService : IMealPlanService
             PlanningNotes = result.Notes
         };
 
-        var queue = new Queue<PlanningCandidate>(result.Selection);
+        // Engine-ը կարող է slot-եր դատարկ թողնել (օր.՝ նախաճաշի ռեցեպտները սպառվեցին),
+        // ուստի ճաշերը տեղադրում ենք ըստ SlotIndexes-ի, ոչ թե հերթականությամբ
+        var bySlot = result.SlotIndexes
+            .Zip(result.Selection)
+            .ToDictionary(x => x.First, x => x.Second);
 
-        for (var dayIndex = 0; dayIndex < daysCount && queue.Count > 0; dayIndex++)
+        for (var dayIndex = 0; dayIndex < daysCount; dayIndex++)
         {
             var day = new MealPlanDay { Date = startDate.AddDays(dayIndex) };
 
-            for (var mealIndex = 0; mealIndex < mealTypes.Count && queue.Count > 0; mealIndex++)
+            for (var mealIndex = 0; mealIndex < mealTypes.Count; mealIndex++)
             {
-                var candidate = queue.Dequeue();
+                if (!bySlot.TryGetValue(dayIndex * mealTypes.Count + mealIndex, out var candidate))
+                    continue;
+
                 day.Entries.Add(new MealPlanEntry
                 {
                     MealType = mealTypes[mealIndex],
@@ -97,7 +105,8 @@ public class MealPlanService : IMealPlanService
                 });
             }
 
-            plan.Days.Add(day);
+            if (day.Entries.Count > 0)
+                plan.Days.Add(day);
         }
 
         _db.MealPlans.Add(plan);
@@ -328,25 +337,14 @@ public class MealPlanService : IMealPlanService
 
         var candidates = await LoadCandidatesAsync(mealTypes, plan.FamilyId);
 
-        var lockedRecipeIds = plan.Days
+        // Պլանում ՄՆԱՑՈՂ բոլոր ճաշերը (կողպվածները և մյուս օրերի չկողպվածները) —
+        // "regenerate day"-ը չպիտի կրկնի երկուշաբթիի ճաշը չորեքշաբթի օրը։
+        var openIds = openEntries.Select(e => e.Id).ToHashSet();
+        var keptRecipeIds = plan.Days
             .SelectMany(d => d.Entries)
-            .Where(e => e.IsLocked)
+            .Where(e => !openIds.Contains(e.Id))
             .Select(e => e.RecipeId)
             .ToHashSet();
-
-        var result = _engine.Plan(candidates, new PlanningRequest
-        {
-            Constraints = FamilyPlanningInput.BuildConstraints(family),
-            SlotCount = openEntries.Count,
-            PlanType = plan.PlanType,
-            OptimizeIngredientReuse = true,
-            AlreadyUsedRecipeIds = lockedRecipeIds,
-            Seed = Random.Shared.Next()
-        });
-
-        if (result.Selection.Count == 0)
-            throw new ValidationFailedException(result.Notes.FirstOrDefault()
-                ?? "No recipes match your preferences yet.");
 
         // Slot-երը լցնում ենք ամսաթվի հերթականությամբ, որ սպիտակուցի
         // "երկու օր անընդմեջ" կանոնը իմաստ ունենա
@@ -355,8 +353,24 @@ public class MealPlanService : IMealPlanService
             .ThenBy(e => e.SortOrder)
             .ToList();
 
-        for (var i = 0; i < ordered.Count && i < result.Selection.Count; i++)
-            ordered[i].RecipeId = result.Selection[i].RecipeId;
+        var result = _engine.Plan(candidates, new PlanningRequest
+        {
+            Constraints = FamilyPlanningInput.BuildConstraints(family),
+            SlotCount = ordered.Count,
+            SlotMealTypes = ordered.Select(e => e.MealType).ToList(),
+            PlanType = plan.PlanType,
+            OptimizeIngredientReuse = true,
+            AlreadyUsedRecipeIds = keptRecipeIds,
+            Seed = Random.Shared.Next()
+        });
+
+        if (result.Selection.Count == 0)
+            throw new ValidationFailedException(result.Notes.FirstOrDefault()
+                ?? "No recipes match your preferences yet.");
+
+        // Չլցված slot-ը պահում է իր հին ռեցեպտը
+        for (var i = 0; i < result.Selection.Count; i++)
+            ordered[result.SlotIndexes[i]].RecipeId = result.Selection[i].RecipeId;
 
         // Regenerate-ից հետո բացատրությունը պիտի նկարագրի ՆՈՐ պլանը, ոչ թե հինը
         plan.PlanningNotes = result.Notes;

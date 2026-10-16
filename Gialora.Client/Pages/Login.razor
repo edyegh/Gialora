@@ -94,12 +94,7 @@
 
     private void NavigateAfterLogin()
     {
-        var target = string.IsNullOrWhiteSpace(ReturnUrl) ? string.Empty : ReturnUrl;
-
-        // Միայն հարաբերական URL-ներ — բացառում ենք open-redirect-ը դեպի ուրիշ site
-        if (target.Contains("//") || target.StartsWith('/'))
-            target = string.Empty;
-
-        Navigation.NavigateTo(target, replace: true);
+        // Միայն հարաբերական path — տե՛ս ReturnUrlGuard.Sanitize (javascript:, open redirect)
+        Navigation.NavigateTo(ReturnUrlGuard.Sanitize(ReturnUrl), replace: true);
     }
 }

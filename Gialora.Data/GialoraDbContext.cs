@@ -87,7 +87,9 @@ public class GialoraDbContext : DbContext
             b.Property(r => r.EstimatedCostPerServing).HasPrecision(8, 2);
             b.Ignore(r => r.TotalTimeMinutes); // հաշվարկվող — column չէ
 
-            b.HasIndex(r => r.Slug).IsUnique();
+            // Unique-ը միայն ՉՋՆՋՎԱԾ տողերի վրա. soft-deleted ռեցեպտի slug-ը պիտի ազատ լինի
+            // նույն վերնագրով նորի համար (այլապես filter-ված ստուգումը բաց թողներ, INSERT-ը՝ 500)
+            b.HasIndex(r => r.Slug).IsUnique().HasFilter("[IsDeleted] = 0");
             // Catalog-ի և planner-ի ամենահաճախ օգտագործվող filter-ի համադրությունը
             b.HasIndex(r => new { r.IsPublished, r.MealType, r.DietType });
 
@@ -102,7 +104,7 @@ public class GialoraDbContext : DbContext
         modelBuilder.Entity<Ingredient>(b =>
         {
             b.Property(i => i.Name).HasMaxLength(120).IsRequired();
-            b.HasIndex(i => i.Name).IsUnique();
+            b.HasIndex(i => i.Name).IsUnique().HasFilter("[IsDeleted] = 0");
             b.HasQueryFilter(i => !i.IsDeleted);
         });
 
@@ -110,7 +112,7 @@ public class GialoraDbContext : DbContext
         {
             b.Property(t => t.Name).HasMaxLength(60).IsRequired();
             b.Property(t => t.DisplayName).HasMaxLength(60).IsRequired();
-            b.HasIndex(t => t.Name).IsUnique();
+            b.HasIndex(t => t.Name).IsUnique().HasFilter("[IsDeleted] = 0");
             b.HasQueryFilter(t => !t.IsDeleted);
         });
 
@@ -211,6 +213,13 @@ public class GialoraDbContext : DbContext
              .HasForeignKey<ShoppingList>(s => s.MealPlanId)
              .OnDelete(DeleteBehavior.ClientCascade);
 
+            // "Մեկ plan → մեկ list"-ը պարտադրում ենք միայն ակտիվ list-երի համար. ջնջված
+            // list-ը MealPlanId-ն պահում է, և առանց IsDeleted-ի filter-ի նոր list-ը
+            // նույն plan-ի համար այլևս չէր ստեղծվի (unique index-ի բախում → 500)։
+            b.HasIndex(s => s.MealPlanId)
+             .IsUnique()
+             .HasFilter("[MealPlanId] IS NOT NULL AND [IsDeleted] = 0");
+
             b.HasQueryFilter(s => !s.IsDeleted);
         });
 
@@ -277,7 +286,7 @@ public class GialoraDbContext : DbContext
             b.Property(p => p.Slug).HasMaxLength(220).IsRequired();
             b.Property(p => p.Excerpt).HasMaxLength(500);
             b.Property(p => p.CoverImageUrl).HasMaxLength(500);
-            b.HasIndex(p => p.Slug).IsUnique();
+            b.HasIndex(p => p.Slug).IsUnique().HasFilter("[IsDeleted] = 0");
 
             b.HasOne(p => p.Author)
              .WithMany()

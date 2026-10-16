@@ -23,7 +23,11 @@ const offlineAssetsInclude = [
 ];
 
 // service-worker.js-ը ինքն իրեն cache անելը worker-ը կսառեցներ հին տարբերակի վրա։
-const offlineAssetsExclude = [/^service-worker\.js$/];
+// appsettings*.json-ը precache-ից դուրս է. ops-ը կարող է publish-ից ՀԵՏՈ խմբագրել
+// ApiBaseUrl-ը, իսկ integrity hash-ի անհամապատասխանությունը cache.addAll-ը կտապալեր,
+// և worker-ը երբեք չէր տեղադրվի։ Դրանք network-first են (տե՛ս onFetch)։
+const offlineAssetsExclude = [/^service-worker\.js$/, /^appsettings(\.[^/]+)?\.json$/];
+const networkFirst = [/\/appsettings(\.[^/]+)?\.json$/];
 
 // index.html-ի <base href="/" />-ին համապատասխան։ Ենթապանակից hosting անելիս փոխիր։
 const base = '/';
@@ -51,11 +55,29 @@ async function onFetch(event) {
     // API-ի հարցումները ԵՐԲԵՔ չեն cache-վում։ Ճաշացանկերը, գնումների ցուցակները և
     // ընտանիքի տվյալները ուղիղ Gialora.Api-ից են — հնացած պատասխանը այստեղ
     // ավելի վատ է, քան սխալի հաղորդագրությունը։ API-ն ուրիշ origin-ի վրա է։
-    if (new URL(event.request.url).origin !== self.origin)
+    const url = new URL(event.request.url);
+
+    // API-ն նույն origin-ի վրա էլ կարող է լինել (reverse proxy, դատարկ ApiBaseUrl)
+    if (url.origin !== self.origin || url.pathname.startsWith('/api/'))
         return fetch(event.request);
 
     if (event.request.method !== 'GET')
         return fetch(event.request);
+
+    // Կարգավորումը՝ ցանցից (որ խմբագրումը անմիջապես գործի), offline-ում՝ վերջին պատճենից
+    if (networkFirst.some(pattern => pattern.test(url.pathname))) {
+        const cache = await caches.open(cacheName);
+        try {
+            const response = await fetch(event.request, { cache: 'no-cache' });
+            if (response.ok)
+                await cache.put(event.request, response.clone());
+            return response;
+        } catch {
+            const cached = await cache.match(event.request);
+            if (cached) return cached;
+            throw new Error(`Gialora: offline and "${event.request.url}" is not cached.`);
+        }
+    }
 
     // Ցանկացած ներքին navigation-ի դեպքում վերադարձնում ենք index.html-ը —
     // Blazor-ի router-ը ինքը կբացի /weekly, /recipes/{slug} և մնացածը։

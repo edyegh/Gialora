@@ -108,30 +108,65 @@ public class MealPlanningEngine : IMealPlanningEngine
     };
 
     private static bool ViolatesAllergy(PlanningCandidate candidate, IReadOnlyCollection<string> allergies)
+        => allergies.Any(allergy => AllergyBlocks(candidate, allergy));
+
+    // Ալերգիաները ազատ տեքստ են ("tree nuts", "almonds", "peanut allergy", "shrimp"),
+    // ուստի բառերը (եզակի թվով) համեմատում ենք յուրաքանչյուր դրոշի հոմանիշների հետ։
+    private static readonly string[] GlutenWords = { "gluten", "wheat", "celiac", "coeliac", "barley", "rye", "spelt" };
+    private static readonly string[] DairyWords = { "dairy", "milk", "lactose", "casein", "whey", "cheese", "butter", "cream", "yogurt", "yoghurt" };
+    private static readonly string[] NutWords = { "nut", "peanut", "treenut", "almond", "walnut", "hazelnut", "cashew", "pistachio", "pecan", "macadamia" };
+    private static readonly string[] EggWords = { "egg" };
+    private static readonly string[] FishWords = { "fish", "seafood", "salmon", "tuna", "cod", "anchovy", "sardine", "mackerel", "trout", "seabass" };
+    private static readonly string[] ShellfishWords = { "shellfish", "seafood", "crustacean", "shrimp", "prawn", "crab", "lobster", "mollusc", "mollusk", "mussel", "clam", "oyster", "scallop", "squid", "octopus" };
+    private static readonly string[] SoyWords = { "soy", "soya", "soybean", "tofu", "edamame" };
+
+    // Բառեր, որ ալերգենի անուն չեն ("peanut allergy", "gluten-free", "no pork")
+    private static readonly HashSet<string> NonAllergenWords = new(StringComparer.OrdinalIgnoreCase)
     {
-        foreach (var allergy in allergies)
-        {
-            var match = allergy.Trim().ToLowerInvariant();
+        "allergy", "allergie", "allergic", "intolerance", "intolerant", "sensitivity",
+        "free", "no", "not", "none", "without", "avoid", "to", "and", "or", "of", "the", "a"
+    };
 
-            var blocked = match switch
-            {
-                "gluten" or "wheat" or "celiac" => candidate.ContainsGluten,
-                "dairy" or "milk" or "lactose" => candidate.ContainsDairy,
-                "nuts" or "nut" or "peanut" or "peanuts" or "tree-nuts" => candidate.ContainsNuts,
-                "egg" or "eggs" => candidate.ContainsEgg,
-                "fish" => candidate.ContainsFish,
-                "shellfish" or "seafood" or "crustaceans" => candidate.ContainsShellfish,
-                "soy" or "soya" => candidate.ContainsSoy,
-                // Անհայտ ալերգենը համեմատում ենք բաղադրիչի անվան հետ — ավելի լավ է
-                // մի քանի ռեցեպտ ավելորդ բացառել, քան ալերգիկ ճաշ առաջարկել
-                _ => candidate.IngredientNames.Any(n => n.Contains(match, StringComparison.OrdinalIgnoreCase))
-            };
+    private static bool AllergyBlocks(PlanningCandidate candidate, string allergy)
+    {
+        var text = allergy.Trim().ToLowerInvariant().Replace('-', ' ').Replace('_', ' ');
+        var words = text
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(w => !NonAllergenWords.Contains(w))
+            .Select(Singular)
+            .ToList();
 
-            if (blocked)
-                return true;
-        }
+        if (words.Count == 0)
+            return false;
 
-        return false;
+        bool Mentions(string[] synonyms) => words.Any(synonyms.Contains);
+
+        if ((candidate.ContainsGluten && Mentions(GlutenWords)) ||
+            (candidate.ContainsDairy && Mentions(DairyWords)) ||
+            (candidate.ContainsNuts && Mentions(NutWords)) ||
+            (candidate.ContainsEgg && Mentions(EggWords)) ||
+            (candidate.ContainsFish && Mentions(FishWords)) ||
+            (candidate.ContainsShellfish && Mentions(ShellfishWords)) ||
+            (candidate.ContainsSoy && Mentions(SoyWords)))
+            return true;
+
+        // Դրոշներից բացի՝ նաև բաղադրիչի անունով (դրոշը կարող է սխալ նշված լինել, կամ
+        // ալերգենը դրոշ չունի՝ "sesame")։ Ավելի լավ է մի քանի ռեցեպտ ավելորդ բացառել,
+        // քան ալերգիկ ճաշ առաջարկել — ուստի ամբողջ արտահայտությունը ԵՎ ամեն բառը։
+        var terms = words.Where(w => w.Length >= 3).Append(string.Join(' ', words)).Distinct().ToList();
+
+        return candidate.IngredientNames.Any(name =>
+            terms.Any(term => name.Contains(term, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>Պարզ եզակի ձև՝ "almonds" → "almond", "anchovies" → "anchovy", "tomatoes" → "tomato"։</summary>
+    private static string Singular(string word)
+    {
+        if (word.Length > 4 && word.EndsWith("ies")) return word[..^3] + "y";
+        if (word.Length > 4 && (word.EndsWith("oes") || word.EndsWith("shes") || word.EndsWith("ches") || word.EndsWith("xes")))
+            return word[..^2];
+        if (word.Length > 3 && word.EndsWith('s') && !word.EndsWith("ss")) return word[..^1];
+        return word;
     }
 
     // -----------------------------------------------------------------------
@@ -178,11 +213,24 @@ public class MealPlanningEngine : IMealPlanningEngine
         var vegetableMeals = 0;
         var legumeMeals = 0;
 
+        var slotTypes = request.SlotMealTypes;
+        if (slotTypes is not null && slotTypes.Count != request.SlotCount)
+            throw new ArgumentException("SlotMealTypes must have one entry per slot.", nameof(request));
+
+        var unfilledSlots = 0;
+
         for (var slot = 0; slot < request.SlotCount; slot++)
         {
-            var previous = selected.LastOrDefault();
+            var slotType = slotTypes?[slot];
+
+            // "Նախորդ օրը"՝ նույն ճաշատեսակի նախորդ ճաշն է (երեկվա ընթրիքը), ոչ թե
+            // պարզապես նախորդ slot-ը (այսօրվա ճաշը)
+            var previous = slotType is null
+                ? selected.LastOrDefault()
+                : selected.LastOrDefault(s => s.MealType == slotType);
 
             var best = pool
+                .Where(c => slotType is null || c.MealType == slotType)
                 .Where(c => selected.All(s => s.RecipeId != c.RecipeId))
                 .Select(c => new
                 {
@@ -198,16 +246,21 @@ public class MealPlanningEngine : IMealPlanningEngine
 
             if (best is null)
             {
-                // Ռեցեպտների բազան սպառվեց — ազնիվ ասում ենք, չենք կրկնում ուտեստները
-                result.IsPartial = true;
-                result.Notes.Add(
-                    $"Only {selected.Count} of {request.SlotCount} meals could be planned — " +
-                    "there aren't enough matching recipes yet.");
-                break;
+                // Ռեցեպտների բազան սպառվեց — ազնիվ ասում ենք, չենք կրկնում ուտեստները։
+                // Ճաշատեսակով slot-երի դեպքում միայն ԱՅՍ տեսակն է սպառվել, մյուսները շարունակում ենք։
+                unfilledSlots++;
+                if (slotType is null)
+                {
+                    unfilledSlots += request.SlotCount - slot - 1;
+                    break;
+                }
+
+                continue;
             }
 
             var chosen = best.Candidate;
             selected.Add(chosen);
+            result.SlotIndexes.Add(slot);
 
             foreach (var ingredientId in chosen.IngredientIds)
                 usedIngredients.Add(ingredientId);
@@ -216,6 +269,14 @@ public class MealPlanningEngine : IMealPlanningEngine
 
             if (chosen.VegetableCount >= 2) vegetableMeals++;
             if (IsLegume(chosen)) legumeMeals++;
+        }
+
+        if (unfilledSlots > 0)
+        {
+            result.IsPartial = true;
+            result.Notes.Add(
+                $"Only {selected.Count} of {request.SlotCount} meals could be planned — " +
+                "there aren't enough matching recipes yet.");
         }
 
         result.Selection.AddRange(selected);

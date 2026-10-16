@@ -24,15 +24,39 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Gialora" />
+
+    <!-- Splash-ի CSS-ը inline է, որ առաջին frame-ից երևա՝ bootstrap/app.css-ին չսպասելով։ -->
+    <style>
+        html, body { margin: 0; background: #f6f1e7; }
+        .app-splash {
+            position: fixed; inset: 0;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 1rem; background: #f6f1e7;
+        }
+        .app-splash img { border-radius: 22px; box-shadow: 0 2px 6px rgba(44,42,38,.07), 0 12px 28px rgba(44,42,38,.09); }
+        .app-splash-name {
+            font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+            font-size: 1.75rem; color: #43522f; letter-spacing: .02em;
+        }
+        .app-splash-bar { width: 120px; height: 3px; border-radius: 3px; background: #ece3d2; overflow: hidden; }
+        .app-splash-bar span {
+            display: block; width: 40%; height: 100%; border-radius: 3px; background: #5c6f47;
+            animation: app-splash-slide 1.1s ease-in-out infinite;
+        }
+        @keyframes app-splash-slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+        @media (prefers-reduced-motion: reduce) { .app-splash-bar span { animation: none; width: 100%; } }
+    </style>
 </head>
 
 <body>
+    <!-- Splash. Blazor-ը #app-ի պարունակությունը փոխարինում է առաջին render-ին։
+         Տոկոսային շրջանակի փոխարեն՝ լոգո, որ բացումը "հավելվածի" զգացողություն տա։ -->
     <div id="app">
-        <svg class="loading-progress">
-            <circle r="40%" cx="50%" cy="50%" />
-            <circle r="40%" cx="50%" cy="50%" />
-        </svg>
-        <div class="loading-progress-text"></div>
+        <div class="app-splash" aria-label="Gialora" role="status">
+            <img src="icon-192.png" width="96" height="96" alt="" />
+            <div class="app-splash-name">Gialora</div>
+            <div class="app-splash-bar"><span></span></div>
+        </div>
     </div>
 
     <div id="blazor-error-ui">
