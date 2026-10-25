@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Gialora.Api.Middleware;
 using Gialora.Api.Services;
+using Gialora.Api.Services.Telegram;
 using Gialora.Application.Planning;
 using Gialora.Application.Seed;
 using Gialora.Application.Services;
@@ -88,6 +89,26 @@ builder.Services.AddScoped<IBlogService, BlogService>();
 builder.Services.AddScoped<IRecipeImportService, RecipeImportService>();
 builder.Services.AddScoped<DbSeeder>();
 
+// Աջակցության chat → Telegram։ Կարգավորումը՝ "Telegram" section (BotToken-ը ԳԱՂՏՆԻ է՝
+// user-secrets / environment variable)։ Առանց կարգավորման chat-ը աշխատում է, բայց
+// հաղորդագրությունները չեն հասնում admin-ին (log-ում warning)։
+builder.Services.Configure<TelegramOptions>(builder.Configuration.GetSection(TelegramOptions.Section));
+builder.Services.AddHttpClient<TelegramBotClient>(client =>
+    {
+        // getUpdates-ը մինչև 50 վ սպասում է (long polling) — լռելյայն 100 վ-ը բավական է,
+        // բայց սահմանը բացահայտ ենք դնում
+        client.Timeout = TimeSpan.FromSeconds(75);
+    })
+    // URL-ը պարունակում է bot token-ը — HttpClient-ի request log-երը այն կգրեին
+    .RemoveAllLoggers()
+    // Polling service-ը singleton է և client-ը պահում է ամբողջ կյանքում — DNS-ի
+    // փոփոխությունները տեսնելու համար connection-ները պարբերաբար թարմացնում ենք
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(15) })
+    .SetHandlerLifetime(Timeout.InfiniteTimeSpan);
+builder.Services.AddScoped<IChatNotifier, TelegramChatNotifier>();
+builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddHostedService<TelegramPollingService>();
+
 // Engine-ը state չունի — singleton-ը բավական է
 builder.Services.AddSingleton<IMealPlanningEngine, MealPlanningEngine>();
 
@@ -122,6 +143,17 @@ builder.Services.AddRateLimiter(options =>
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
     options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
+
+    // Chat-ը բաց է հյուրերի համար — առանց սահմանի մեկը կարող էր admin-ի Telegram-ը
+    // հազարավոր հաղորդագրություններով լցնել
+    options.AddPolicy("chat", context => RateLimitPartition.GetFixedWindowLimiter(
         partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         factory: _ => new FixedWindowRateLimiterOptions
         {

@@ -169,3 +169,10 @@ public enum Allergen
     Lupin = 12,
     Molluscs = 13
 }
+
+/// <summary>Աջակցության chat-ի հաղորդագրության հեղինակը։</summary>
+public enum ChatSender
+{
+    User = 0,
+    Admin = 1
+}

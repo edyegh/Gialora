@@ -454,7 +454,15 @@ Every read and write resolves the caller's family first and filters by it. Knowi
 
 `ShoppingListService` owns consolidation (section 5). `FeedbackService` upserts, so a user editing their rating updates the existing row; a concurrent duplicate is caught by the unique index and resolved by reading the winning row. `FavoriteService` is idempotent — favouriting twice is not an error. `BlogService` stamps `PublishedAtUtc` only on first publication, so later edits do not reorder the blog.
 
-### 6.7 DbSeeder
+### 6.7 ChatService and the Telegram relay
+
+A support chat open to everyone, guests included. Each visitor has one `ChatConversation`: a signed-in user is identified by `UserId`; a guest by a random 32-byte key the client keeps in `localStorage` and sends as the `X-Chat-Key` header. Only the key's SHA-256 is stored, so a database leak does not let anyone read another guest's chat. If a request carries both a valid JWT and a key, the account wins.
+
+Every user message is saved first, then relayed to the admin through `IChatNotifier` (implemented in the API by `TelegramChatNotifier`, which calls the Bot API's `sendMessage` in plain text). The Telegram `message_id` of the relayed copy is stored on the `ChatMessage`. The admin answers with Telegram's **Reply** on that copy; `TelegramPollingService` (a hosted service using `getUpdates` long polling — works on localhost, needs no public URL) finds the conversation by the replied-to `message_id` and stores the answer. Replies to the admin's own earlier answer route to the same conversation. Messages from any chat other than `Telegram:AdminChatId` are ignored, a non-reply gets a how-to hint, and an update seen twice (after a restart) is delivered once.
+
+The client polls `GET /chat/messages` every 4 s while the panel is open and every 30 s while closed (only once a conversation exists), showing an unread badge. Configuration: `Telegram:BotToken` (secret — user-secrets or the `Telegram__BotToken` environment variable, never appsettings) and `Telegram:AdminChatId`. Without them the chat still stores messages and logs a warning. Only one API instance may poll a bot at a time (a second gets 409); several servers would need a webhook instead. The bot token is part of every Bot API URL, so the Telegram `HttpClient` has its request logging removed.
+
+### 6.8 DbSeeder
 
 Idempotent seeding, safe to run on every startup. It creates an administrator, 49 ingredients with correct categories and allergen flags, 12 tags, 12 published Mediterranean recipes and 2 blog posts.
 
@@ -562,6 +570,8 @@ All require a signed-in user and are scoped to that user's family.
 | GET | `/admin/import/template` | Admin |
 | POST | `/admin/import/recipes` | Admin |
 | POST | `/admin/import/recipes/file` | Admin |
+| GET | `/chat/messages` | Anonymous (JWT or `X-Chat-Key`) |
+| POST | `/chat/messages` | Anonymous (JWT or `X-Chat-Key`), rate-limited 10/min per IP |
 
 `GET /meta` returns every enum as value/name/display-name triples. The Blazor client does **not** use it — it references `Gialora.Shared` and reads the enums directly. The endpoint exists for consumers written in another language, such as a future native mobile app, so they need not hand-copy the lists.
 

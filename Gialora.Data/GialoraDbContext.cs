@@ -27,6 +27,8 @@ public class GialoraDbContext : DbContext
     public DbSet<ShoppingList> ShoppingLists => Set<ShoppingList>();
     public DbSet<ShoppingListItem> ShoppingListItems => Set<ShoppingListItem>();
     public DbSet<BlogPost> BlogPosts => Set<BlogPost>();
+    public DbSet<ChatConversation> ChatConversations => Set<ChatConversation>();
+    public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -308,6 +310,40 @@ public class GialoraDbContext : DbContext
              .OnDelete(DeleteBehavior.Restrict);
 
             b.HasQueryFilter(p => !p.IsDeleted);
+        });
+
+        // ---------------- Support chat ----------------
+        modelBuilder.Entity<ChatConversation>(b =>
+        {
+            b.Property(c => c.GuestKeyHash).HasMaxLength(64);
+
+            // Մեկ user / մեկ հյուրի բանալի → մեկ ակտիվ խոսակցություն
+            b.HasIndex(c => c.UserId).IsUnique().HasFilter("[UserId] IS NOT NULL AND [IsDeleted] = 0");
+            b.HasIndex(c => c.GuestKeyHash).IsUnique().HasFilter("[GuestKeyHash] IS NOT NULL AND [IsDeleted] = 0");
+
+            b.HasOne(c => c.User)
+             .WithMany()
+             .HasForeignKey(c => c.UserId)
+             .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasQueryFilter(c => !c.IsDeleted);
+        });
+
+        modelBuilder.Entity<ChatMessage>(b =>
+        {
+            b.Property(m => m.Text).HasMaxLength(4096).IsRequired(); // Telegram-ի հաղորդագրության սահմանը
+            b.Property(m => m.Sender).HasConversion<string>().HasMaxLength(10);
+
+            b.HasIndex(m => new { m.ConversationId, m.CreatedAtUtc });
+            // Admin-ի "Reply"-ը գտնում ենք bot-ի ուղարկած պատճենի id-ով
+            b.HasIndex(m => m.TelegramMessageId).HasFilter("[TelegramMessageId] IS NOT NULL");
+
+            b.HasOne(m => m.Conversation)
+             .WithMany(c => c.Messages)
+             .HasForeignKey(m => m.ConversationId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasQueryFilter(m => !m.IsDeleted && !m.Conversation.IsDeleted);
         });
     }
 

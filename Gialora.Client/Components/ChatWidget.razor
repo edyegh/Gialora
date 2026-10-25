@@ -1,0 +1,258 @@
+@* Gialora.Client/Components/ChatWidget.razor
+   Աջակցության chat-ը՝ աջ ներքևի անկյունի կոճակով։ User-ի հաղորդագրությունը API-ն
+   փոխանցում է admin-ի Telegram-ին, admin-ի "Reply"-ը վերադառնում է այստեղ։
+   Real-time կապ չկա (SignalR-ը ավելորդ կլիներ) — բաց վիճակում հարցնում ենք 4 վ-ը մեկ,
+   փակ վիճակում՝ 30 վ-ը մեկ (միայն եթե խոսակցություն կա), որ նոր պատասխանի նշանը երևա։ *@
+@using Gialora.Client.Services
+@using Gialora.Shared.Enums
+@inject ChatApi Chat
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (_open)
+{
+    <div class="chat-panel" role="dialog" aria-label="@L["Chat.Title"]">
+        <div class="chat-header">
+            <div>
+                <strong>@L["Chat.Title"]</strong>
+                <div class="chat-subtitle">@L["Chat.Subtitle"]</div>
+            </div>
+            <button type="button" class="chat-close" @onclick="Close" title="@L["Chat.Close"]">
+                <span aria-hidden="true">&times;</span>
+                <span class="visually-hidden">@L["Chat.Close"]</span>
+            </button>
+        </div>
+
+        <div class="chat-messages" @ref="_list" aria-live="polite">
+            @if (_messages.Count == 0)
+            {
+                <p class="chat-empty">@L["Chat.Empty"]</p>
+            }
+
+            @foreach (var message in _messages)
+            {
+                var mine = message.Sender == ChatSender.User;
+                <div class="chat-bubble @(mine ? "is-mine" : "is-theirs")">
+                    @if (!mine)
+                    {
+                        <span class="chat-author">@L["Chat.Support"]</span>
+                    }
+                    <span class="chat-text">@message.Text</span>
+                    <span class="chat-time">@message.SentAtUtc.ToLocalTime().ToString("HH:mm")</span>
+                </div>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="chat-error" role="alert">@_error</div>
+        }
+
+        <form class="chat-input" @onsubmit="SendAsync" @onsubmit:preventDefault>
+            <input class="form-control" maxlength="1000" placeholder="@L["Chat.Placeholder"]"
+                   @bind="_draft" @bind:event="oninput" disabled="@_sending" aria-label="@L["Chat.Placeholder"]" />
+            <button type="submit" class="btn btn-primary" disabled="@(_sending || string.IsNullOrWhiteSpace(_draft))">
+                @L["Chat.Send"]
+            </button>
+        </form>
+
+        <p class="chat-note">@L["Chat.Note"]</p>
+    </div>
+}
+
+<button type="button" class="chat-fab @(_open ? "is-open" : null)" @onclick="ToggleAsync"
+        aria-expanded="@(_open ? "true" : "false")" aria-label="@(_open ? L["Chat.Close"] : L["Chat.Open"])">
+    @if (_open)
+    {
+        <span aria-hidden="true" class="chat-fab-x">&times;</span>
+    }
+    else
+    {
+        @* Խոսքի ամպիկ — inline SVG, որ արտաքին icon գրադարան չբեռնենք *@
+        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+            <path fill="currentColor"
+                  d="M12 3C6.5 3 2 6.9 2 11.6c0 2.4 1.2 4.6 3.1 6.1L4.3 21l3.9-1.9c1.2.4 2.5.6 3.8.6 5.5 0 10-3.9 10-8.6S17.5 3 12 3Z" />
+        </svg>
+        @if (Unread > 0)
+        {
+            <span class="chat-badge" aria-label="@L["Chat.Unread", Unread]">@Unread</span>
+        }
+    }
+</button>
+
+@code {
+    private const string SeenStorageKey = "gialoraChatSeen";
+    private static readonly TimeSpan OpenPoll = TimeSpan.FromSeconds(4);
+    private static readonly TimeSpan ClosedPoll = TimeSpan.FromSeconds(30);
+
+    private List<ChatMessageDto> _messages = new();
+    private ElementReference _list;
+    private bool _open;
+    private bool _sending;
+    private string _draft = string.Empty;
+    private string? _error;
+    private int _seenAdminMessages;
+    private bool _scrollPending;
+    private CancellationTokenSource? _pollCts;
+
+    private int AdminMessages => _messages.Count(m => m.Sender == ChatSender.Admin);
+    private int Unread => _open ? 0 : Math.Max(0, AdminMessages - _seenAdminMessages);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _seenAdminMessages = await ReadSeenAsync();
+            await RefreshAsync(silent: true);
+            RestartPolling();
+            StateHasChanged();
+        }
+
+        if (_scrollPending && _open)
+        {
+            _scrollPending = false;
+            try { await JS.InvokeVoidAsync("gialoraChat.scrollToBottom", _list); }
+            catch (JSException) { }
+        }
+    }
+
+    private async Task ToggleAsync()
+    {
+        if (_open)
+        {
+            await Close();
+            return;
+        }
+
+        _open = true;
+        _error = null;
+        await RefreshAsync(silent: false);
+        await MarkSeenAsync();
+        _scrollPending = true;
+        RestartPolling();
+    }
+
+    private async Task Close()
+    {
+        _open = false;
+        await MarkSeenAsync();
+        RestartPolling();
+    }
+
+    private async Task SendAsync()
+    {
+        var text = _draft.Trim();
+        if (text.Length == 0 || _sending)
+            return;
+
+        _sending = true;
+        _error = null;
+
+        try
+        {
+            var sent = await Chat.SendAsync(text);
+            _messages.Add(sent);
+            _draft = string.Empty;
+            _scrollPending = true;
+            RestartPolling(); // առաջին հաղորդագրությունից հետո փակ վիճակում էլ պիտի հարցնենք
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            _error = L["Chat.Offline"];
+        }
+        finally
+        {
+            _sending = false;
+        }
+    }
+
+    /// <summary>Server-ը ամբողջ խոսակցությունն է վերադարձնում (մինչև 200) — փոխարինում ենք։</summary>
+    private async Task RefreshAsync(bool silent)
+    {
+        try
+        {
+            var latest = await Chat.GetMessagesAsync();
+            var grew = latest.Count != _messages.Count;
+            _messages = latest;
+
+            if (grew && _open)
+            {
+                _scrollPending = true;
+                await MarkSeenAsync();
+            }
+
+            if (!silent)
+                _error = null;
+        }
+        catch (Exception ex) when (ex is ApiException or HttpRequestException or TaskCanceledException)
+        {
+            // Ֆոնային հարցումը լուռ է ձախողվում. բաց panel-ում ասում ենք, որ կապ չկա
+            if (!silent)
+                _error = ex is ApiException api ? api.Message : L["Chat.Offline"];
+        }
+    }
+
+    private void RestartPolling()
+    {
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+        _pollCts = null;
+
+        // Փակ է և խոսակցություն չկա — հարցնելու բան չկա
+        if (!_open && _messages.Count == 0)
+            return;
+
+        _pollCts = new CancellationTokenSource();
+        _ = PollAsync(_open ? OpenPoll : ClosedPoll, _pollCts.Token);
+    }
+
+    private async Task PollAsync(TimeSpan interval, CancellationToken token)
+    {
+        using var timer = new PeriodicTimer(interval);
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                await RefreshAsync(silent: true);
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    // "Տեսած" admin-ի հաղորդագրությունների թիվը — reload-ից հետո նշանը չպիտի նորից հայտնվի
+    private async Task MarkSeenAsync()
+    {
+        _seenAdminMessages = AdminMessages;
+        try { await JS.InvokeVoidAsync("localStorage.setItem", SeenStorageKey, _seenAdminMessages.ToString()); }
+        catch (JSException) { }
+    }
+
+    private async Task<int> ReadSeenAsync()
+    {
+        try
+        {
+            var raw = await JS.InvokeAsync<string?>("localStorage.getItem", SeenStorageKey);
+            return int.TryParse(raw, out var seen) ? seen : 0;
+        }
+        catch (JSException)
+        {
+            return 0;
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+        Dispose(); // LocalizedComponentBase-ի լեզվի բաժանորդագրությունը
+        return ValueTask.CompletedTask;
+    }
+}

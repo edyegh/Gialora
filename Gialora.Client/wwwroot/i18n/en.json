@@ -572,5 +572,17 @@
   "Pwa.Later": "Later",
   "Pwa.Install": "Install app",
   "Pwa.InstallPrompt": "Add Gialora to your home screen for one-tap access.",
-  "Pwa.IosInstallHint": "To install: tap the Share button, then “Add to Home Screen”."
+  "Pwa.IosInstallHint": "To install: tap the Share button, then “Add to Home Screen”.",
+
+  "Chat.Open": "Open chat",
+  "Chat.Close": "Close chat",
+  "Chat.Title": "Chat with Gialora",
+  "Chat.Subtitle": "We usually reply within a few hours.",
+  "Chat.Empty": "Questions about recipes, plans or your account? Write to us here.",
+  "Chat.Support": "Gialora team",
+  "Chat.Placeholder": "Type a message…",
+  "Chat.Send": "Send",
+  "Chat.Note": "Your conversation is saved in this browser. Sign in to keep it with your account.",
+  "Chat.Offline": "Couldn't reach Gialora. Check your connection and try again.",
+  "Chat.Unread": "{0} new message(s)"
 }

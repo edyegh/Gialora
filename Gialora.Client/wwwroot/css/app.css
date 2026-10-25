@@ -747,3 +747,167 @@ code { color: var(--terracotta-dark); background: var(--sand-deep); padding: .1r
         -webkit-tap-highlight-color: transparent;
     }
 }
+
+/* ------------------------------------------------- support chat */
+
+/* Աջ ներքևի կոճակը։ safe-area — iPhone-ի home indicator-ը չծածկի։ */
+.chat-fab {
+    position: fixed;
+    right: max(1rem, env(safe-area-inset-right));
+    bottom: max(1rem, env(safe-area-inset-bottom));
+    z-index: 900; /* #blazor-error-ui-ից (1000) ներքև */
+    width: 3.5rem;
+    height: 3.5rem;
+    border: none;
+    border-radius: 50%;
+    background: var(--olive);
+    color: #fff;
+    box-shadow: var(--shadow-md);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background .15s ease, transform .15s ease;
+}
+
+/* Footer-ի ներքևի ծայրը ազատ ենք պահում, որ կոճակը չծածկի նրա հղումները */
+.site-footer {
+    padding-bottom: calc(1.75rem + 4.5rem + env(safe-area-inset-bottom));
+}
+
+.chat-fab:hover { background: var(--olive-dark); transform: translateY(-1px); }
+.chat-fab:focus-visible { outline: 3px solid var(--olive-light); outline-offset: 2px; }
+.chat-fab-x { font-size: 1.9rem; line-height: 1; }
+
+.chat-badge {
+    position: absolute;
+    top: -.2rem;
+    right: -.2rem;
+    min-width: 1.35rem;
+    height: 1.35rem;
+    padding: 0 .35rem;
+    border-radius: 999px;
+    background: var(--terracotta);
+    color: #fff;
+    font-size: .75rem;
+    font-weight: 700;
+    line-height: 1.35rem;
+    text-align: center;
+    box-shadow: 0 0 0 2px var(--sand);
+}
+
+.chat-panel {
+    position: fixed;
+    right: max(1rem, env(safe-area-inset-right));
+    bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 4.25rem);
+    z-index: 900;
+    width: min(22rem, calc(100vw - 2rem));
+    height: min(32rem, calc(100vh - 7rem));
+    height: min(32rem, calc(100dvh - 7rem));
+    display: flex;
+    flex-direction: column;
+    background: var(--cream);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+}
+
+.chat-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .85rem 1rem;
+    background: var(--olive);
+    color: #fff;
+}
+
+.chat-subtitle { font-size: .8rem; opacity: .85; }
+
+.chat-close {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, .85);
+    font-size: 1.5rem;
+    line-height: 1;
+    padding: 0 .2rem;
+    cursor: pointer;
+}
+
+.chat-close:hover { color: #fff; }
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: .9rem;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    background: var(--sand);
+}
+
+.chat-empty { color: var(--ink-faint); font-size: .9rem; text-align: center; margin: auto 0; }
+
+.chat-bubble {
+    max-width: 85%;
+    padding: .5rem .75rem;
+    border-radius: 14px;
+    font-size: .92rem;
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.chat-bubble.is-mine {
+    align-self: flex-end;
+    background: var(--olive);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+}
+
+.chat-bubble.is-theirs {
+    align-self: flex-start;
+    background: var(--cream);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    border-bottom-left-radius: 4px;
+}
+
+.chat-author { font-size: .72rem; font-weight: 700; color: var(--terracotta-dark); }
+.chat-time { font-size: .7rem; opacity: .7; align-self: flex-end; }
+
+.chat-error {
+    padding: .4rem 1rem;
+    font-size: .82rem;
+    color: var(--danger);
+    background: rgba(180, 64, 44, .08);
+}
+
+.chat-input {
+    display: flex;
+    gap: .5rem;
+    padding: .65rem .75rem;
+    border-top: 1px solid var(--line);
+}
+
+.chat-input .form-control { min-width: 0; }
+
+.chat-note {
+    margin: 0;
+    padding: 0 .9rem .6rem;
+    font-size: .72rem;
+    color: var(--ink-faint);
+}
+
+/* Հեռախոսում panel-ը զբաղեցնում է գրեթե ամբողջ էկրանը */
+@media (max-width: 520px) {
+    .chat-panel {
+        right: .5rem;
+        left: .5rem;
+        width: auto;
+        height: calc(100dvh - 6.5rem - env(safe-area-inset-bottom) - env(safe-area-inset-top));
+    }
+}

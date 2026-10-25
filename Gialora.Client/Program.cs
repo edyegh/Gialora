@@ -51,6 +51,7 @@ builder.Services.AddScoped<RecipeApi>();
 builder.Services.AddScoped<PlannerApi>();
 builder.Services.AddScoped<ContentApi>();
 builder.Services.AddScoped<AdminApi>();
+builder.Services.AddScoped<ChatApi>();
 
 // UI-ի լեզուն (en / hy / el)։ Singleton — բոլոր բաղադրիչները նույն բառարանն են տեսնում։
 builder.Services.AddSingleton<Localizer>();

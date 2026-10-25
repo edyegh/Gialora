@@ -98,7 +98,7 @@ public abstract class ApiClientBase
         return await Http.SendAsync(request);
     }
 
-    private static async Task<T> ReadAsync<T>(HttpResponseMessage response)
+    protected static async Task<T> ReadAsync<T>(HttpResponseMessage response)
     {
         // 204 No Content — մարմին չկա, բայց caller-ը տիպ է սպասում
         if (response.StatusCode == HttpStatusCode.NoContent || response.Content.Headers.ContentLength == 0)
@@ -107,7 +107,7 @@ public abstract class ApiClientBase
         return await response.Content.ReadFromJsonAsync<T>(GialoraJson.Options) ?? default!;
     }
 
-    private async Task EnsureSuccessAsync(HttpResponseMessage response)
+    protected async Task EnsureSuccessAsync(HttpResponseMessage response)
     {
         if (response.IsSuccessStatusCode)
             return;

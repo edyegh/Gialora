@@ -81,6 +81,11 @@
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
         };
+
+        // Chat-ի նոր հաղորդագրությունը պիտի երևա — Blazor-ը scroll-ի API չունի
+        window.gialoraChat = {
+            scrollToBottom: el => { if (el) el.scrollTop = el.scrollHeight; }
+        };
     </script>
 
     <script>

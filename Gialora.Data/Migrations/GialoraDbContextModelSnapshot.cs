@@ -79,6 +79,85 @@ namespace Gialora.Data.Migrations
                     b.ToTable("BlogPosts");
                 });
 
+            modelBuilder.Entity("Gialora.Data.Entities.ChatConversation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("GuestKeyHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("LastMessageAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GuestKeyHash")
+                        .IsUnique()
+                        .HasFilter("[GuestKeyHash] IS NOT NULL AND [IsDeleted] = 0");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasFilter("[UserId] IS NOT NULL AND [IsDeleted] = 0");
+
+                    b.ToTable("ChatConversations");
+                });
+
+            modelBuilder.Entity("Gialora.Data.Entities.ChatMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Sender")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<long?>("TelegramMessageId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(4096)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TelegramMessageId")
+                        .HasFilter("[TelegramMessageId] IS NOT NULL");
+
+                    b.HasIndex("ConversationId", "CreatedAtUtc");
+
+                    b.ToTable("ChatMessages");
+                });
+
             modelBuilder.Entity("Gialora.Data.Entities.Family", b =>
                 {
                     b.Property<Guid>("Id")
@@ -772,6 +851,27 @@ namespace Gialora.Data.Migrations
                     b.Navigation("Author");
                 });
 
+            modelBuilder.Entity("Gialora.Data.Entities.ChatConversation", b =>
+                {
+                    b.HasOne("Gialora.Data.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Gialora.Data.Entities.ChatMessage", b =>
+                {
+                    b.HasOne("Gialora.Data.Entities.ChatConversation", "Conversation")
+                        .WithMany("Messages")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Conversation");
+                });
+
             modelBuilder.Entity("Gialora.Data.Entities.FamilyMember", b =>
                 {
                     b.HasOne("Gialora.Data.Entities.Family", "Family")
@@ -954,6 +1054,11 @@ namespace Gialora.Data.Migrations
                         .HasForeignKey("FamilyId");
 
                     b.Navigation("Family");
+                });
+
+            modelBuilder.Entity("Gialora.Data.Entities.ChatConversation", b =>
+                {
+                    b.Navigation("Messages");
                 });
 
             modelBuilder.Entity("Gialora.Data.Entities.Family", b =>
