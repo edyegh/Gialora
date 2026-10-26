@@ -366,21 +366,34 @@ namespace Gialora.Data.Migrations
                     b.Property<bool>("IsPantryStaple")
                         .HasColumnType("bit");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("nvarchar(120)");
-
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Name")
-                        .IsUnique()
-                        .HasFilter("[IsDeleted] = 0");
-
                     b.ToTable("Ingredients");
+                });
+
+            modelBuilder.Entity("Gialora.Data.Entities.IngredientTranslation", b =>
+                {
+                    b.Property<Guid>("IngredientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Language")
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.HasKey("IngredientId", "Language");
+
+                    b.HasIndex("Language", "Name")
+                        .IsUnique();
+
+                    b.ToTable("IngredientTranslations");
                 });
 
             modelBuilder.Entity("Gialora.Data.Entities.MealPlan", b =>
@@ -517,10 +530,6 @@ namespace Gialora.Data.Migrations
                     b.Property<int>("Cuisine")
                         .HasColumnType("int");
 
-                    b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
                     b.Property<int>("DietType")
                         .HasColumnType("int");
 
@@ -534,9 +543,6 @@ namespace Gialora.Data.Migrations
                     b.Property<string>("ImageUrl")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("Instructions")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsBatchFriendly")
                         .HasColumnType("bit");
@@ -584,11 +590,6 @@ namespace Gialora.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(220)
                         .HasColumnType("nvarchar(220)");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
@@ -651,6 +652,32 @@ namespace Gialora.Data.Migrations
                     b.HasIndex("TagId");
 
                     b.ToTable("RecipeTags");
+                });
+
+            modelBuilder.Entity("Gialora.Data.Entities.RecipeTranslation", b =>
+                {
+                    b.Property<Guid>("RecipeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Language")
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Instructions")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("RecipeId", "Language");
+
+                    b.ToTable("RecipeTranslations");
                 });
 
             modelBuilder.Entity("Gialora.Data.Entities.ShoppingList", b =>
@@ -760,11 +787,6 @@ namespace Gialora.Data.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("DisplayName")
-                        .IsRequired()
-                        .HasMaxLength(60)
-                        .HasColumnType("nvarchar(60)");
-
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -783,6 +805,25 @@ namespace Gialora.Data.Migrations
                         .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("Tags");
+                });
+
+            modelBuilder.Entity("Gialora.Data.Entities.TagTranslation", b =>
+                {
+                    b.Property<Guid>("TagId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Language")
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.HasKey("TagId", "Language");
+
+                    b.ToTable("TagTranslations");
                 });
 
             modelBuilder.Entity("Gialora.Data.Entities.User", b =>
@@ -980,6 +1021,17 @@ namespace Gialora.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Gialora.Data.Entities.IngredientTranslation", b =>
+                {
+                    b.HasOne("Gialora.Data.Entities.Ingredient", "Ingredient")
+                        .WithMany("Translations")
+                        .HasForeignKey("IngredientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Ingredient");
+                });
+
             modelBuilder.Entity("Gialora.Data.Entities.MealPlan", b =>
                 {
                     b.HasOne("Gialora.Data.Entities.Family", "Family")
@@ -1070,6 +1122,17 @@ namespace Gialora.Data.Migrations
                     b.Navigation("Tag");
                 });
 
+            modelBuilder.Entity("Gialora.Data.Entities.RecipeTranslation", b =>
+                {
+                    b.HasOne("Gialora.Data.Entities.Recipe", "Recipe")
+                        .WithMany("Translations")
+                        .HasForeignKey("RecipeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Recipe");
+                });
+
             modelBuilder.Entity("Gialora.Data.Entities.ShoppingList", b =>
                 {
                     b.HasOne("Gialora.Data.Entities.Family", "Family")
@@ -1104,6 +1167,17 @@ namespace Gialora.Data.Migrations
                     b.Navigation("Ingredient");
 
                     b.Navigation("ShoppingList");
+                });
+
+            modelBuilder.Entity("Gialora.Data.Entities.TagTranslation", b =>
+                {
+                    b.HasOne("Gialora.Data.Entities.Tag", "Tag")
+                        .WithMany("Translations")
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tag");
                 });
 
             modelBuilder.Entity("Gialora.Data.Entities.User", b =>
@@ -1142,6 +1216,8 @@ namespace Gialora.Data.Migrations
             modelBuilder.Entity("Gialora.Data.Entities.Ingredient", b =>
                 {
                     b.Navigation("RecipeIngredients");
+
+                    b.Navigation("Translations");
                 });
 
             modelBuilder.Entity("Gialora.Data.Entities.MealPlan", b =>
@@ -1165,6 +1241,8 @@ namespace Gialora.Data.Migrations
                     b.Navigation("RecipeIngredients");
 
                     b.Navigation("RecipeTags");
+
+                    b.Navigation("Translations");
                 });
 
             modelBuilder.Entity("Gialora.Data.Entities.ShoppingList", b =>
@@ -1175,6 +1253,8 @@ namespace Gialora.Data.Migrations
             modelBuilder.Entity("Gialora.Data.Entities.Tag", b =>
                 {
                     b.Navigation("RecipeTags");
+
+                    b.Navigation("Translations");
                 });
 
             modelBuilder.Entity("Gialora.Data.Entities.User", b =>

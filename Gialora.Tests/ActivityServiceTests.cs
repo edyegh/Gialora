@@ -20,7 +20,7 @@ public class ActivityServiceTests
         .UseInMemoryDatabase($"activity-{Guid.NewGuid()}")
         .Options);
 
-    private ActivityService Service() => new(_db);
+    private ActivityService Service() => new(_db, new FixedContentLanguage());
 
     private User AddUser(string name, UserRole role = UserRole.User)
     {
@@ -32,8 +32,9 @@ public class ActivityServiceTests
 
     private Recipe AddRecipe(string title, Guid adminId)
     {
-        var recipe = new Recipe { Title = title, Slug = title.ToLowerInvariant().Replace(' ', '-'), CreatedByAdminId = adminId, IsPublished = true };
+        var recipe = new Recipe { Slug = title.ToLowerInvariant().Replace(' ', '-'), CreatedByAdminId = adminId, IsPublished = true };
         _db.Recipes.Add(recipe);
+        _db.RecipeTranslations.Add(new RecipeTranslation { RecipeId = recipe.Id, Language = "en", Title = title });
         _db.SaveChanges();
         return recipe;
     }

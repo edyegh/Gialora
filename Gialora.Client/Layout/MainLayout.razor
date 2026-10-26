@@ -7,7 +7,10 @@
 
     <NavMenu />
 
-    <main class="page-main">
+    @* @key-ը լեզվով — լեզուն փոխելիս էջը ստեղծվում է նորից և API-ից վերաբեռնում
+       ռեցեպտները նոր լեզվով (OnInitializedAsync-ը կրկին է կանչվում)։ Առանց սրա
+       UI-ի տեքստերը կթարգմանվեին, իսկ ռեցեպտների անունները՝ ոչ։ *@
+    <main class="page-main" @key="L.Language">
         @Body
     </main>
 

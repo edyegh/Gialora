@@ -21,7 +21,6 @@ public class SoftDeleteIndexTests
 
     [Theory]
     [InlineData(typeof(Recipe), nameof(Recipe.Slug))]
-    [InlineData(typeof(Ingredient), nameof(Ingredient.Name))]
     [InlineData(typeof(Tag), nameof(Tag.Name))]
     [InlineData(typeof(BlogPost), nameof(BlogPost.Slug))]
     [InlineData(typeof(ShoppingList), nameof(ShoppingList.MealPlanId))]
@@ -32,5 +31,22 @@ public class SoftDeleteIndexTests
             i => i.IsUnique && i.Properties.Count == 1 && i.Properties[0].Name == property);
 
         Assert.Contains("[IsDeleted] = 0", index.GetFilter());
+    }
+
+    /// <summary>
+    /// Ingredient names live in IngredientTranslations, which has no IsDeleted of its own,
+    /// so the index cannot filter. Instead IngredientService.DeleteAsync removes a deleted
+    /// ingredient's translations (see TranslationTests) — the index must stay unique per language.
+    /// </summary>
+    [Fact]
+    public void Ingredient_names_are_unique_per_language()
+    {
+        var index = Assert.Single(
+            Model.FindEntityType(typeof(IngredientTranslation))!.GetIndexes(),
+            i => i.IsUnique);
+
+        Assert.Equal(
+            new[] { nameof(IngredientTranslation.Language), nameof(IngredientTranslation.Name) },
+            index.Properties.Select(p => p.Name));
     }
 }

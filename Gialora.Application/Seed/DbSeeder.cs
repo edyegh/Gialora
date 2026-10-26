@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Gialora.Application.Common;
 using Gialora.Data;
 using Gialora.Data.Entities;
+using Gialora.Shared;
 using Gialora.Shared.Enums;
 
 namespace Gialora.Application.Seed;
@@ -152,7 +153,12 @@ public class DbSeeder
 
     private async Task<Dictionary<string, Ingredient>> EnsureIngredientsAsync()
     {
-        var existing = await _db.Ingredients.ToDictionaryAsync(i => i.Name, StringComparer.OrdinalIgnoreCase);
+        // Seed-ի catalog-ը անգլերեն է՝ ճանաչում ենք անգլերեն անունով
+        var existing = (await _db.IngredientTranslations
+                .Where(t => t.Language == ContentLanguages.Default)
+                .Include(t => t.Ingredient)
+                .ToListAsync())
+            .ToDictionary(t => t.Name, t => t.Ingredient, StringComparer.OrdinalIgnoreCase);
         var created = 0;
 
         var reviewed = 0;
@@ -174,7 +180,6 @@ public class DbSeeder
 
             var ingredient = new Ingredient
             {
-                Name = spec.Name,
                 Category = spec.Category,
                 DefaultUnit = spec.Unit,
                 Allergens = (spec.Allergens ?? []).ToList(),
@@ -183,6 +188,12 @@ public class DbSeeder
             };
 
             _db.Ingredients.Add(ingredient);
+            _db.IngredientTranslations.Add(new IngredientTranslation
+            {
+                IngredientId = ingredient.Id,
+                Language = ContentLanguages.Default,
+                Name = spec.Name
+            });
             existing[spec.Name] = ingredient;
             created++;
         }
@@ -216,8 +227,14 @@ public class DbSeeder
             if (existing.ContainsKey(name))
                 continue;
 
-            var tag = new Tag { Name = name, DisplayName = Services.RecipeService.ToDisplayName(name) };
+            var tag = new Tag { Name = name };
             _db.Tags.Add(tag);
+            _db.TagTranslations.Add(new TagTranslation
+            {
+                TagId = tag.Id,
+                Language = ContentLanguages.Default,
+                DisplayName = Services.RecipeService.ToDisplayName(name)
+            });
             existing[name] = tag;
             created++;
         }
@@ -535,9 +552,10 @@ public class DbSeeder
         Dictionary<string, Tag> tags)
     {
         // IgnoreQueryFilters — admin-ի ջնջած seed ռեցեպտը ամեն restart-ին չպիտի հետ գա
-        var existingTitles = await _db.Recipes
+        var existingTitles = await _db.RecipeTranslations
             .IgnoreQueryFilters()
-            .Select(r => r.Title)
+            .Where(t => t.Language == ContentLanguages.Default)
+            .Select(t => t.Title)
             .ToListAsync();
 
         var known = existingTitles.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -550,10 +568,7 @@ public class DbSeeder
 
             var recipe = new Recipe
             {
-                Title = spec.Title,
                 Slug = await Slug.UniqueAsync(spec.Title, s => _db.Recipes.AnyAsync(r => r.Slug == s)),
-                Description = spec.Description,
-                Instructions = string.Join("\n", spec.Steps),
                 MealType = spec.MealType,
                 Cuisine = CuisineType.Mediterranean,
                 Difficulty = DifficultyLevel.Easy,
@@ -600,6 +615,14 @@ public class DbSeeder
             }
 
             _db.Recipes.Add(recipe);
+            _db.RecipeTranslations.Add(new RecipeTranslation
+            {
+                RecipeId = recipe.Id,
+                Language = ContentLanguages.Default,
+                Title = spec.Title,
+                Description = spec.Description,
+                Instructions = string.Join("\n", spec.Steps)
+            });
             created++;
         }
 

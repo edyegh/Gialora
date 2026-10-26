@@ -6,6 +6,7 @@ using Gialora.Api.Middleware;
 using Gialora.Api.Services;
 using Gialora.Api.Services.Email;
 using Gialora.Api.Services.Telegram;
+using Gialora.Application.Common;
 using Gialora.Application.Planning;
 using Gialora.Application.Seed;
 using Gialora.Application.Services;
@@ -103,6 +104,11 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     foreach (var proxy in builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [])
         options.KnownProxies.Add(IPAddress.Parse(proxy));
 });
+
+// Կատալոգի բովանդակության լեզուն (Accept-Language / ?lang=) — Application-ը տեսնում է
+// միայն IContentLanguage-ը, ոչ թե HttpContext-ը
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IContentLanguage, RequestContentLanguage>();
 
 // Application services
 builder.Services.AddScoped<IAuthService, AuthService>();

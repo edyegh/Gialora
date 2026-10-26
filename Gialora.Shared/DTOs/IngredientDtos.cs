@@ -8,6 +8,10 @@ public class IngredientDto
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Name-ի լեզուն (թարգմանություն չլինելու դեպքում՝ fallback-ինը)։</summary>
+    public string NameLanguage { get; set; } = ContentLanguages.Default;
+
     public UnitOfMeasure DefaultUnit { get; set; }
     public IngredientCategory Category { get; set; }
 
@@ -28,6 +32,10 @@ public class IngredientDto
 
 public class IngredientCreateDto
 {
+    /// <summary>Name-ը ո՞ր լեզվի թարգմանության մեջ գրել։ Դատարկ → անգլերեն։</summary>
+    [StringLength(8)]
+    public string? Language { get; set; }
+
     [Required, StringLength(120, MinimumLength = 2)]
     public string Name { get; set; } = string.Empty;
 

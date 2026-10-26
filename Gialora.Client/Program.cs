@@ -29,12 +29,14 @@ if (!apiBaseUrl.EndsWith('/'))
 // քան UI-ում, և գրանցվելուց հետո Authorization header-ը երբեք չէր ուղարկվի։
 builder.Services.AddSingleton<TokenStore>();
 builder.Services.AddScoped<AuthHeaderHandler>();
+builder.Services.AddScoped<LanguageHeaderHandler>();
 
 builder.Services.AddHttpClient("GialoraApi", client =>
 {
     client.BaseAddress = new Uri(apiBaseUrl);
 })
-    .AddHttpMessageHandler<AuthHeaderHandler>();
+    .AddHttpMessageHandler<AuthHeaderHandler>()
+    .AddHttpMessageHandler<LanguageHeaderHandler>();
 
 builder.Services.AddScoped(sp =>
     sp.GetRequiredService<IHttpClientFactory>().CreateClient("GialoraApi"));

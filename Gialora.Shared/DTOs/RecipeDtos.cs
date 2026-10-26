@@ -13,6 +13,12 @@ public class RecipeSummaryDto
     public string? Description { get; set; }
     public string? ImageUrl { get; set; }
 
+    /// <summary>
+    /// Ինչ լեզվով են Title/Description/Instructions-ը։ Տարբերվում է խնդրվածից, երբ
+    /// թարգմանություն չկա և API-ն ետ է ընկել անգլերենին (կամ առկա այլ լեզվին)։
+    /// </summary>
+    public string ContentLanguage { get; set; } = ContentLanguages.Default;
+
     public MealType MealType { get; set; }
     public CuisineType Cuisine { get; set; }
     public DifficultyLevel Difficulty { get; set; }
@@ -69,6 +75,13 @@ public class RecipeIngredientDto
 
 public class RecipeCreateDto
 {
+    /// <summary>
+    /// Ո՞ր թարգմանության մեջ գրել Title/Description/Instructions-ը։ Մյուս լեզուների
+    /// թարգմանություններին save-ը չի դիպչում։ Դատարկ → անգլերեն։
+    /// </summary>
+    [StringLength(8)]
+    public string? Language { get; set; }
+
     [Required, StringLength(200, MinimumLength = 3)]
     public string Title { get; set; } = string.Empty;
 

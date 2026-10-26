@@ -325,6 +325,7 @@
   "AdminRecipeEdit.EditRecipe": "Edit recipe",
   "AdminRecipeEdit.AllRecipes": "All recipes",
   "AdminRecipeEdit.Basics": "Basics",
+  "AdminRecipeEdit.TextLanguage": "Text language: {0}",
   "AdminRecipeEdit.ShortDescription": "Short description",
   "AdminRecipeEdit.ImageUrl": "Image URL",
   "AdminRecipeEdit.Cuisine": "Cuisine",

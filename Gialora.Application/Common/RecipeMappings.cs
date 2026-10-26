@@ -1,6 +1,7 @@
 // Gialora.Application/Common/RecipeMappings.cs
 using System.Linq.Expressions;
 using Gialora.Data.Entities;
+using Gialora.Shared;
 using Gialora.Shared.Dtos;
 
 namespace Gialora.Application.Common;
@@ -12,13 +13,27 @@ namespace Gialora.Application.Common;
 /// </summary>
 public static class RecipeMappings
 {
-    public static Expression<Func<Recipe, RecipeSummaryDto>> SummaryProjection(Guid? currentUserId) =>
+    // Տեքստերը գալիս են ԼԱՎԱԳՈՒՅՆ թարգմանության ՄԵԿ տողից (խնդրված → en → առկա),
+    // ոչ թե ամեն դաշտը առանձին — այլապես վերնագիրը հայերեն կլիներ, նկարագրությունը՝
+    // անգլերեն։ Կանոնը կրկնված է TranslationPicker-ում (in-memory տարբերակը)։
+
+    public static Expression<Func<Recipe, RecipeSummaryDto>> SummaryProjection(Guid? currentUserId, string lang) =>
         r => new RecipeSummaryDto
         {
             Id = r.Id,
-            Title = r.Title,
+            Title = r.Translations
+                .OrderBy(t => t.Language == lang ? 0 : t.Language == ContentLanguages.Default ? 1 : 2)
+                .ThenBy(t => t.Language)
+                .Select(t => t.Title).FirstOrDefault() ?? string.Empty,
+            Description = r.Translations
+                .OrderBy(t => t.Language == lang ? 0 : t.Language == ContentLanguages.Default ? 1 : 2)
+                .ThenBy(t => t.Language)
+                .Select(t => t.Description).FirstOrDefault(),
+            ContentLanguage = r.Translations
+                .OrderBy(t => t.Language == lang ? 0 : t.Language == ContentLanguages.Default ? 1 : 2)
+                .ThenBy(t => t.Language)
+                .Select(t => t.Language).FirstOrDefault() ?? ContentLanguages.Default,
             Slug = r.Slug,
-            Description = r.Description,
             ImageUrl = r.ImageUrl,
             MealType = r.MealType,
             Cuisine = r.Cuisine,
@@ -44,14 +59,27 @@ public static class RecipeMappings
             Tags = r.RecipeTags.Select(rt => rt.Tag.Name).ToList()
         };
 
-    public static Expression<Func<Recipe, RecipeDetailDto>> DetailProjection(Guid? currentUserId) =>
+    public static Expression<Func<Recipe, RecipeDetailDto>> DetailProjection(Guid? currentUserId, string lang) =>
         r => new RecipeDetailDto
         {
             Id = r.Id,
-            Title = r.Title,
+            Title = r.Translations
+                .OrderBy(t => t.Language == lang ? 0 : t.Language == ContentLanguages.Default ? 1 : 2)
+                .ThenBy(t => t.Language)
+                .Select(t => t.Title).FirstOrDefault() ?? string.Empty,
+            Description = r.Translations
+                .OrderBy(t => t.Language == lang ? 0 : t.Language == ContentLanguages.Default ? 1 : 2)
+                .ThenBy(t => t.Language)
+                .Select(t => t.Description).FirstOrDefault(),
+            Instructions = r.Translations
+                .OrderBy(t => t.Language == lang ? 0 : t.Language == ContentLanguages.Default ? 1 : 2)
+                .ThenBy(t => t.Language)
+                .Select(t => t.Instructions).FirstOrDefault(),
+            ContentLanguage = r.Translations
+                .OrderBy(t => t.Language == lang ? 0 : t.Language == ContentLanguages.Default ? 1 : 2)
+                .ThenBy(t => t.Language)
+                .Select(t => t.Language).FirstOrDefault() ?? ContentLanguages.Default,
             Slug = r.Slug,
-            Description = r.Description,
-            Instructions = r.Instructions,
             ImageUrl = r.ImageUrl,
             MealType = r.MealType,
             Cuisine = r.Cuisine,
@@ -81,7 +109,10 @@ public static class RecipeMappings
                 .Select(ri => new RecipeIngredientDto
                 {
                     IngredientId = ri.IngredientId,
-                    IngredientName = ri.Ingredient.Name,
+                    IngredientName = ri.Ingredient.Translations
+                        .OrderBy(t => t.Language == lang ? 0 : t.Language == ContentLanguages.Default ? 1 : 2)
+                        .ThenBy(t => t.Language)
+                        .Select(t => t.Name).FirstOrDefault() ?? string.Empty,
                     Quantity = ri.Quantity,
                     Unit = ri.Unit,
                     Category = ri.Ingredient.Category,

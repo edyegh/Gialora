@@ -1,9 +1,11 @@
 // Gialora.Application/Services/RecipeService.cs
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Gialora.Application.Common;
 using Gialora.Data;
 using Gialora.Data.Entities;
+using Gialora.Shared;
 using Gialora.Shared.Dtos;
 using Gialora.Shared.Enums;
 
@@ -12,11 +14,13 @@ namespace Gialora.Application.Services;
 public class RecipeService : IRecipeService
 {
     private readonly GialoraDbContext _db;
+    private readonly IContentLanguage _language;
     private readonly ILogger<RecipeService> _logger;
 
-    public RecipeService(GialoraDbContext db, ILogger<RecipeService> logger)
+    public RecipeService(GialoraDbContext db, IContentLanguage language, ILogger<RecipeService> logger)
     {
         _db = db;
+        _language = language;
         _logger = logger;
     }
 
@@ -42,10 +46,10 @@ public class RecipeService : IRecipeService
         // առանց դրա client-ը չի իմանա, թե ընդամենը քանի արդյունք կա։
         var total = await query.CountAsync();
 
-        var items = await ApplySort(query, filter.SortBy)
+        var items = await ApplySort(query, filter.SortBy, _language.Code)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(RecipeMappings.SummaryProjection(currentUserId))
+            .Select(RecipeMappings.SummaryProjection(currentUserId, _language.Code))
             .ToListAsync();
 
         return new PagedResult<RecipeSummaryDto>
@@ -72,11 +76,15 @@ public class RecipeService : IRecipeService
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
         {
+            // Որոնում ԲՈԼՈՐ լեզուներով — "սխտոր"-ն էլ, "garlic"-ն էլ գտնում են նույն ռեցեպտը,
+            // անկախ նրանից, թե UI-ն որ լեզվով է
             var term = filter.Search.Trim();
             query = query.Where(r =>
-                EF.Functions.Like(r.Title, $"%{term}%") ||
-                (r.Description != null && EF.Functions.Like(r.Description, $"%{term}%")) ||
-                r.RecipeIngredients.Any(ri => EF.Functions.Like(ri.Ingredient.Name, $"%{term}%")));
+                r.Translations.Any(t =>
+                    EF.Functions.Like(t.Title, $"%{term}%") ||
+                    (t.Description != null && EF.Functions.Like(t.Description, $"%{term}%"))) ||
+                r.RecipeIngredients.Any(ri =>
+                    ri.Ingredient.Translations.Any(t => EF.Functions.Like(t.Name, $"%{term}%"))));
         }
 
         if (filter.MealType is { } mealType)
@@ -128,7 +136,8 @@ public class RecipeService : IRecipeService
         foreach (var ingredient in filter.ExcludeIngredients.Select(Normalize).Where(i => i.Length > 0).Distinct())
         {
             var captured = ingredient;
-            query = query.Where(r => !r.RecipeIngredients.Any(ri => ri.Ingredient.Name.ToLower().Contains(captured)));
+            query = query.Where(r => !r.RecipeIngredients.Any(ri =>
+                ri.Ingredient.Translations.Any(t => t.Name.ToLower().Contains(captured))));
         }
 
         if (filter.FavoritesOnly && currentUserId is { } userId)
@@ -137,19 +146,29 @@ public class RecipeService : IRecipeService
         return query;
     }
 
-    private static IQueryable<Recipe> ApplySort(IQueryable<Recipe> query, RecipeSortOrder sortBy) => sortBy switch
+    private static IQueryable<Recipe> ApplySort(IQueryable<Recipe> query, RecipeSortOrder sortBy, string lang)
     {
-        RecipeSortOrder.Title => query.OrderBy(r => r.Title),
-        RecipeSortOrder.QuickestFirst => query
-            .OrderBy(r => r.PrepTimeMinutes + r.CookTimeMinutes)
-            .ThenBy(r => r.Title),
-        RecipeSortOrder.HighestRated => query
-            .OrderByDescending(r => r.Feedbacks.Any(f => f.Rating > 0)
-                ? r.Feedbacks.Where(f => f.Rating > 0).Average(f => (double)f.Rating)
-                : 0d)
-            .ThenBy(r => r.Title),
-        _ => query.OrderByDescending(r => r.CreatedAtUtc).ThenBy(r => r.Title)
-    };
+        // Այբբենական կարգը՝ ըստ ՑՈՒՑԱԴՐՎՈՂ վերնագրի (նույն fallback-ով, ինչ projection-ում)
+        Expression<Func<Recipe, string?>> title = r => r.Translations
+            .OrderBy(t => t.Language == lang ? 0 : t.Language == ContentLanguages.Default ? 1 : 2)
+            .ThenBy(t => t.Language)
+            .Select(t => t.Title)
+            .FirstOrDefault();
+
+        return sortBy switch
+        {
+            RecipeSortOrder.Title => query.OrderBy(title),
+            RecipeSortOrder.QuickestFirst => query
+                .OrderBy(r => r.PrepTimeMinutes + r.CookTimeMinutes)
+                .ThenBy(title),
+            RecipeSortOrder.HighestRated => query
+                .OrderByDescending(r => r.Feedbacks.Any(f => f.Rating > 0)
+                    ? r.Feedbacks.Where(f => f.Rating > 0).Average(f => (double)f.Rating)
+                    : 0d)
+                .ThenBy(title),
+            _ => query.OrderByDescending(r => r.CreatedAtUtc).ThenBy(title)
+        };
+    }
 
     public async Task<RecipeDetailDto?> GetByIdAsync(Guid id, Guid? currentUserId, bool includeUnpublished = false)
     {
@@ -157,7 +176,7 @@ public class RecipeService : IRecipeService
         if (!includeUnpublished)
             query = query.Where(r => r.IsPublished);
 
-        var dto = await query.Select(RecipeMappings.DetailProjection(currentUserId)).FirstOrDefaultAsync();
+        var dto = await query.Select(RecipeMappings.DetailProjection(currentUserId, _language.Code)).FirstOrDefaultAsync();
         return dto?.WithSteps();
     }
 
@@ -168,7 +187,7 @@ public class RecipeService : IRecipeService
         if (!includeUnpublished)
             query = query.Where(r => r.IsPublished);
 
-        var dto = await query.Select(RecipeMappings.DetailProjection(currentUserId)).FirstOrDefaultAsync();
+        var dto = await query.Select(RecipeMappings.DetailProjection(currentUserId, _language.Code)).FirstOrDefaultAsync();
         return dto?.WithSteps();
     }
 
@@ -194,9 +213,10 @@ public class RecipeService : IRecipeService
             .ToList();
 
         _db.Recipes.Add(recipe);
+        _db.RecipeTranslations.Add(BuildTranslation(recipe.Id, dto));
         await _db.SaveChangesAsync();
 
-        _logger.LogInformation("Recipe {RecipeId} created: {Title}", recipe.Id, recipe.Title);
+        _logger.LogInformation("Recipe {RecipeId} created: {Title}", recipe.Id, dto.Title);
         return recipe.Id;
     }
 
@@ -212,12 +232,30 @@ public class RecipeService : IRecipeService
 
         await ValidateIngredientsAsync(dto.Ingredients);
 
-        // Վերնագիրը փոխվե՞լ է — slug-ը վերագեներացնում ենք, բայց միայն այդ դեպքում,
-        // որ արդեն տարածված link-երը չկոտրվեն ամեն փոքր խմբագրումից։
-        if (!string.Equals(recipe.Title.Trim(), dto.Title.Trim(), StringComparison.OrdinalIgnoreCase))
+        // Գրում ենք ՄԻԱՅՆ dto.Language-ի թարգմանությունը — մյուս լեզուներինը մնում են
+        var wantedText = BuildTranslation(recipe.Id, dto);
+        var text = await _db.RecipeTranslations
+            .FirstOrDefaultAsync(t => t.RecipeId == id && t.Language == wantedText.Language);
+
+        // Slug-ը գալիս է ԱՆԳԼԵՐԵՆ վերնագրից և վերագեներացվում է միայն երբ այն փոխվում է —
+        // թարգմանություն ավելացնելը կամ փոքր խմբագրումը արդեն տարածված link-երը չի կոտրում։
+        // (Ոչ-լատինական վերնագրով ստեղծված ռեցեպտը անգլերեն վերնագիր ստանալիս կարդացվող slug է ստանում։)
+        if (wantedText.Language == ContentLanguages.Default &&
+            !string.Equals(text?.Title.Trim(), wantedText.Title, StringComparison.OrdinalIgnoreCase))
         {
-            recipe.Slug = await Slug.UniqueAsync(dto.Title,
+            recipe.Slug = await Slug.UniqueAsync(wantedText.Title,
                 s => _db.Recipes.AnyAsync(r => r.Slug == s && r.Id != id));
+        }
+
+        if (text is null)
+        {
+            _db.RecipeTranslations.Add(wantedText);
+        }
+        else
+        {
+            text.Title = wantedText.Title;
+            text.Description = wantedText.Description;
+            text.Instructions = wantedText.Instructions;
         }
 
         ApplyScalarFields(recipe, dto);
@@ -320,11 +358,18 @@ public class RecipeService : IRecipeService
     // Helpers
     // -----------------------------------------------------------------------
 
+    private static RecipeTranslation BuildTranslation(Guid recipeId, RecipeCreateDto dto) => new()
+    {
+        RecipeId = recipeId,
+        Language = ContentLanguages.Normalize(dto.Language),
+        Title = dto.Title.Trim(),
+        Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim(),
+        Instructions = dto.Instructions.Trim()
+    };
+
+    /// <summary>Լեզվից անկախ դաշտերը (տեքստերը BuildTranslation-ում են)։</summary>
     private static void ApplyScalarFields(Recipe recipe, RecipeCreateDto dto)
     {
-        recipe.Title = dto.Title.Trim();
-        recipe.Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim();
-        recipe.Instructions = dto.Instructions.Trim();
         recipe.ImageUrl = string.IsNullOrWhiteSpace(dto.ImageUrl) ? null : dto.ImageUrl.Trim();
         recipe.MealType = dto.MealType;
         recipe.Cuisine = dto.Cuisine;
@@ -399,8 +444,15 @@ public class RecipeService : IRecipeService
 
         foreach (var name in normalized.Except(existing.Select(t => t.Name)))
         {
-            var tag = new Tag { Name = name, DisplayName = ToDisplayName(name) };
+            // Նոր tag-ը ստանում է անգլերեն ցուցադրվող անուն slug-ից. թարգմանությունները՝ հետո
+            var tag = new Tag { Name = name };
             _db.Tags.Add(tag);
+            _db.TagTranslations.Add(new TagTranslation
+            {
+                TagId = tag.Id,
+                Language = ContentLanguages.Default,
+                DisplayName = ToDisplayName(name)
+            });
             result.Add(tag);
         }
 

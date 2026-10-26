@@ -19,15 +19,18 @@ public class ShoppingListService : IShoppingListService
 {
     private readonly GialoraDbContext _db;
     private readonly IFamilyService _familyService;
+    private readonly IContentLanguage _language;
     private readonly ILogger<ShoppingListService> _logger;
 
     public ShoppingListService(
         GialoraDbContext db,
         IFamilyService familyService,
+        IContentLanguage language,
         ILogger<ShoppingListService> logger)
     {
         _db = db;
         _familyService = familyService;
+        _language = language;
         _logger = logger;
     }
 
@@ -47,10 +50,18 @@ public class ShoppingListService : IShoppingListService
                     .ThenInclude(e => e.Recipe)
                         .ThenInclude(r => r.RecipeIngredients)
                             .ThenInclude(ri => ri.Ingredient)
+                                .ThenInclude(i => i.Translations)
+            .Include(p => p.Days)
+                .ThenInclude(d => d.Entries)
+                    .ThenInclude(e => e.Recipe)
+                        .ThenInclude(r => r.Translations)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(p => p.Id == mealPlanId && p.FamilyId == familyId)
             ?? throw new NotFoundException("Meal plan not found.");
 
-        var consolidated = Consolidate(plan);
+        // Անունները պահվում են ԳԵՆԵՐԱՑՄԱՆ պահի լեզվով (snapshot)։ Phase 2-ում
+        // դրանք կկարդացվեն IngredientId-ով՝ ընթացիկ լեզվով։
+        var consolidated = Consolidate(plan, _language.Code);
 
         var list = plan.ShoppingList;
         var keptItemCount = 0;
@@ -140,7 +151,7 @@ public class ShoppingListService : IShoppingListService
     ///   1) ամեն ռեցեպտի քանակը scale ենք անում պլանավորված չափաբաժիններին,
     ///   2) նույն բաղադրիչի տողերը գումարում ենք ընդհանուր base միավորով։
     /// </summary>
-    private static List<ShoppingListItem> Consolidate(MealPlan plan)
+    private static List<ShoppingListItem> Consolidate(MealPlan plan, string language)
     {
         // Բանալին ingredient + չափման "ընտանիք" է. 2 clove սխտոր և 5 գ սխտոր
         // չեն կարող գումարվել, ուստի դրանք առանձին տողեր են մնում։
@@ -175,7 +186,7 @@ public class ShoppingListService : IShoppingListService
                     bucket = new Bucket
                     {
                         IngredientId = ri.IngredientId,
-                        Name = ri.Ingredient.Name,
+                        Name = ri.Ingredient.NameIn(language),
                         Category = ri.Ingredient.Category,
                         ReferenceUnit = ri.Unit,
                         IsOptional = true
@@ -184,7 +195,7 @@ public class ShoppingListService : IShoppingListService
                 }
 
                 bucket.BaseQuantity += UnitConverter.ToBase(scaled, ri.Unit);
-                bucket.Recipes.Add(recipe.Title);
+                bucket.Recipes.Add(recipe.TitleIn(language));
 
                 // Տողը ոչ-պարտադիր է միայն եթե ԲՈԼՈՐ ռեցեպտներում է ոչ-պարտադիր
                 if (!ri.IsOptional)

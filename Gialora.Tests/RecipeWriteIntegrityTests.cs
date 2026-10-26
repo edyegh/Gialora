@@ -22,7 +22,15 @@ public class RecipeWriteIntegrityTests
         .Options);
 
     private RecipeImportService Importer() => new(_db, NullLogger<RecipeImportService>.Instance);
-    private RecipeService Recipes() => new(_db, NullLogger<RecipeService>.Instance);
+    private RecipeService Recipes() => new(_db, new FixedContentLanguage(), NullLogger<RecipeService>.Instance);
+
+    private Ingredient AddIngredient(string name)
+    {
+        var ingredient = new Ingredient();
+        _db.Ingredients.Add(ingredient);
+        _db.IngredientTranslations.Add(new IngredientTranslation { IngredientId = ingredient.Id, Language = "en", Name = name });
+        return ingredient;
+    }
 
     private const string Header = "recipe,instructions,ingredient,quantity,unit";
 
@@ -56,9 +64,9 @@ public class RecipeWriteIntegrityTests
             OverwriteExisting = true
         }, AdminId);
 
-        var recipe = await _db.Recipes.Include(r => r.RecipeIngredients).SingleAsync();
+        var recipe = await _db.Recipes.Include(r => r.RecipeIngredients).Include(r => r.Translations).SingleAsync();
         Assert.Single(recipe.RecipeIngredients);
-        Assert.Equal("Simmer", recipe.Instructions);
+        Assert.Equal("Simmer", Assert.Single(recipe.Translations).Instructions);
     }
 
     [Fact]
@@ -77,9 +85,8 @@ public class RecipeWriteIntegrityTests
     [Fact]
     public async Task Update_replaces_ingredients_and_tags_in_one_save()
     {
-        var flour = new Ingredient { Name = "Flour" };
-        var egg = new Ingredient { Name = "Egg" };
-        _db.Ingredients.AddRange(flour, egg);
+        var flour = AddIngredient("Flour");
+        var egg = AddIngredient("Egg");
         await _db.SaveChangesAsync();
 
         var dto = new RecipeUpdateDto
@@ -113,8 +120,7 @@ public class RecipeWriteIntegrityTests
     [Fact]
     public async Task The_same_ingredient_in_two_units_is_rejected_instead_of_dropped()
     {
-        var flour = new Ingredient { Name = "Flour" };
-        _db.Ingredients.Add(flour);
+        var flour = AddIngredient("Flour");
         await _db.SaveChangesAsync();
 
         await Assert.ThrowsAsync<ValidationFailedException>(() => Recipes().CreateAsync(new RecipeCreateDto

@@ -10,15 +10,14 @@ namespace Gialora.Data.Entities;
 /// </summary>
 public class Recipe : BaseEntity
 {
-    public string Title { get; set; } = string.Empty;
-
-    /// <summary>URL-friendly identifier — /recipes/chicken-meatballs (SEO-ի համար)։</summary>
+    /// <summary>
+    /// URL-friendly identifier — /recipes/chicken-meatballs (SEO-ի համար)։ ՄԵԿ է բոլոր
+    /// լեզուների համար, որ լեզուն փոխելիս link-երը չկոտրվեն։
+    /// </summary>
     public string Slug { get; set; } = string.Empty;
 
-    public string? Description { get; set; }
-
-    /// <summary>Քայլերը պահվում են մեկ text-ով, տողերով բաժանված (client-ը split է անում)։</summary>
-    public string? Instructions { get; set; }
+    /// <summary>Title/Description/Instructions-ը՝ ամեն լեզվով մեկ տող։</summary>
+    public ICollection<RecipeTranslation> Translations { get; set; } = new List<RecipeTranslation>();
 
     public string? ImageUrl { get; set; }
 

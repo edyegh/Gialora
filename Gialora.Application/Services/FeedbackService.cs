@@ -16,11 +16,13 @@ namespace Gialora.Application.Services;
 public class FeedbackService : IFeedbackService
 {
     private readonly GialoraDbContext _db;
+    private readonly IContentLanguage _language;
     private readonly ILogger<FeedbackService> _logger;
 
-    public FeedbackService(GialoraDbContext db, ILogger<FeedbackService> logger)
+    public FeedbackService(GialoraDbContext db, IContentLanguage language, ILogger<FeedbackService> logger)
     {
         _db = db;
+        _language = language;
         _logger = logger;
     }
 
@@ -28,7 +30,7 @@ public class FeedbackService : IFeedbackService
     {
         var recipe = await _db.Recipes.AsNoTracking()
             .Where(r => r.Id == recipeId)
-            .Select(r => new { r.Id, r.Title })
+            .Select(r => new { r.Id })
             .FirstOrDefaultAsync()
             ?? throw new NotFoundException("Recipe not found.");
 
@@ -72,7 +74,9 @@ public class FeedbackService : IFeedbackService
         }
 
         _logger.LogInformation("Feedback saved for recipe {RecipeId} by user {UserId}", recipeId, userId);
-        return Map(feedback, recipe.Title);
+
+        var titles = await _db.LoadRecipeTitlesAsync(new[] { recipe.Id }, _language.Code);
+        return Map(feedback, titles.GetValueOrDefault(recipe.Id, string.Empty));
     }
 
     public async Task<RecipeRatingSummaryDto> GetSummaryAsync(Guid recipeId, Guid? currentUserId)
@@ -100,36 +104,31 @@ public class FeedbackService : IFeedbackService
 
         if (currentUserId is { } userId)
         {
-            summary.MyFeedback = await _db.Feedbacks.AsNoTracking()
-                .Where(f => f.RecipeId == recipeId && f.UserId == userId)
-                .Select(f => new FeedbackDto
-                {
-                    Id = f.Id,
-                    RecipeId = f.RecipeId,
-                    RecipeTitle = f.Recipe.Title,
-                    Rating = f.Rating,
-                    Reaction = f.Reaction,
-                    TooDifficult = f.TooDifficult,
-                    KidsDidNotEat = f.KidsDidNotEat,
-                    TookTooLong = f.TookTooLong,
-                    Comment = f.Comment,
-                    CreatedAtUtc = f.CreatedAtUtc
-                })
-                .FirstOrDefaultAsync();
+            summary.MyFeedback = (await WithTitlesAsync(
+                    _db.Feedbacks.AsNoTracking().Where(f => f.RecipeId == recipeId && f.UserId == userId)))
+                .FirstOrDefault();
         }
 
         return summary;
     }
 
     public Task<List<FeedbackDto>> GetMyFeedbackAsync(Guid userId) =>
-        _db.Feedbacks.AsNoTracking()
+        WithTitlesAsync(_db.Feedbacks.AsNoTracking()
             .Where(f => f.UserId == userId)
-            .OrderByDescending(f => f.CreatedAtUtc)
+            .OrderByDescending(f => f.CreatedAtUtc));
+
+    /// <summary>
+    /// Feedback-ը DTO-ով + ռեցեպտի վերնագիրը ընթացիկ լեզվով։ !f.Recipe.IsDeleted-ը
+    /// պահում է նախկին վարքը (f.Recipe.Title-ի INNER JOIN-ը ջնջված ռեցեպտի feedback-ը հանում էր)։
+    /// </summary>
+    private async Task<List<FeedbackDto>> WithTitlesAsync(IQueryable<Feedback> query)
+    {
+        var items = await query
+            .Where(f => !f.Recipe.IsDeleted)
             .Select(f => new FeedbackDto
             {
                 Id = f.Id,
                 RecipeId = f.RecipeId,
-                RecipeTitle = f.Recipe.Title,
                 Rating = f.Rating,
                 Reaction = f.Reaction,
                 TooDifficult = f.TooDifficult,
@@ -139,6 +138,13 @@ public class FeedbackService : IFeedbackService
                 CreatedAtUtc = f.CreatedAtUtc
             })
             .ToListAsync();
+
+        var titles = await _db.LoadRecipeTitlesAsync(items.Select(i => i.RecipeId), _language.Code);
+        foreach (var item in items)
+            item.RecipeTitle = titles.GetValueOrDefault(item.RecipeId, string.Empty);
+
+        return items;
+    }
 
     public async Task<bool> DeleteAsync(Guid userId, Guid recipeId)
     {
@@ -172,10 +178,12 @@ public class FeedbackService : IFeedbackService
 public class FavoriteService : IFavoriteService
 {
     private readonly GialoraDbContext _db;
+    private readonly IContentLanguage _language;
 
-    public FavoriteService(GialoraDbContext db)
+    public FavoriteService(GialoraDbContext db, IContentLanguage language)
     {
         _db = db;
+        _language = language;
     }
 
     public async Task<bool> AddAsync(Guid userId, Guid recipeId)
@@ -209,6 +217,6 @@ public class FavoriteService : IFavoriteService
             .Where(f => f.UserId == userId)
             .OrderByDescending(f => f.CreatedAtUtc)
             .Select(f => f.Recipe)
-            .Select(RecipeMappings.SummaryProjection(userId))
+            .Select(RecipeMappings.SummaryProjection(userId, _language.Code))
             .ToListAsync();
 }

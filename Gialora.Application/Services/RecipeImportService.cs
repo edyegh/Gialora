@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Gialora.Application.Common;
 using Gialora.Data;
 using Gialora.Data.Entities;
+using Gialora.Shared;
 using Gialora.Shared.Dtos;
 using Gialora.Shared.Enums;
 
@@ -103,9 +104,16 @@ public class RecipeImportService : IRecipeImportService
             return result;
         }
 
-        // Բոլոր բաղադրիչներն ու tag-երը կարդում ենք ՄԵԿ անգամ, ոչ թե ամեն տողի համար
-        var ingredientCache = await _db.Ingredients
-            .ToDictionaryAsync(i => i.Name.ToLowerInvariant(), i => i);
+        // Բոլոր բաղադրիչներն ու tag-երը կարդում ենք ՄԵԿ անգամ, ոչ թե ամեն տողի համար։
+        // CSV-ն անգլերեն է, բայց անունը համընկնում է ցանկացած լեզվի թարգմանության հետ
+        // (անգլերենը՝ առաջնահերթ), որ հայերենով ստեղծված բաղադրիչը կրկնօրինակ չստանա։
+        var ingredientCache = new Dictionary<string, Ingredient>();
+        var knownNames = await _db.IngredientTranslations
+            .Include(t => t.Ingredient)
+            .OrderBy(t => t.Language == ContentLanguages.Default ? 0 : 1)
+            .ToListAsync();
+        foreach (var translation in knownNames)
+            ingredientCache.TryAdd(translation.Name.ToLowerInvariant(), translation.Ingredient);
 
         var tagCache = await _db.Tags
             .ToDictionaryAsync(t => t.Name, t => t);
@@ -145,10 +153,12 @@ public class RecipeImportService : IRecipeImportService
         HashSet<string> reservedSlugs,
         RecipeImportResultDto result)
     {
+        // Ռեցեպտը ճանաչում ենք ԱՆԳԼԵՐԵՆ վերնագրով (CSV-ի լեզուն)
         var existing = await _db.Recipes
             .Include(r => r.RecipeIngredients)
             .Include(r => r.RecipeTags)
-            .FirstOrDefaultAsync(r => r.Title == title);
+            .Include(r => r.Translations)
+            .FirstOrDefaultAsync(r => r.Translations.Any(t => t.Language == ContentLanguages.Default && t.Title == title));
 
         if (existing is not null && !request.OverwriteExisting)
         {
@@ -200,7 +210,6 @@ public class RecipeImportService : IRecipeImportService
 
                 ingredient = new Ingredient
                 {
-                    Name = ingredientName,
                     Category = ParseEnum(Value(row, columns, "category"), IngredientCategory.Other),
                     DefaultUnit = ParseEnum(Value(row, columns, "unit"), UnitOfMeasure.Gram)
                 };
@@ -222,6 +231,12 @@ public class RecipeImportService : IRecipeImportService
                 }
 
                 _db.Ingredients.Add(ingredient);
+                _db.IngredientTranslations.Add(new IngredientTranslation
+                {
+                    IngredientId = ingredient.Id,
+                    Language = ContentLanguages.Default,
+                    Name = ingredientName
+                });
                 ingredientCache[key] = ingredient;
                 result.IngredientsCreated++;
             }
@@ -248,9 +263,17 @@ public class RecipeImportService : IRecipeImportService
         if (newIngredients.Count == 0)
             throw new ValidationFailedException("no ingredients were listed.");
 
-        recipe.Title = title;
-        recipe.Description = Nullify(Meta("description"));
-        recipe.Instructions = instructions;
+        // Գրում ենք միայն անգլերեն թարգմանությունը — մյուս լեզուներինը overwrite-ից չեն տուժում
+        var text = recipe.Translations.FirstOrDefault(t => t.Language == ContentLanguages.Default);
+        if (text is null)
+        {
+            text = new RecipeTranslation { RecipeId = recipe.Id, Language = ContentLanguages.Default };
+            _db.RecipeTranslations.Add(text);
+        }
+        text.Title = title;
+        text.Description = Nullify(Meta("description"));
+        text.Instructions = instructions;
+
         recipe.ImageUrl = Nullify(Meta("image"));
         recipe.MealType = ParseEnum(Meta("mealtype"), MealType.Dinner);
         recipe.Cuisine = ParseEnum(Meta("cuisine"), CuisineType.Mediterranean);
@@ -300,8 +323,14 @@ public class RecipeImportService : IRecipeImportService
         {
             if (!tagCache.TryGetValue(tagName, out var tag))
             {
-                tag = new Tag { Name = tagName, DisplayName = RecipeService.ToDisplayName(tagName) };
+                tag = new Tag { Name = tagName };
                 _db.Tags.Add(tag);
+                _db.TagTranslations.Add(new TagTranslation
+                {
+                    TagId = tag.Id,
+                    Language = ContentLanguages.Default,
+                    DisplayName = RecipeService.ToDisplayName(tagName)
+                });
                 tagCache[tagName] = tag;
                 result.TagsCreated++;
             }

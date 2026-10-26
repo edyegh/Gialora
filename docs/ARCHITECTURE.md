@@ -143,7 +143,8 @@ This is the single most important design decision in the project. A recipe is no
 
 | Group | Fields |
 | --- | --- |
-| Identity | Title, Slug (unique, URL-friendly), Description, Instructions, ImageUrl |
+| Identity | Slug (unique, URL-friendly, one for all languages), ImageUrl |
+| Text | Title, Description, Instructions — in `RecipeTranslation` rows, one per language (§3.3.1) |
 | Classification | MealType, Cuisine, Difficulty, DietType, PrimaryProtein |
 | Time & yield | PrepTimeMinutes, CookTimeMinutes, Servings |
 | Age suitability | MinAgeMonths (0 = suitable for everyone) |
@@ -155,7 +156,7 @@ This is the single most important design decision in the project. A recipe is no
 
 `PrimaryProtein` exists specifically to support the planning rule *"don't repeat the same protein two days in a row"*. Without a first-class field, that rule would require guessing from ingredient names.
 
-**Ingredient** — Name (unique among non-deleted rows), DefaultUnit, Category, Allergens (the EU-14 `Allergen` values it contains, stored by name, e.g. `Milk|TreeNuts`), AllergensReviewed and IsPantryStaple. An admin decides an ingredient's allergens once (almond flour → TreeNuts, pesto → TreeNuts + Milk); nothing is inferred from the name. `AllergensReviewed` is false until an admin saves the ingredient — CSV-created ingredients without a valid `allergens` cell, and every ingredient that existed before the `StructuredAllergens` migration, start unreviewed.
+**Ingredient** — Name (per language, in `IngredientTranslation`; unique per language), DefaultUnit, Category, Allergens (the EU-14 `Allergen` values it contains, stored by name, e.g. `Milk|TreeNuts`), AllergensReviewed and IsPantryStaple. An admin decides an ingredient's allergens once (almond flour → TreeNuts, pesto → TreeNuts + Milk); nothing is inferred from the name. `AllergensReviewed` is false until an admin saves the ingredient — CSV-created ingredients without a valid `allergens` cell, and every ingredient that existed before the `StructuredAllergens` migration, start unreviewed.
 
 The `Category` is the supermarket aisle. It is what allows the shopping list to be grouped the way people actually shop, rather than grouped by recipe.
 
@@ -171,7 +172,25 @@ The `Category` is the supermarket aisle. It is what allows the shopping list to 
 
 The unit belongs to the relationship, not to the ingredient, because the same onion is 100 g in one recipe and 1 piece in another.
 
-**Tag / RecipeTag** — Tags carry a normalised lowercase `Name` (the slug, e.g. `high-protein`) and a `DisplayName` for the UI. Tags are created on demand when a recipe references one that does not exist yet.
+**Tag / RecipeTag** — Tags carry a normalised lowercase `Name` (the slug, e.g. `high-protein`) and a `DisplayName` for the UI (per language, in `TagTranslation`). Tags are created on demand when a recipe references one that does not exist yet, with an English display name derived from the slug.
+
+#### 3.3.1 Multilingual catalogue text
+
+The UI speaks English, Armenian and Greek (`ContentLanguages` in Shared: `en`, `hy`, `el`). Admin-written catalogue text is stored per language; user-typed text (family and member names, plan names, comments, chat) is stored as typed.
+
+| Table | Key | Text |
+| --- | --- | --- |
+| `RecipeTranslation` | (RecipeId, Language) | Title, Description, Instructions |
+| `IngredientTranslation` | (IngredientId, Language) | Name — unique index on (Language, Name) |
+| `TagTranslation` | (TagId, Language) | DisplayName |
+
+The parents hold only language-independent data. Translation rows are not `BaseEntity`: they have no Id and no `IsDeleted`; their query filter follows the parent's `IsDeleted`. Because the ingredient-name index cannot see the parent's flag, `IngredientService.DeleteAsync` removes a deleted ingredient's translations so the name can be reused.
+
+**Reading.** The API resolves the request language from `?lang=` or `Accept-Language` (`RequestContentLanguage` → `IContentLanguage`); the client's `LanguageHeaderHandler` sends the UI language on every call. Each read picks the **best row** — requested language, else English, else any language (alphabetical) — and takes *every* field from that one row, so a page never mixes an Armenian title with an English description. DTOs keep their single `Title`/`Name` and add `ContentLanguage` / `NameLanguage` saying which language was returned. Inside EF queries the rule is written inline (`OrderBy(t => t.Language == lang ? 0 : t.Language == "en" ? 1 : 2).ThenBy(t => t.Language)`); in memory it is `TranslationPicker.Best`. Change both together. Search matches text in any language.
+
+**Writing.** Create/update DTOs carry a `Language` (default `en`) and write only that row; other languages are untouched. The admin pages save back into the language the text was loaded in, so editing a fallback never creates a mislabelled translation. The slug is regenerated only when the **English** title changes. CSV import and the seeder are English: they match recipes by English title and ingredients by name (English first).
+
+**Planner.** `PlanningCandidate.IngredientNames` contains every language's names, so a disliked-ingredient word matches in whichever language the family typed it. Shopping list items still store a name snapshot in the language active when the list was generated.
 
 ### 3.4 Meal plans
 
@@ -217,7 +236,7 @@ The unit belongs to the relationship, not to the ingredient, because the same on
 | Feedback → User | Restrict | Preserves rating history. |
 | ShoppingList → MealPlan | ClientCascade | SQL Server refuses two cascade paths from Family. |
 
-**Indexes.** Unique on `User.Email`, `Recipe.Slug`, `Ingredient.Name`, `Tag.Name`, `BlogPost.Slug` and `Feedback (RecipeId, UserId)`. Composite non-unique on `Recipe (IsPublished, MealType, DietType)` — the combination the catalogue and the planner filter on most — and on `MealPlan (FamilyId, WeekStartDate)`.
+**Indexes.** Unique on `User.Email`, `Recipe.Slug`, `IngredientTranslation (Language, Name)`, `Tag.Name`, `BlogPost.Slug` and `Feedback (RecipeId, UserId)`. Composite non-unique on `Recipe (IsPublished, MealType, DietType)` — the combination the catalogue and the planner filter on most — and on `MealPlan (FamilyId, WeekStartDate)`.
 
 ### 3.8 Migrations
 
@@ -228,6 +247,8 @@ The unit belongs to the relationship, not to the ingredient, because the same on
 | `ExpandDomainForMealPlanning` | The full domain above: recipe classification fields, per-line units, family preferences, shopping lists, favourites, blog posts. |
 
 The third migration contains **two hand-written backfill statements** that scaffolding cannot infer. `Recipe.Slug` is added as a non-nullable column with a default of `""` and then given a unique index — on any database holding two or more existing recipes, that index would fail. The backfill derives a slug from the title and appends the first eight characters of the row's Id to guarantee uniqueness. A second statement copies `Tag.Name` into the new non-nullable `Tag.DisplayName`.
+
+`AddContentTranslations` (§3.3.1) is also hand-edited: scaffolding dropped the old text columns *before* creating the translation tables. The edited version creates the tables, copies every recipe and tag (deleted ones too — the seeder recognises deleted seed recipes by English title) and every non-deleted ingredient as `en` rows, and only then drops the columns. `Down` copies the English (else first) translation back; other languages are lost.
 ---
 
 ## 4. The meal planning engine

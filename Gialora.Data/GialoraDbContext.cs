@@ -22,6 +22,9 @@ public class GialoraDbContext : DbContext
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<RecipeIngredient> RecipeIngredients => Set<RecipeIngredient>();
     public DbSet<RecipeTag> RecipeTags => Set<RecipeTag>();
+    public DbSet<RecipeTranslation> RecipeTranslations => Set<RecipeTranslation>();
+    public DbSet<IngredientTranslation> IngredientTranslations => Set<IngredientTranslation>();
+    public DbSet<TagTranslation> TagTranslations => Set<TagTranslation>();
     public DbSet<Feedback> Feedbacks => Set<Feedback>();
     public DbSet<FavoriteRecipe> FavoriteRecipes => Set<FavoriteRecipe>();
     public DbSet<ShoppingList> ShoppingLists => Set<ShoppingList>();
@@ -102,9 +105,7 @@ public class GialoraDbContext : DbContext
         // ---------------- Recipe ----------------
         modelBuilder.Entity<Recipe>(b =>
         {
-            b.Property(r => r.Title).HasMaxLength(200).IsRequired();
             b.Property(r => r.Slug).HasMaxLength(220).IsRequired();
-            b.Property(r => r.Description).HasMaxLength(1000);
             b.Property(r => r.ImageUrl).HasMaxLength(500);
             b.Property(r => r.EstimatedCostPerServing).HasPrecision(8, 2);
             b.Ignore(r => r.TotalTimeMinutes); // հաշվարկվող — column չէ
@@ -125,8 +126,6 @@ public class GialoraDbContext : DbContext
 
         modelBuilder.Entity<Ingredient>(b =>
         {
-            b.Property(i => i.Name).HasMaxLength(120).IsRequired();
-            b.HasIndex(i => i.Name).IsUnique().HasFilter("[IsDeleted] = 0");
             b.Property(i => i.Allergens).HasConversion(allergenConverter).Metadata.SetValueComparer(allergenComparer);
             b.HasQueryFilter(i => !i.IsDeleted);
         });
@@ -134,9 +133,61 @@ public class GialoraDbContext : DbContext
         modelBuilder.Entity<Tag>(b =>
         {
             b.Property(t => t.Name).HasMaxLength(60).IsRequired();
-            b.Property(t => t.DisplayName).HasMaxLength(60).IsRequired();
             b.HasIndex(t => t.Name).IsUnique().HasFilter("[IsDeleted] = 0");
             b.HasQueryFilter(t => !t.IsDeleted);
+        });
+
+        // ---------------- Translations ----------------
+        // Մեկ տող (ծնող, լեզու) զույգի համար։ Ծնողը hard-delete չի լինում (soft delete),
+        // ուստի cascade-ը գործնականում միայն test/admin մաքրման համար է։
+
+        modelBuilder.Entity<RecipeTranslation>(b =>
+        {
+            b.HasKey(t => new { t.RecipeId, t.Language });
+            b.Property(t => t.Language).HasMaxLength(8);
+            b.Property(t => t.Title).HasMaxLength(200).IsRequired();
+            b.Property(t => t.Description).HasMaxLength(1000);
+
+            b.HasOne(t => t.Recipe)
+             .WithMany(r => r.Translations)
+             .HasForeignKey(t => t.RecipeId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasQueryFilter(t => !t.Recipe.IsDeleted);
+        });
+
+        modelBuilder.Entity<IngredientTranslation>(b =>
+        {
+            b.HasKey(t => new { t.IngredientId, t.Language });
+            b.Property(t => t.Language).HasMaxLength(8);
+            b.Property(t => t.Name).HasMaxLength(120).IsRequired();
+
+            // Նույն լեզվով երկու բաղադրիչ նույն անունով չի կարող լինել։ Filter չունի,
+            // որովհետև IsDeleted-ը ծնողի վրա է — դրա փոխարեն IngredientService-ը
+            // soft delete-ի ժամանակ ջնջում է ջնջված բաղադրիչի թարգմանությունները,
+            // որ անունը ազատվի նորի համար։
+            b.HasIndex(t => new { t.Language, t.Name }).IsUnique();
+
+            b.HasOne(t => t.Ingredient)
+             .WithMany(i => i.Translations)
+             .HasForeignKey(t => t.IngredientId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasQueryFilter(t => !t.Ingredient.IsDeleted);
+        });
+
+        modelBuilder.Entity<TagTranslation>(b =>
+        {
+            b.HasKey(t => new { t.TagId, t.Language });
+            b.Property(t => t.Language).HasMaxLength(8);
+            b.Property(t => t.DisplayName).HasMaxLength(60).IsRequired();
+
+            b.HasOne(t => t.Tag)
+             .WithMany(tag => tag.Translations)
+             .HasForeignKey(t => t.TagId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasQueryFilter(t => !t.Tag.IsDeleted);
         });
 
         modelBuilder.Entity<RecipeIngredient>(b =>

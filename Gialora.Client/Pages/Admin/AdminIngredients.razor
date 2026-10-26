@@ -173,6 +173,8 @@
         // PUT-ը փոխարինում է ամբողջը — մնացած դաշտերը պահում ենք ինչպես կան
         edit = new IngredientUpdateDto
         {
+            // Նույն լեզվի թարգմանությունը, որից անունը եկավ (fallback-ի դեպքում՝ անգլերենը)
+            Language = ingredient.NameLanguage,
             Name = ingredient.Name,
             Category = ingredient.Category,
             DefaultUnit = ingredient.DefaultUnit,
@@ -212,6 +214,8 @@
 
         try
         {
+            // Նոր բաղադրիչի անունը գրվում է UI-ի լեզվով
+            draft.Language = L.Language;
             await Admin.CreateIngredientAsync(draft);
             draft = new IngredientCreateDto();
             await Reload();

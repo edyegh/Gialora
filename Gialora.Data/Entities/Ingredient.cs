@@ -5,7 +5,8 @@ namespace Gialora.Data.Entities;
 
 public class Ingredient : BaseEntity
 {
-    public string Name { get; set; } = string.Empty;       // օր. "Chicken mince"
+    /// <summary>Անունը՝ ամեն լեզվով մեկ տող։</summary>
+    public ICollection<IngredientTranslation> Translations { get; set; } = new List<IngredientTranslation>();
 
     /// <summary>Լռելյայն չափման միավորը — նոր RecipeIngredient ավելացնելիս prefill է արվում։</summary>
     public UnitOfMeasure DefaultUnit { get; set; } = UnitOfMeasure.Gram;

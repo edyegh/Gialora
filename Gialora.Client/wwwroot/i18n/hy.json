@@ -325,6 +325,7 @@
   "AdminRecipeEdit.EditRecipe": "Խմբագրել բաղադրատոմսը",
   "AdminRecipeEdit.AllRecipes": "Բոլոր բաղադրատոմսերը",
   "AdminRecipeEdit.Basics": "Հիմնական",
+  "AdminRecipeEdit.TextLanguage": "Տեքստերի լեզուն՝ {0}",
   "AdminRecipeEdit.ShortDescription": "Կարճ նկարագրություն",
   "AdminRecipeEdit.ImageUrl": "Նկարի URL",
   "AdminRecipeEdit.Cuisine": "Խոհանոց",

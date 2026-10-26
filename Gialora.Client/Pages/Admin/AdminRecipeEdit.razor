@@ -37,6 +37,7 @@
         <div class="card-g mb-4">
             <div class="card-g-body stack">
                 <h2 style="margin:0;">@L["AdminRecipeEdit.Basics"]</h2>
+                <p class="small-muted" style="margin:0;">@L["AdminRecipeEdit.TextLanguage", LanguageName(model.Language)]</p>
 
                 <div>
                     <label class="form-label" for="title">@L["Common.Title"]</label>
@@ -286,7 +287,8 @@
             }
             else
             {
-                model = new RecipeUpdateDto { Servings = 4, MealType = MealType.Dinner };
+                // Նոր ռեցեպտի տեքստերը գրվում են UI-ի լեզվով
+                model = new RecipeUpdateDto { Servings = 4, MealType = MealType.Dinner, Language = L.Language };
             }
         }
         catch (ApiException ex)
@@ -299,8 +301,15 @@
         }
     }
 
+    private static string LanguageName(string? code) =>
+        Localizer.Languages.FirstOrDefault(l => l.Code == code)?.NativeName ?? code ?? string.Empty;
+
     private static RecipeUpdateDto ToUpdateDto(RecipeDetailDto source) => new()
     {
+        // Պահում ենք ՆՈՒՅՆ լեզվի թարգմանության մեջ, որից կարդացինք. եթե API-ն ետ էր
+        // ընկել անգլերենին, խմբագրումը անգլերենն է փոխում, ոչ թե ստեղծում "հայերեն"
+        // թարգմանություն անգլերեն տեքստով։
+        Language = source.ContentLanguage,
         Title = source.Title,
         Description = source.Description,
         Instructions = source.Instructions ?? string.Empty,

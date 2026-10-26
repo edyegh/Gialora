@@ -325,6 +325,7 @@
   "AdminRecipeEdit.EditRecipe": "Επεξεργασία συνταγής",
   "AdminRecipeEdit.AllRecipes": "Όλες οι συνταγές",
   "AdminRecipeEdit.Basics": "Βασικά",
+  "AdminRecipeEdit.TextLanguage": "Γλώσσα κειμένων: {0}",
   "AdminRecipeEdit.ShortDescription": "Σύντομη περιγραφή",
   "AdminRecipeEdit.ImageUrl": "URL εικόνας",
   "AdminRecipeEdit.Cuisine": "Κουζίνα",

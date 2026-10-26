@@ -6,6 +6,7 @@ using Gialora.Application.Common;
 using Gialora.Application.Planning;
 using Gialora.Data;
 using Gialora.Data.Entities;
+using Gialora.Shared;
 using Gialora.Shared.Dtos;
 using Gialora.Shared.Enums;
 
@@ -21,17 +22,20 @@ public class MealPlanService : IMealPlanService
     private readonly GialoraDbContext _db;
     private readonly IMealPlanningEngine _engine;
     private readonly IFamilyService _familyService;
+    private readonly IContentLanguage _language;
     private readonly ILogger<MealPlanService> _logger;
 
     public MealPlanService(
         GialoraDbContext db,
         IMealPlanningEngine engine,
         IFamilyService familyService,
+        IContentLanguage language,
         ILogger<MealPlanService> logger)
     {
         _db = db;
         _engine = engine;
         _familyService = familyService;
+        _language = language;
         _logger = logger;
     }
 
@@ -433,7 +437,7 @@ public class MealPlanService : IMealPlanService
             .Select(r => new
             {
                 r.Id,
-                r.Title,
+                Titles = r.Translations.Select(t => new { t.Language, t.Title }).ToList(),
                 r.MealType,
                 r.DietType,
                 r.PrimaryProtein,
@@ -452,7 +456,9 @@ public class MealPlanService : IMealPlanService
                 Ingredients = r.RecipeIngredients.Select(ri => new
                 {
                     ri.IngredientId,
-                    ri.Ingredient.Name,
+                    // ԲՈԼՈՐ լեզուների անունները — "չսիրած" բառը ("սխտոր" կամ "garlic")
+                    // պիտի համընկնի՝ անկախ նրանից, թե ընտանիքը որ լեզվով է այն գրել
+                    Names = ri.Ingredient.Translations.Select(t => t.Name).ToList(),
                     ri.Ingredient.Category,
                     ri.Ingredient.Allergens,
                     ri.Ingredient.AllergensReviewed
@@ -465,7 +471,7 @@ public class MealPlanService : IMealPlanService
         return raw.Select(r => new PlanningCandidate
         {
             RecipeId = r.Id,
-            Title = r.Title,
+            Title = r.Titles.Best(_language.Code, t => t.Language)?.Title ?? string.Empty,
             MealType = r.MealType,
             DietType = r.DietType,
             PrimaryProtein = r.PrimaryProtein,
@@ -480,7 +486,7 @@ public class MealPlanService : IMealPlanService
             IsHighProtein = r.IsHighProtein,
             CostPerServing = r.EstimatedCostPerServing,
             IngredientIds = r.Ingredients.Select(i => i.IngredientId).ToHashSet(),
-            IngredientNames = r.Ingredients.Select(i => i.Name).ToHashSet(StringComparer.OrdinalIgnoreCase),
+            IngredientNames = r.Ingredients.SelectMany(i => i.Names).ToHashSet(StringComparer.OrdinalIgnoreCase),
             Tags = r.Tags.ToHashSet(StringComparer.OrdinalIgnoreCase),
             VegetableCount = r.Ingredients.Count(i =>
                 i.Category is IngredientCategory.Vegetables or IngredientCategory.Fruit),
@@ -566,7 +572,11 @@ public class MealPlanService : IMealPlanService
                 .ThenInclude(d => d.Entries.OrderBy(e => e.SortOrder))
                     .ThenInclude(e => e.Recipe)
                         .ThenInclude(r => r.RecipeTags)
-                            .ThenInclude(rt => rt.Tag);
+                            .ThenInclude(rt => rt.Tag)
+            .Include(p => p.Days)
+                .ThenInclude(d => d.Entries)
+                    .ThenInclude(e => e.Recipe)
+                        .ThenInclude(r => r.Translations);
 
     private async Task<MealPlan?> LoadPlanAsync(Guid userId, Guid planId, bool tracking)
     {
@@ -594,7 +604,7 @@ public class MealPlanService : IMealPlanService
             .FirstOrDefaultAsync(f => f.Id == familyId)
         ?? throw new NotFoundException("Family not found.");
 
-    private static MealPlanDto Map(MealPlan plan) => new()
+    private MealPlanDto Map(MealPlan plan) => new()
     {
         Id = plan.Id,
         Name = plan.Name,
@@ -620,36 +630,42 @@ public class MealPlanService : IMealPlanService
                         MealType = e.MealType,
                         PlannedServings = e.PlannedServings,
                         IsLocked = e.IsLocked,
-                        Recipe = MapRecipe(e.Recipe)
+                        Recipe = MapRecipe(e.Recipe, _language.Code)
                     })
                     .ToList()
             })
             .ToList()
     };
 
-    private static RecipeSummaryDto MapRecipe(Recipe r) => new()
+    private static RecipeSummaryDto MapRecipe(Recipe r, string language)
     {
-        Id = r.Id,
-        Title = r.Title,
-        Slug = r.Slug,
-        Description = r.Description,
-        ImageUrl = r.ImageUrl,
-        MealType = r.MealType,
-        Cuisine = r.Cuisine,
-        Difficulty = r.Difficulty,
-        DietType = r.DietType,
-        PrimaryProtein = r.PrimaryProtein,
-        PrepTimeMinutes = r.PrepTimeMinutes,
-        CookTimeMinutes = r.CookTimeMinutes,
-        Servings = r.Servings,
-        MinAgeMonths = r.MinAgeMonths,
-        IsFreezerFriendly = r.IsFreezerFriendly,
-        IsLunchboxFriendly = r.IsLunchboxFriendly,
-        IsKidFriendly = r.IsKidFriendly,
-        IsHighProtein = r.IsHighProtein,
-        IsIronRich = r.IsIronRich,
-        IsBatchFriendly = r.IsBatchFriendly,
-        IsPublished = r.IsPublished,
-        Tags = r.RecipeTags.Select(rt => rt.Tag.Name).ToList()
-    };
+        var text = r.Translations.Best(language);
+
+        return new RecipeSummaryDto
+        {
+            Id = r.Id,
+            Title = text?.Title ?? string.Empty,
+            Description = text?.Description,
+            ContentLanguage = text?.Language ?? ContentLanguages.Default,
+            Slug = r.Slug,
+            ImageUrl = r.ImageUrl,
+            MealType = r.MealType,
+            Cuisine = r.Cuisine,
+            Difficulty = r.Difficulty,
+            DietType = r.DietType,
+            PrimaryProtein = r.PrimaryProtein,
+            PrepTimeMinutes = r.PrepTimeMinutes,
+            CookTimeMinutes = r.CookTimeMinutes,
+            Servings = r.Servings,
+            MinAgeMonths = r.MinAgeMonths,
+            IsFreezerFriendly = r.IsFreezerFriendly,
+            IsLunchboxFriendly = r.IsLunchboxFriendly,
+            IsKidFriendly = r.IsKidFriendly,
+            IsHighProtein = r.IsHighProtein,
+            IsIronRich = r.IsIronRich,
+            IsBatchFriendly = r.IsBatchFriendly,
+            IsPublished = r.IsPublished,
+            Tags = r.RecipeTags.Select(rt => rt.Tag.Name).ToList()
+        };
+    }
 }

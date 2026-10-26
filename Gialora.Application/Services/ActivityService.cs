@@ -31,8 +31,13 @@ public partial class ActivityService : IActivityService
     private const int MaxDays = 365;
 
     private readonly GialoraDbContext _db;
+    private readonly IContentLanguage _language;
 
-    public ActivityService(GialoraDbContext db) => _db = db;
+    public ActivityService(GialoraDbContext db, IContentLanguage language)
+    {
+        _db = db;
+        _language = language;
+    }
 
     public async Task RecordAsync(Guid? userId, ActivityBatchDto batch)
     {
@@ -141,19 +146,29 @@ public partial class ActivityService : IActivityService
 
         var lastActive = await all.Select(a => (DateTime?)a.CreatedAtUtc).MaxAsync();
 
-        var saved = await _db.FavoriteRecipes.AsNoTracking()
+        var savedRows = await _db.FavoriteRecipes.AsNoTracking()
             .Where(f => f.UserId == userId)
             .OrderByDescending(f => f.CreatedAtUtc)
-            .Select(f => new RecipeRefDto { Title = f.Recipe.Title, Slug = f.Recipe.Slug, AtUtc = f.CreatedAtUtc })
+            .Select(f => new { f.RecipeId, f.Recipe.Slug, f.CreatedAtUtc })
             .ToListAsync();
 
         // Նույն ռեցեպտի կրկնակի 👍-ը (մի քանի feedback) մեկ տող է
-        var liked = (await _db.Feedbacks.AsNoTracking()
-                .Where(f => f.UserId == userId && f.Reaction == FeedbackReaction.Liked)
+        var likedRows = (await _db.Feedbacks.AsNoTracking()
+                .Where(f => f.UserId == userId && f.Reaction == FeedbackReaction.Liked && !f.Recipe.IsDeleted)
                 .OrderByDescending(f => f.CreatedAtUtc)
-                .Select(f => new RecipeRefDto { Title = f.Recipe.Title, Slug = f.Recipe.Slug, AtUtc = f.CreatedAtUtc })
+                .Select(f => new { f.RecipeId, f.Recipe.Slug, f.CreatedAtUtc })
                 .ToListAsync())
             .DistinctBy(r => r.Slug)
+            .ToList();
+
+        var titles = await _db.LoadRecipeTitlesAsync(
+            savedRows.Select(r => r.RecipeId).Concat(likedRows.Select(r => r.RecipeId)), _language.Code);
+
+        var saved = savedRows
+            .Select(r => new RecipeRefDto { Title = titles.GetValueOrDefault(r.RecipeId, string.Empty), Slug = r.Slug, AtUtc = r.CreatedAtUtc })
+            .ToList();
+        var liked = likedRows
+            .Select(r => new RecipeRefDto { Title = titles.GetValueOrDefault(r.RecipeId, string.Empty), Slug = r.Slug, AtUtc = r.CreatedAtUtc })
             .ToList();
 
         var recent = await activity
@@ -163,10 +178,7 @@ public partial class ActivityService : IActivityService
             .ToListAsync();
 
         var recipeIds = recent.Where(r => r.RecipeId != null).Select(r => r.RecipeId!.Value).Distinct().ToList();
-        var recipes = await _db.Recipes.AsNoTracking()
-            .Where(r => recipeIds.Contains(r.Id))
-            .Select(r => new { r.Id, r.Title, r.Slug })
-            .ToDictionaryAsync(r => r.Id);
+        var recipes = await RecipeRefsAsync(recipeIds);
 
         return new AdminUserActivityDto
         {
@@ -186,7 +198,8 @@ public partial class ActivityService : IActivityService
             TopPages = await TopLabelsAsync(activity.Where(a => a.Type == ActivityType.PageView && a.Path != null).Select(a => a.Path!)),
             Recent = recent.Select(r =>
             {
-                var recipe = r.RecipeId is { } rid && recipes.TryGetValue(rid, out var found) ? found : null;
+                (string Title, string Slug)? recipe =
+                    r.RecipeId is { } rid && recipes.TryGetValue(rid, out var found) ? found : null;
                 return new ActivityLogItemDto
                 {
                     Type = r.Type,
@@ -221,16 +234,27 @@ public partial class ActivityService : IActivityService
             .Take(TopListSize)
             .ToListAsync();
 
-        var ids = top.Select(t => t.RecipeId).ToList();
-        var recipes = await _db.Recipes.AsNoTracking()
-            .Where(r => ids.Contains(r.Id))
-            .Select(r => new { r.Id, r.Title, r.Slug })
-            .ToDictionaryAsync(r => r.Id);
+        var recipes = await RecipeRefsAsync(top.Select(t => t.RecipeId).ToList());
 
         return top
             .Where(t => recipes.ContainsKey(t.RecipeId))
             .Select(t => new StatCountDto { Label = recipes[t.RecipeId].Title, Slug = recipes[t.RecipeId].Slug, Count = t.Count })
             .ToList();
+    }
+
+    /// <summary>Չջնջված ռեցեպտների slug + վերնագիր (ընթացիկ լեզվով)՝ Id-ով։</summary>
+    private async Task<Dictionary<Guid, (string Title, string Slug)>> RecipeRefsAsync(List<Guid> ids)
+    {
+        var slugs = await _db.Recipes.AsNoTracking()
+            .Where(r => ids.Contains(r.Id))
+            .Select(r => new { r.Id, r.Slug })
+            .ToDictionaryAsync(r => r.Id, r => r.Slug);
+
+        var titles = await _db.LoadRecipeTitlesAsync(slugs.Keys, _language.Code);
+
+        return slugs.ToDictionary(
+            s => s.Key,
+            s => (titles.GetValueOrDefault(s.Key, string.Empty), s.Value));
     }
 
     private static async Task<List<StatCountDto>> TopLabelsAsync(IQueryable<string> labels) =>
