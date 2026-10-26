@@ -226,24 +226,42 @@ public class RecipeService : IRecipeService
             recipe.PublishedAtUtc = DateTime.UtcNow;
         recipe.IsPublished = dto.IsPublished;
 
-        // Join table-երը replace ենք անում ամբողջությամբ — diff անելը այստեղ
-        // ավելի շատ bug է բերում, քան օգուտ։
-        _db.RecipeIngredients.RemoveRange(recipe.RecipeIngredients);
-        _db.RecipeTags.RemoveRange(recipe.RecipeTags);
-        await _db.SaveChangesAsync();
+        // Join table-երը diff ենք անում և պահում ՄԵԿ SaveChanges-ով (ատոմար)։ Նախկինում
+        // "ջնջել ամբողջը → save → ավելացնել → save" էր (նույն composite key-ով տողը
+        // մեկ save-ում ջնջել ու ավելացնել EF-ը չի թույլատրում)։ Երկրորդ save-ի սխալը
+        // թողնում էր published ռեցեպտ՝ առանց բաղադրիչների, որը ալերգիայի filter-ը անցնում էր։
+        var current = recipe.RecipeIngredients.ToDictionary(ri => ri.IngredientId);
+        var wanted = BuildIngredients(dto.Ingredients);
 
-        // FK-ը դնում ենք ձեռքով և ուղիղ AddRange ենք անում։ Tracked entity-ի
-        // navigation collection-ին վերագրելը EF-ին ստիպում է լրացված key-ով
-        // տողերը համարել գոյություն ունեցող և INSERT-ի փոխարեն UPDATE գեներացնել։
-        var ingredients = BuildIngredients(dto.Ingredients);
-        foreach (var ri in ingredients)
-            ri.RecipeId = recipe.Id;
-        _db.RecipeIngredients.AddRange(ingredients);
+        _db.RecipeIngredients.RemoveRange(current.Values.Where(ri => wanted.All(w => w.IngredientId != ri.IngredientId)));
 
-        var tags = (await ResolveTagsAsync(dto.Tags))
-            .Select(t => new RecipeTag { RecipeId = recipe.Id, Tag = t })
-            .ToList();
-        _db.RecipeTags.AddRange(tags);
+        foreach (var w in wanted)
+        {
+            if (current.TryGetValue(w.IngredientId, out var existing))
+            {
+                existing.Quantity = w.Quantity;
+                existing.Unit = w.Unit;
+                existing.Note = w.Note;
+                existing.IsOptional = w.IsOptional;
+                existing.SortOrder = w.SortOrder;
+            }
+            else
+            {
+                // FK-ը ձեռքով + ուղիղ Add. tracked recipe-ի collection-ին ավելացնելը
+                // EF-ին ստիպում է INSERT-ի փոխարեն UPDATE գեներացնել։
+                w.RecipeId = recipe.Id;
+                _db.RecipeIngredients.Add(w);
+            }
+        }
+
+        var wantedTags = await ResolveTagsAsync(dto.Tags);
+        var wantedTagIds = wantedTags.Select(t => t.Id).ToHashSet();
+        var currentTagIds = recipe.RecipeTags.Select(rt => rt.TagId).ToHashSet();
+
+        _db.RecipeTags.RemoveRange(recipe.RecipeTags.Where(rt => !wantedTagIds.Contains(rt.TagId)));
+        _db.RecipeTags.AddRange(wantedTags
+            .Where(t => !currentTagIds.Contains(t.Id))
+            .Select(t => new RecipeTag { RecipeId = recipe.Id, Tag = t }));
 
         await _db.SaveChangesAsync();
 
@@ -324,10 +342,7 @@ public class RecipeService : IRecipeService
                 IsOptional = g.All(x => x.IsOptional),
                 SortOrder = g.Min(x => x.SortOrder) == 0 ? index : g.Min(x => x.SortOrder)
             })
-            // Composite key-ը (RecipeId, IngredientId) է — նույն ingredient-ը երկու
-            // տարբեր միավորով դեռ բախում կտա, ուստի պահում ենք առաջինը։
-            .GroupBy(ri => ri.IngredientId)
-            .Select(g => g.First())
+            // Նույն ingredient-ը երկու տարբեր միավորով ValidateIngredientsAsync-ը մերժում է
             .ToList();
     }
 
@@ -335,6 +350,12 @@ public class RecipeService : IRecipeService
     {
         if (ingredients.Count == 0)
             throw new ValidationFailedException("A recipe needs at least one ingredient.");
+
+        // Composite key-ը (RecipeId, IngredientId) է — "200 g ալյուր" + "2 tbsp ալյուր"
+        // մեկ տող չեն կարող լինել։ Նախկինում երկրորդը լուռ կորչում էր (shopping list-ը
+        // պակաս էր հաշվում) — հիմա ասում ենք admin-ին։
+        if (ingredients.GroupBy(i => i.IngredientId).Any(g => g.Select(i => i.Unit).Distinct().Count() > 1))
+            throw new ValidationFailedException("The same ingredient is listed in two different units. Combine them into one row.");
 
         var ids = ingredients.Select(i => i.IngredientId).Distinct().ToList();
         var existing = await _db.Ingredients.CountAsync(i => ids.Contains(i.Id));

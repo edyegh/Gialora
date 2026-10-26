@@ -46,6 +46,7 @@ builder.Services.AddAuthorizationCore();
 
 // Typed API clients։ Էջերը երբեք ուղիղ HttpClient չեն դիպչում — URL-ները,
 // JSON-ի կարգավորումները և սխալի թարգմանությունը մեկ շերտում են։
+builder.Services.AddSingleton<PendingVerification>();
 builder.Services.AddScoped<AccountApi>();
 builder.Services.AddScoped<RecipeApi>();
 builder.Services.AddScoped<PlannerApi>();

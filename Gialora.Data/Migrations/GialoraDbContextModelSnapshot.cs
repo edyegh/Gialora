@@ -808,6 +808,7 @@ namespace Gialora.Data.Migrations
                         .HasColumnType("bit");
 
                     b.Property<int>("EmailVerificationAttempts")
+                        .IsConcurrencyToken()
                         .HasColumnType("int");
 
                     b.Property<string>("EmailVerificationCodeHash")
@@ -846,7 +847,8 @@ namespace Gialora.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.HasIndex("FamilyId");
 

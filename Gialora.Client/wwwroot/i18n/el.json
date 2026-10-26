@@ -101,6 +101,7 @@
   "Verify.ResendIn": "ζητήστε νέο σε {0} δευτ.",
   "Verify.Resent": "Ένας νέος κωδικός είναι καθ' οδόν.",
   "Verify.NoEmail": "Δεν γνωρίζουμε ποιο email να επιβεβαιώσουμε.",
+  "Verify.PasswordHint": "Ο κωδικός με τον οποίο εγγραφήκατε.",
 
   "Logout.Title": "Αποσύνδεση",
   "Logout.SigningOut": "Αποσύνδεση...",

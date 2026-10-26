@@ -5,6 +5,7 @@
 @using Gialora.Client.Services
 @inject AccountApi Account
 @inject NavigationManager Navigation
+@inject PendingVerification Pending
 
 <PageTitle>@L["Nav.CreateAccount"] — Gialora</PageTitle>
 
@@ -73,6 +74,7 @@
             var result = await Account.RegisterAsync(registerDto);
 
             // Token դեռ չկա — նախ email-ի կոդը, հետո՝ family setup
+            Pending.Set(result.Email, registerDto.Password);
             Navigation.NavigateTo($"verify-email?email={Uri.EscapeDataString(result.Email)}", replace: true);
         }
         catch (ApiException ex)

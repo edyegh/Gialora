@@ -5,6 +5,7 @@
 @using Gialora.Client.Services
 @inject AccountApi Account
 @inject NavigationManager Navigation
+@inject PendingVerification Pending
 
 <PageTitle>@L["Verify.Heading"] — Gialora</PageTitle>
 
@@ -34,6 +35,18 @@
                                    @bind-Value="verifyDto.Code" />
                         <ValidationMessage For="@(() => verifyDto.Code)" />
                     </div>
+
+                    @if (askPassword)
+                    {
+                        @* Էջը reload է արվել/բացվել է ուղիղ — register/login-ի password-ը հիշողությունում չկա *@
+                        <div class="mb-3">
+                            <label class="form-label" for="password">@L["Common.Password"]</label>
+                            <InputText id="password" type="password" class="form-control" autocomplete="current-password"
+                                       @bind-Value="verifyDto.Password" />
+                            <div class="form-text">@L["Verify.PasswordHint"]</div>
+                            <ValidationMessage For="@(() => verifyDto.Password)" />
+                        </div>
+                    }
 
                     <ErrorAlert Message="@errorMessage" />
 
@@ -80,12 +93,18 @@
     private string? infoMessage;
     private bool isSubmitting;
     private bool isResending;
+    private bool askPassword;
     private int cooldownSeconds;
     private System.Threading.Timer? cooldownTimer;
 
     protected override void OnInitialized()
     {
         verifyDto.Email = Email?.Trim() ?? string.Empty;
+
+        // API-ն կոդի հետ password-ն էլ է պահանջում (account takeover-ի դեմ)
+        var pending = Pending.PasswordFor(verifyDto.Email);
+        verifyDto.Password = pending ?? string.Empty;
+        askPassword = pending is null;
 
         // Կոդը հենց նոր է ուղարկվել (գրանցում / login) — resend-ը միանգամից իմաստ չունի
         StartCooldown();
@@ -103,6 +122,7 @@
         {
             verifyDto.Code = verifyDto.Code.Trim();
             await Account.VerifyEmailAsync(verifyDto);
+            Pending.Clear();
 
             // Login-ից եկածը վերադառնում է իր էջին, նոր գրանցվածը՝ family setup
             var target = string.IsNullOrWhiteSpace(ReturnUrl) ? "family" : ReturnUrlGuard.Sanitize(ReturnUrl);
@@ -111,6 +131,9 @@
         catch (ApiException ex)
         {
             errorMessage = ex.Message;
+
+            // Միգուցե password-ը փոխվել է (նույն email-ով նորից գրանցում) — թույլ ենք տալիս մուտքագրել
+            askPassword = true;
         }
         catch (HttpRequestException)
         {

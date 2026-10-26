@@ -35,6 +35,13 @@ public class VerifyEmailDto
 
     [Required, RegularExpression(@"^\s*\d{6}\s*$", ErrorMessage = "The code must be 6 digits.")]
     public string Code { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Գրանցման password-ը։ Առանց դրա նույն email-ով նորից գրանցվողը (ով կարող է
+    /// password-ը փոխել) account-ը կխլեր՝ երբ իսկական տերը կոդը մուտքագրեր։
+    /// </summary>
+    [Required, StringLength(100)]
+    public string Password { get; set; } = string.Empty;
 }
 
 public class ResendVerificationDto

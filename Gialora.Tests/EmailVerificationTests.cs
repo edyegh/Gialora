@@ -100,7 +100,7 @@ public class EmailVerificationTests
     {
         await RegisterAsync();
 
-        var verified = await Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Code = $" {_email.LastCode} " });
+        var verified = await Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Password = Password, Code = $" {_email.LastCode} " });
         Assert.Equal(Email, verified.Email);
 
         var user = await _db.Users.SingleAsync();
@@ -116,10 +116,10 @@ public class EmailVerificationTests
     {
         await RegisterAsync();
         var code = _email.LastCode;
-        await Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Code = code });
+        await Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Password = Password, Code = code });
 
         await Assert.ThrowsAsync<ValidationFailedException>(() =>
-            Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Code = code }));
+            Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Password = Password, Code = code }));
     }
 
     [Fact]
@@ -131,11 +131,11 @@ public class EmailVerificationTests
         for (var i = 0; i < AuthService.MaxVerificationAttempts; i++)
         {
             await Assert.ThrowsAsync<ValidationFailedException>(() =>
-                Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Code = WrongCode(code) }));
+                Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Password = Password, Code = WrongCode(code) }));
         }
 
         await Assert.ThrowsAsync<ValidationFailedException>(() =>
-            Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Code = code }));
+            Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Password = Password, Code = code }));
         Assert.False((await _db.Users.SingleAsync()).EmailConfirmed);
     }
 
@@ -148,7 +148,7 @@ public class EmailVerificationTests
         await _db.SaveChangesAsync();
 
         await Assert.ThrowsAsync<ValidationFailedException>(() =>
-            Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Code = _email.LastCode }));
+            Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Password = Password, Code = _email.LastCode }));
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public class EmailVerificationTests
         await Service().ResendVerificationAsync(new ResendVerificationDto { Email = Email });
         Assert.Equal(2, _email.Sent.Count);
 
-        await Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Code = _email.LastCode });
+        await Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Password = Password, Code = _email.LastCode });
         Assert.True((await _db.Users.SingleAsync()).EmailConfirmed);
     }
 
@@ -185,17 +185,53 @@ public class EmailVerificationTests
         await RegisterAsync(password: Password);
 
         Assert.Single(await _db.Users.ToListAsync());
-        Assert.Equal(2, _email.Sent.Count);
+        Assert.Single(_email.Sent); // inside the cooldown: same code, new password
 
-        await Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Code = _email.LastCode });
+        await Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Password = Password, Code = _email.LastCode });
         Assert.NotNull(await Service().ValidateCredentialsAsync(new LoginDto { Email = Email, Password = Password }));
+    }
+
+    [Fact]
+    public async Task Someone_re_registering_your_email_cannot_take_over_the_account()
+    {
+        await RegisterAsync(password: Password);              // the real owner
+        var ownersCode = _email.LastCode;
+        await RegisterAsync(password: "attacker-password-1"); // attacker, same email
+
+        // The owner's code alone no longer confirms the account: their password doesn't match
+        await Assert.ThrowsAsync<ValidationFailedException>(() =>
+            Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Password = Password, Code = ownersCode }));
+        Assert.False((await _db.Users.SingleAsync()).EmailConfirmed);
+
+        // ...and the attacker, who knows the password, never gets the code
+        await Assert.ThrowsAsync<ValidationFailedException>(() =>
+            Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Password = "attacker-password-1", Code = WrongCode(ownersCode) }));
+    }
+
+    [Fact]
+    public async Task Re_registering_does_not_reset_the_attempt_limit()
+    {
+        await RegisterAsync();
+        var code = _email.LastCode;
+
+        for (var i = 0; i < AuthService.MaxVerificationAttempts; i++)
+        {
+            await Assert.ThrowsAsync<ValidationFailedException>(() =>
+                Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Password = Password, Code = WrongCode(code) }));
+        }
+
+        await RegisterAsync(); // still inside the cooldown
+
+        await Assert.ThrowsAsync<ValidationFailedException>(() =>
+            Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Password = Password, Code = code }));
+        Assert.Single(_email.Sent);
     }
 
     [Fact]
     public async Task Registering_a_confirmed_email_is_a_conflict()
     {
         await RegisterAsync();
-        await Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Code = _email.LastCode });
+        await Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Password = Password, Code = _email.LastCode });
 
         await Assert.ThrowsAsync<ConflictException>(() => RegisterAsync());
     }
@@ -208,7 +244,7 @@ public class EmailVerificationTests
 
         _email.Fail = false;
         await RegisterAsync();
-        await Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Code = _email.LastCode });
+        await Service().VerifyEmailAsync(new VerifyEmailDto { Email = Email, Password = Password, Code = _email.LastCode });
         Assert.True((await _db.Users.SingleAsync()).EmailConfirmed);
     }
 }

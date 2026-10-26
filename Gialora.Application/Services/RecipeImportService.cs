@@ -110,11 +110,13 @@ public class RecipeImportService : IRecipeImportService
         var tagCache = await _db.Tags
             .ToDictionaryAsync(t => t.Name, t => t);
 
+        var reservedSlugs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var (title, groupRows) in groups)
         {
             try
             {
-                await ImportOneAsync(title, groupRows, columns, request, adminId, ingredientCache, tagCache, result);
+                await ImportOneAsync(title, groupRows, columns, request, adminId, ingredientCache, tagCache, reservedSlugs, result);
             }
             catch (Exception ex)
             {
@@ -140,6 +142,7 @@ public class RecipeImportService : IRecipeImportService
         Guid adminId,
         Dictionary<string, Ingredient> ingredientCache,
         Dictionary<string, Tag> tagCache,
+        HashSet<string> reservedSlugs,
         RecipeImportResultDto result)
     {
         var existing = await _db.Recipes
@@ -164,70 +167,16 @@ public class RecipeImportService : IRecipeImportService
         if (instructions.Length == 0)
             throw new ValidationFailedException("no instructions provided.");
 
+        // Recipe-ին (և context-ին) ՉԵՆՔ դիպչում, մինչև բաղադրիչները չստուգենք. վերջում
+        // մեկ SaveChanges է, և catch-ից հետո այն կպահեր կիսատ ռեցեպտ՝ առանց բաղադրիչների
+        // (որը ալերգիայի filter-ը "անվտանգ" կհամարեր)։ Id-ն արդեն կա (BaseEntity)։
         var recipe = existing ?? new Recipe();
-
-        recipe.Title = title;
-        recipe.Description = Nullify(Meta("description"));
-        recipe.Instructions = instructions;
-        recipe.ImageUrl = Nullify(Meta("image"));
-        recipe.MealType = ParseEnum(Meta("mealtype"), MealType.Dinner);
-        recipe.Cuisine = ParseEnum(Meta("cuisine"), CuisineType.Mediterranean);
-        recipe.Difficulty = ParseEnum(Meta("difficulty"), DifficultyLevel.Easy);
-        recipe.DietType = ParseEnum(Meta("diettype"), DietType.Meat);
-        recipe.PrimaryProtein = ParseEnum(Meta("protein"), ProteinType.None);
-        recipe.Servings = ParseInt(Meta("servings"), 4, 1, 50);
-        recipe.PrepTimeMinutes = ParseInt(Meta("preptime"), 0, 0, 600);
-        recipe.CookTimeMinutes = ParseInt(Meta("cooktime"), 0, 0, 600);
-        recipe.MinAgeMonths = ParseInt(Meta("minagemonths"), 0, 0, 1200);
-        recipe.IsFreezerFriendly = ParseBool(Meta("freezer"));
-        recipe.IsLunchboxFriendly = ParseBool(Meta("lunchbox"));
-        recipe.IsKidFriendly = ParseBool(Meta("kidfriendly"));
-        recipe.IsHighProtein = ParseBool(Meta("highprotein"));
-        recipe.IsIronRich = ParseBool(Meta("ironrich"));
-        recipe.IsBatchFriendly = ParseBool(Meta("batch"));
-        recipe.CreatedByAdminId = adminId;
-
-        if (request.PublishImmediately && !recipe.IsPublished)
-            recipe.PublishedAtUtc = DateTime.UtcNow;
-        recipe.IsPublished = request.PublishImmediately;
-
-        if (existing is null)
-        {
-            recipe.Slug = await Slug.UniqueAsync(title, s => _db.Recipes.AnyAsync(r => r.Slug == s));
-            _db.Recipes.Add(recipe);
-        }
-        else
-        {
-            // Միայն RemoveRange — collection-ը ձեռք չենք տալիս (տես ներքևի ծանոթագրությունը)
-            _db.RecipeIngredients.RemoveRange(recipe.RecipeIngredients);
-            _db.RecipeTags.RemoveRange(recipe.RecipeTags);
-        }
 
         // Նոր join-տողերը հավաքում ենք ԼՈԿԱԼ ցուցակում և ուղիղ AddRange անում։
         // Tracked recipe-ի navigation collection-ին ավելացնելը EF-ին ստիպում է
         // լրացված key-ով տողը համարել գոյություն ունեցող → UPDATE 0 տողի վրա։
         var newTags = new List<RecipeTag>();
         var newIngredients = new List<RecipeIngredient>();
-
-        // --- Tags ---
-        var tagNames = Meta("tags")
-            .Split(new[] { '|', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(RecipeService.Normalize)
-            .Where(t => t.Length > 0)
-            .Distinct();
-
-        foreach (var tagName in tagNames)
-        {
-            if (!tagCache.TryGetValue(tagName, out var tag))
-            {
-                tag = new Tag { Name = tagName, DisplayName = RecipeService.ToDisplayName(tagName) };
-                _db.Tags.Add(tag);
-                tagCache[tagName] = tag;
-                result.TagsCreated++;
-            }
-
-            newTags.Add(new RecipeTag { RecipeId = recipe.Id, Tag = tag });
-        }
 
         // --- Ingredients ---
         var seenIngredients = new HashSet<Guid>();
@@ -298,6 +247,67 @@ public class RecipeImportService : IRecipeImportService
 
         if (newIngredients.Count == 0)
             throw new ValidationFailedException("no ingredients were listed.");
+
+        recipe.Title = title;
+        recipe.Description = Nullify(Meta("description"));
+        recipe.Instructions = instructions;
+        recipe.ImageUrl = Nullify(Meta("image"));
+        recipe.MealType = ParseEnum(Meta("mealtype"), MealType.Dinner);
+        recipe.Cuisine = ParseEnum(Meta("cuisine"), CuisineType.Mediterranean);
+        recipe.Difficulty = ParseEnum(Meta("difficulty"), DifficultyLevel.Easy);
+        recipe.DietType = ParseEnum(Meta("diettype"), DietType.Meat);
+        recipe.PrimaryProtein = ParseEnum(Meta("protein"), ProteinType.None);
+        recipe.Servings = ParseInt(Meta("servings"), 4, 1, 50);
+        recipe.PrepTimeMinutes = ParseInt(Meta("preptime"), 0, 0, 600);
+        recipe.CookTimeMinutes = ParseInt(Meta("cooktime"), 0, 0, 600);
+        recipe.MinAgeMonths = ParseInt(Meta("minagemonths"), 0, 0, 1200);
+        recipe.IsFreezerFriendly = ParseBool(Meta("freezer"));
+        recipe.IsLunchboxFriendly = ParseBool(Meta("lunchbox"));
+        recipe.IsKidFriendly = ParseBool(Meta("kidfriendly"));
+        recipe.IsHighProtein = ParseBool(Meta("highprotein"));
+        recipe.IsIronRich = ParseBool(Meta("ironrich"));
+        recipe.IsBatchFriendly = ParseBool(Meta("batch"));
+        recipe.CreatedByAdminId = adminId;
+
+        if (request.PublishImmediately && !recipe.IsPublished)
+            recipe.PublishedAtUtc = DateTime.UtcNow;
+        recipe.IsPublished = request.PublishImmediately;
+
+        if (existing is null)
+        {
+            // reservedSlugs — նույն batch-ում արդեն տրված slug-երը (դեռ DB-ում չեն),
+            // այլապես "Purée soup"/"Puree soup" նույն slug-ը կստանային → unique index → 500
+            recipe.Slug = await Slug.UniqueAsync(title,
+                async s => reservedSlugs.Contains(s) || await _db.Recipes.AnyAsync(r => r.Slug == s));
+            reservedSlugs.Add(recipe.Slug);
+            _db.Recipes.Add(recipe);
+        }
+        else
+        {
+            // Միայն RemoveRange — collection-ը ձեռք չենք տալիս (տես վերևի ծանոթագրությունը)
+            _db.RecipeIngredients.RemoveRange(recipe.RecipeIngredients);
+            _db.RecipeTags.RemoveRange(recipe.RecipeTags);
+        }
+
+        // --- Tags ---
+        var tagNames = Meta("tags")
+            .Split(new[] { '|', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(RecipeService.Normalize)
+            .Where(t => t.Length > 0)
+            .Distinct();
+
+        foreach (var tagName in tagNames)
+        {
+            if (!tagCache.TryGetValue(tagName, out var tag))
+            {
+                tag = new Tag { Name = tagName, DisplayName = RecipeService.ToDisplayName(tagName) };
+                _db.Tags.Add(tag);
+                tagCache[tagName] = tag;
+                result.TagsCreated++;
+            }
+
+            newTags.Add(new RecipeTag { RecipeId = recipe.Id, Tag = tag });
+        }
 
         _db.RecipeTags.AddRange(newTags);
         _db.RecipeIngredients.AddRange(newIngredients);

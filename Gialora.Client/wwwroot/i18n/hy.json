@@ -101,6 +101,7 @@
   "Verify.ResendIn": "նոր կոդ կարող եք խնդրել {0} վ-ից։",
   "Verify.Resent": "Նոր կոդն ուղարկված է։",
   "Verify.NoEmail": "Հայտնի չէ, թե որ email-ը պետք է հաստատել։",
+  "Verify.PasswordHint": "Այն password-ը, որով գրանցվել եք։",
 
   "Logout.Title": "Դուրս գալ",
   "Logout.SigningOut": "Դուրս եք գալիս...",

@@ -64,7 +64,10 @@ public class GialoraDbContext : DbContext
             b.Property(u => u.DisplayName).HasMaxLength(100).IsRequired();
             b.Property(u => u.PasswordHash).HasMaxLength(256).IsRequired();
             b.Property(u => u.EmailVerificationCodeHash).HasMaxLength(64);
-            b.HasIndex(u => u.Email).IsUnique();
+            // Concurrency token — զուգահեռ verify request-ները չեն կարող փորձերի սահմանը շրջանցել
+            b.Property(u => u.EmailVerificationAttempts).IsConcurrencyToken();
+            // Filtered — ջնջված user-ի email-ով նորից գրանցվելը հնարավոր է
+            b.HasIndex(u => u.Email).IsUnique().HasFilter("[IsDeleted] = 0");
             b.HasQueryFilter(u => !u.IsDeleted);
         });
 

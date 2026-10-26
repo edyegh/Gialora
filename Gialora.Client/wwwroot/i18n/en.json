@@ -101,6 +101,7 @@
   "Verify.ResendIn": "request a new one in {0} s.",
   "Verify.Resent": "A new code is on its way.",
   "Verify.NoEmail": "We don't know which email to confirm.",
+  "Verify.PasswordHint": "The password you registered with.",
 
   "Logout.Title": "Signing out",
   "Logout.SigningOut": "Signing out...",

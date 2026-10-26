@@ -27,7 +27,7 @@ public class AuthService : IAuthService
     public const int MaxVerificationAttempts = 5;
     public static readonly TimeSpan ResendCooldown = TimeSpan.FromSeconds(60);
 
-    private const string InvalidCodeMessage = "The code is invalid or has expired. Please request a new one.";
+    private const string InvalidCodeMessage = "The code or password is incorrect, or the code has expired.";
 
     // Իրական bcrypt hash (workFactor 12) գոյություն չունեցող password-ի համար։
     // Օգտագործվում է միայն որպես "dummy" ստուգում, որ անհայտ email-ի response time-ը
@@ -51,13 +51,21 @@ public class AuthService : IAuthService
         if (user is { EmailConfirmed: true })
             throw new ConflictException("An account with this email already exists.");
 
+        string? code;
+
         if (user is not null)
         {
             // Չհաստատված account — ոչ ոք դեռ չի ապացուցել, որ email-ը իրենն է։ Թույլ ենք
             // տալիս նորից գրանցվել (կորցրած կոդ, սխալ password), այլապես email-ը
-            // ընդմիշտ "զբաղված" կմնար։ Account-ը կստանա նա, ով կոդը կմուտքագրի։
+            // ընդմիշտ "զբաղված" կմնար։ Հաստատելու համար պետք է ԵՎ կոդը (email-ից), ԵՎ
+            // այս password-ը — ուրիշի email-ով գրանցվողը կոդը չունի, իսկ կոդը ստացողը
+            // չի կարող հաստատել ուրիշի դրած password-ով account (account takeover)։
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password, workFactor: 12);
             user.DisplayName = dto.DisplayName.Trim();
+
+            // Նոր կոդ (և attempt-երի զրոյացում) — միայն cooldown-ից հետո, այլապես
+            // կրկնակի գրանցումը կշրջանցեր թե՛ փորձերի սահմանը, թե՛ inbox-ի պաշտպանությունը
+            code = IsInCooldown(user) ? null : IssueVerificationCode(user);
         }
         else
         {
@@ -70,9 +78,8 @@ public class AuthService : IAuthService
                 EmailConfirmed = false
             };
             _db.Users.Add(user);
+            code = IssueVerificationCode(user);
         }
-
-        var code = IssueVerificationCode(user);
 
         try
         {
@@ -88,7 +95,8 @@ public class AuthService : IAuthService
 
         _logger.LogInformation("New user registered, awaiting email confirmation: {UserId}", user.Id);
 
-        await SendVerificationEmailAsync(user, code, dto.Language);
+        if (code is not null)
+            await SendVerificationEmailAsync(user, code, dto.Language);
 
         return new RegisterResultDto { Email = user.Email };
     }
@@ -109,22 +117,43 @@ public class AuthService : IAuthService
         var expected = Convert.FromHexString(user.EmailVerificationCodeHash);
         var actual = HashVerificationCode(dto.Code.Trim());
 
-        // Constant-time համեմատություն — timing-ով կոդը նիշ առ նիշ գուշակել չի լինի
-        if (!CryptographicOperations.FixedTimeEquals(expected, actual))
+        // Constant-time համեմատություն — timing-ով կոդը նիշ առ նիշ գուշակել չի լինի։
+        // Password-ը նույնպես — կոդը հաստատում է email-ը, password-ը՝ որ account-ը
+        // գրանցողինն է (ոչ թե նրանը, ով նույն email-ով հետո նորից գրանցվեց)։
+        var codeOk = CryptographicOperations.FixedTimeEquals(expected, actual);
+        var passwordOk = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
+
+        if (!codeOk || !passwordOk)
         {
             user.EmailVerificationAttempts++;
-            await _db.SaveChangesAsync();
-            _logger.LogInformation("Wrong verification code for {UserId} (attempt {Attempt})", user.Id, user.EmailVerificationAttempts);
+            await SaveVerificationAttemptAsync();
+            _logger.LogInformation("Wrong verification code or password for {UserId} (attempt {Attempt})", user.Id, user.EmailVerificationAttempts);
             throw new ValidationFailedException(InvalidCodeMessage);
         }
 
         user.EmailConfirmed = true;
         ClearVerificationCode(user);
-        await _db.SaveChangesAsync();
+        await SaveVerificationAttemptAsync();
 
         _logger.LogInformation("Email confirmed: {UserId}", user.Id);
 
         return ToDto(user);
+    }
+
+    /// <summary>
+    /// EmailVerificationAttempts-ը concurrency token է. զուգահեռ request-ները կարդում են
+    /// նույն արժեքը, և միայն մեկի UPDATE-ն է անցնում — մնացածը "ազատ" փորձ չեն ստանում։
+    /// </summary>
+    private async Task SaveVerificationAttemptAsync()
+    {
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ValidationFailedException(InvalidCodeMessage);
+        }
     }
 
     public async Task ResendVerificationAsync(ResendVerificationDto dto)
@@ -156,6 +185,9 @@ public class AuthService : IAuthService
         // Ստուգիր՝ account-ը lockout-ի մեջ չէ՞
         if (user.LockoutEndUtc is not null && user.LockoutEndUtc > DateTime.UtcNow)
         {
+            // Նույն response time-ը, ինչ սովորական login-ինը — այլապես արագ պատասխանը
+            // կբացահայտեր, որ այս email-ով account կա և կողպված է
+            BCrypt.Net.BCrypt.Verify(dto.Password, DummyPasswordHash);
             _logger.LogWarning("Login attempt on locked account: {UserId}", user.Id);
             return null;
         }
@@ -209,13 +241,16 @@ public class AuthService : IAuthService
     private async Task ResendIfCooledDownAsync(User user, string? language)
     {
         // Cooldown — առանց դրա մեկը կարող էր ուրիշի inbox-ը նամակներով լցնել
-        if (user.EmailVerificationSentUtc is not null && DateTime.UtcNow - user.EmailVerificationSentUtc < ResendCooldown)
+        if (IsInCooldown(user))
             return;
 
         var code = IssueVerificationCode(user);
         await _db.SaveChangesAsync();
         await SendVerificationEmailAsync(user, code, language);
     }
+
+    private static bool IsInCooldown(User user) =>
+        user.EmailVerificationSentUtc is not null && DateTime.UtcNow - user.EmailVerificationSentUtc < ResendCooldown;
 
     /// <summary>Նոր կոդ է ստեղծում ու hash-ը դնում user-ի վրա (SaveChanges-ը կանչողինն է)։</summary>
     private static string IssueVerificationCode(User user)
@@ -246,10 +281,16 @@ public class AuthService : IAuthService
         {
             await _email.SendAsync(VerificationEmail.Build(user.Email, user.DisplayName, code, language, VerificationCodeValidMinutes));
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex)
         {
-            // Account-ը պահված է — user-ը կարող է "Resend" սեղմել կամ նորից գրանցվել
+            // Account-ը պահված է — user-ը կարող է "Resend" սեղմել կամ նորից գրանցվել։
+            // Filter չկա. SMTP-ի timeout-ը OperationCanceledException է և 500 կդառնար։
             _logger.LogError(ex, "Could not send verification email to {UserId}", user.Id);
+
+            // Նամակը չգնաց — cooldown-ը չեղարկում ենք, որ "Resend"-ը անմիջապես աշխատի
+            // (այլապես 60 վայրկյան լուռ 204 կստանար՝ առանց նամակի)
+            user.EmailVerificationSentUtc = null;
+            await _db.SaveChangesAsync();
             throw new EmailDeliveryException();
         }
     }
