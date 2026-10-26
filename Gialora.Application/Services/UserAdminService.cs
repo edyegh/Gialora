@@ -98,6 +98,13 @@ public class UserAdminService : IUserAdminService
             var otherAdmins = await _db.Users.CountAsync(u => u.Role == UserRole.Admin && u.Id != userId);
             if (otherAdmins == 0)
                 throw new ConflictException("Cannot remove the last admin account.");
+
+            // BlogPost.Author-ը required navigation է, իսկ User-ը query filter ունի — ջնջված
+            // հեղինակի գրառումները INNER JOIN-ով լուռ անհետանում էին հանրային blog-ից
+            // (իսկ TotalCount-ը դեռ հաշվում էր դրանք, և paging-ը կոտրվում էր)։
+            var posts = await _db.BlogPosts.CountAsync(p => p.AuthorId == userId);
+            if (posts > 0)
+                throw new ConflictException($"This admin wrote {posts} blog post(s). Delete them or ask another admin to republish them first.");
         }
 
         // Soft delete — recipe-ները/blog-ի գրառումները (Restrict FK) մնում են, user-ը

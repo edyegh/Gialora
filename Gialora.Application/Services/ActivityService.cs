@@ -241,6 +241,8 @@ public partial class ActivityService : IActivityService
             .Take(TopListSize)
             .ToListAsync();
 
+    public const int MaxUserRows = 200;
+
     private async Task<List<AdminUserStatsRowDto>> UserRowsAsync(IQueryable<UserActivity> periodActivity)
     {
         var users = await _db.Users.AsNoTracking()

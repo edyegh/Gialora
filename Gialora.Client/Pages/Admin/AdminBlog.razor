@@ -94,8 +94,7 @@
                             <td>@(post.PublishedAtUtc is { } published ? L.ShortDate(published.ToLocalTime()) : "—")</td>
                             <td style="text-align:right; white-space:nowrap;">
                                 <a class="btn btn-ghost btn-sm" href="admin/blog/@post.Id">@L["Common.Edit"]</a>
-                                <button class="btn btn-danger-soft btn-sm" @onclick="() => Delete(post.Id)"
-                                        disabled="@busy">@L["Common.Delete"]</button>
+                                <ConfirmButton Label="@L["Common.Delete"]" OnConfirm="() => Delete(post.Id)" Disabled="busy" />
                             </td>
                         </tr>
                     }

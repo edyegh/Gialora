@@ -190,8 +190,12 @@ public class MealPlanningEngine : IMealPlanningEngine
 
         var random = new Random(request.Seed);
         var selected = new List<PlanningCandidate>();
-        var usedIngredients = new HashSet<Guid>();
-        var proteinUsage = new Dictionary<ProteinType, int>();
+        // Մնացող ճաշերը (regenerate) — սպիտակուցի հավասարակշռությունն ու բաղադրիչների
+        // կրկնօգտագործումը հաշվում ենք ամբողջ պլանով, ոչ միայն նոր ընտրվածներով
+        var usedIngredients = request.KeptMeals.SelectMany(k => k.IngredientIds).ToHashSet();
+        var proteinUsage = request.KeptMeals
+            .GroupBy(k => k.PrimaryProtein)
+            .ToDictionary(g => g.Key, g => g.Count());
 
         // Batch & freeze պլանում միայն batch/freezer-ի պիտանի ուտեստներն են իմաստ ունենում
         if (request.PlanType == MealPlanType.BatchAndFreeze)

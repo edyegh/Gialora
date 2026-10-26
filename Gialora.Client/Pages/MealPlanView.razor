@@ -124,7 +124,7 @@
 
         <div class="mt-4 cluster">
             <a class="btn btn-outline-g btn-sm" href="plans">@L["PlanView.AllMyPlans"]</a>
-            <button class="btn btn-danger-soft btn-sm" @onclick="Delete" disabled="@busy">@L["PlanView.DeletePlan"]</button>
+            <ConfirmButton Label="@L["PlanView.DeletePlan"]" OnConfirm="Delete" Disabled="busy" />
         </div>
     }
 </section>

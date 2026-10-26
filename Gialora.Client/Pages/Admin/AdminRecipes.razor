@@ -95,8 +95,7 @@
                                             disabled="@busy">@L["Common.Publish"]</button>
                                 }
 
-                                <button class="btn btn-danger-soft btn-sm" @onclick="() => Delete(recipe.Id)"
-                                        disabled="@busy">@L["Common.Delete"]</button>
+                                <ConfirmButton Label="@L["Common.Delete"]" OnConfirm="() => Delete(recipe.Id)" Disabled="busy" />
                             </td>
                         </tr>
                     }

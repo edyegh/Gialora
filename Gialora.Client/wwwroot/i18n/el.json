@@ -33,6 +33,8 @@
   "Common.Saving": "Αποθήκευση...",
   "Common.SaveChanges": "Αποθήκευση αλλαγών",
   "Common.Cancel": "Ακύρωση",
+  "Common.AreYouSure": "Είστε σίγουροι;",
+  "Common.YesDelete": "Ναι, διαγραφή",
   "Common.Name": "Όνομα",
   "Common.Email": "Email",
   "Common.Password": "Κωδικός",

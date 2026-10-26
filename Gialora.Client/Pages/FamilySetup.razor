@@ -99,8 +99,7 @@
                                         <td style="text-align:right; white-space:nowrap;">
                                             <button class="btn btn-outline-g btn-sm"
                                                     @onclick="() => StartEditAllergies(member)" disabled="@busy">@L["Family.EditAllergies"]</button>
-                                            <button class="btn btn-danger-soft btn-sm"
-                                                    @onclick="() => RemoveMember(member.Id)" disabled="@busy">@L["Common.Remove"]</button>
+                                            <ConfirmButton Label="@L["Common.Remove"]" OnConfirm="() => RemoveMember(member.Id)" Disabled="busy" />
                                         </td>
                                     </tr>
 

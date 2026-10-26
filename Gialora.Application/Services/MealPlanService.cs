@@ -227,9 +227,17 @@ public class MealPlanService : IMealPlanService
 
         if (dto.RecipeId is { } explicitRecipeId)
         {
-            var exists = await _db.Recipes.AnyAsync(r => r.Id == explicitRecipeId && r.IsPublished);
-            if (!exists)
-                throw new ValidationFailedException("That recipe does not exist or is not published.");
+            // Ձեռքով ընտրված ռեցեպտն էլ է անցնում engine-ի կոշտ filter-ներով (ալերգիա,
+            // դիետա, տարիք) և ճաշատեսակի ստուգումով — նախկինում ստուգվում էր միայն
+            // "published"-ը, և ալերգիկ ընտանիքը կարող էր ստանալ վտանգավոր ուտեստ։
+            var candidate = (await LoadCandidatesAsync(new[] { entry.MealType }, plan.FamilyId))
+                .FirstOrDefault(c => c.RecipeId == explicitRecipeId);
+            if (candidate is null)
+                throw new ValidationFailedException($"That recipe does not exist, is not published, or is not a {entry.MealType} recipe.");
+
+            var family = await LoadFamilyWithMembersAsync(plan.FamilyId);
+            if (_engine.Filter(new[] { candidate }, FamilyPlanningInput.BuildConstraints(family)).Count == 0)
+                throw new ValidationFailedException("That recipe doesn't fit your family's allergies, diet or ages.");
 
             entry.RecipeId = explicitRecipeId;
         }
@@ -322,6 +330,10 @@ public class MealPlanService : IMealPlanService
                 entry.IsDeleted = true;
         }
 
+        // Առանց սրա ցանկը մնում էր "My lists"-ում՝ գոյություն չունեցող պլանի համար
+        if (plan.ShoppingList is not null)
+            plan.ShoppingList.IsDeleted = true;
+
         await _db.SaveChangesAsync();
         return true;
     }
@@ -340,7 +352,10 @@ public class MealPlanService : IMealPlanService
             return;
 
         var family = await LoadFamilyWithMembersAsync(plan.FamilyId);
-        var mealTypes = openEntries.Select(e => e.MealType).Distinct().ToList();
+
+        // Բոլոր ճաշատեսակները, ոչ միայն բացերինը — մնացող ճաշերի սպիտակուցները
+        // (KeptMeals) պետք են, իսկ slot-երի տեսակները engine-ը ինքն է զտում
+        var mealTypes = plan.Days.SelectMany(d => d.Entries).Select(e => e.MealType).Distinct().ToList();
 
         var candidates = await LoadCandidatesAsync(mealTypes, plan.FamilyId);
 
@@ -368,6 +383,7 @@ public class MealPlanService : IMealPlanService
             PlanType = plan.PlanType,
             OptimizeIngredientReuse = true,
             AlreadyUsedRecipeIds = keptRecipeIds,
+            KeptMeals = candidates.Where(c => keptRecipeIds.Contains(c.RecipeId)).ToList(),
             Seed = Random.Shared.Next()
         });
 

@@ -111,6 +111,13 @@ public class PlanningRequest
     /// <summary>Ռեցեպտներ, որ արդեն կան պլանում (locked slot-երից) — չկրկնենք դրանք։</summary>
     public HashSet<Guid> AlreadyUsedRecipeIds { get; init; } = new();
 
+    /// <summary>
+    /// Պլանում մնացող ճաշերը (regenerate-ի ժամանակ)։ Դրանց սպիտակուցներն ու բաղադրիչները
+    /// հաշվվում են scoring-ում — այլապես locked հավով երեքշաբթիից հետո չորեքշաբթին էլ
+    /// հավ կստանար, կարծես պլանը դատարկ լիներ։
+    /// </summary>
+    public IReadOnlyCollection<PlanningCandidate> KeptMeals { get; init; } = Array.Empty<PlanningCandidate>();
+
     /// <summary>Regenerate-ը պիտի ուրիշ արդյունք տա — seed-ը դա է ապահովում։</summary>
     public int Seed { get; init; } = Environment.TickCount;
 }

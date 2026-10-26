@@ -33,6 +33,8 @@
   "Common.Saving": "Saving...",
   "Common.SaveChanges": "Save changes",
   "Common.Cancel": "Cancel",
+  "Common.AreYouSure": "Are you sure?",
+  "Common.YesDelete": "Yes, delete",
   "Common.Name": "Name",
   "Common.Email": "Email",
   "Common.Password": "Password",

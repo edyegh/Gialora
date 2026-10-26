@@ -116,12 +116,9 @@
                                         disabled="@busy">@L["AdminIngredients.ReviewAllergens"]</button>
                                 @* Օգտագործվողը ջնջելը server-ը մերժում է 409-ով —
                                    կոճակը նախապես անջատում ենք, որ սխալ չառաջանա *@
-                                <button class="btn btn-danger-soft btn-sm"
-                                        @onclick="() => Delete(ingredient.Id)"
-                                        disabled="@(busy || ingredient.UsedInRecipeCount > 0)"
-                                        title="@(ingredient.UsedInRecipeCount > 0 ? L["AdminIngredients.InUse"] : L["Common.Delete"])">
-                                    @L["Common.Delete"]
-                                </button>
+                                <ConfirmButton Label="@L["Common.Delete"]" OnConfirm="() => Delete(ingredient.Id)"
+                                               Disabled="@(busy || ingredient.UsedInRecipeCount > 0)"
+                                               Title="@(ingredient.UsedInRecipeCount > 0 ? L["AdminIngredients.InUse"] : L["Common.Delete"])" />
                             </td>
                         </tr>
 

@@ -70,9 +70,13 @@ public class ShoppingListService : IShoppingListService
         {
             // Regenerate — բայց ՊԱՀՊԱՆՈՒՄ ենք, թե ինչն է արդեն նշված։ Առանց սրա
             // շաբաթը վերագեներացնելը խանութում կջնջեր user-ի ամբողջ առաջընթացը։
-            var alreadyChecked = list.Items
-                .Where(i => i.IsChecked && i.IngredientId.HasValue)
-                .Select(i => i.IngredientId!.Value)
+            // IgnoreQueryFilters — "Clear checked"-ով հեռացված (soft-deleted) տողերն էլ են
+            // գնված. առանց սրա regenerate-ը դրանք նորից չնշված կվերադարձներ։
+            var alreadyChecked = (await _db.ShoppingListItems
+                    .IgnoreQueryFilters()
+                    .Where(i => i.ShoppingListId == list.Id && i.IsChecked && i.IngredientId != null)
+                    .Select(i => i.IngredientId!.Value)
+                    .ToListAsync())
                 .ToHashSet();
 
             foreach (var item in consolidated.Where(c => c.IngredientId.HasValue))
@@ -91,6 +95,13 @@ public class ShoppingListService : IShoppingListService
             // և՛ orphan-ի UPDATE գեներացնել, ինչը ձախողվում էր
             // DbUpdateConcurrencyException-ով ("expected to affect 1 row, affected 0")։
             _db.ShoppingListItems.RemoveRange(generated);
+
+            // Նախկինում "Clear checked"-ով soft-delete արված գեներացված տողերը նույնպես —
+            // դրանց "գնված" լինելը արդեն alreadyChecked-ում է, իսկ տողերը կուտակվում էին
+            _db.ShoppingListItems.RemoveRange(await _db.ShoppingListItems
+                .IgnoreQueryFilters()
+                .Where(i => i.ShoppingListId == list.Id && i.IsDeleted && i.IngredientId != null)
+                .ToListAsync());
         }
 
         var sortOrder = keptItemCount;
@@ -104,7 +115,18 @@ public class ShoppingListService : IShoppingListService
             _db.ShoppingListItems.Add(item);
         }
 
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // Կրկնակի click — զուգահեռ request-ը արդեն ստեղծեց (MealPlanId-ի unique index)
+            // կամ վերագեներացրեց (նույն տողերի DELETE → 0 row)։ 500-ի փոխարեն՝ հաղթողի ցանկը։
+            _db.ChangeTracker.Clear();
+            return await GetForMealPlanAsync(userId, mealPlanId)
+                ?? throw new NotFoundException("Meal plan not found.");
+        }
 
         _logger.LogInformation(
             "Shopping list {ListId} generated from plan {PlanId} with {Count} consolidated items",
@@ -139,10 +161,12 @@ public class ShoppingListService : IShoppingListService
                 if (ri.Ingredient is null)
                     continue;
 
-                var scaled = UnitConverter.Scale(
-                    ri.Quantity, ri.Unit,
-                    fromServings: recipe.Servings,
-                    toServings: entry.PlannedServings);
+                // Ճշգրիտ scaling՝ ԱՌԱՆՑ կլորացման (UnitConverter.Scale-ը ամբողջական միավորները
+                // վերև է կլորացնում)։ Կլորացնում ենք միայն գումարից հետո — այլապես երեք
+                // ռեցեպտ × 0.5 բանկա = 3 բանկա, ոչ թե 2։
+                var scaled = recipe.Servings > 0 && entry.PlannedServings > 0
+                    ? ri.Quantity * entry.PlannedServings / recipe.Servings
+                    : ri.Quantity;
 
                 var key = (ri.IngredientId, UnitConverter.ConsolidationKey(ri.Unit));
 

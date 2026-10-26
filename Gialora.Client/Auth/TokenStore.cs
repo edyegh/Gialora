@@ -58,17 +58,36 @@ public class TokenStore
 
     public async Task SetAsync(string token)
     {
-        await _jsRuntime.InvokeVoidAsync("localStorage.setItem", TokenKey, token);
+        // Cache-ը նախ — եթե storage-ը արգելափակված է, user-ը գոնե այս session-ում մուտք է գործած
         _cachedToken = token;
         _loaded = true;
+
+        try
+        {
+            await _jsRuntime.InvokeVoidAsync("localStorage.setItem", TokenKey, token);
+        }
+        catch (JSException)
+        {
+            // Արգելափակված storage — token-ը միայն հիշողությունում է (reload-ից հետո՝ նորից login)
+        }
+
         Changed?.Invoke();
     }
 
     public async Task ClearAsync()
     {
-        await _jsRuntime.InvokeVoidAsync("localStorage.removeItem", TokenKey);
         _cachedToken = null;
         _loaded = true;
+
+        try
+        {
+            await _jsRuntime.InvokeVoidAsync("localStorage.removeItem", TokenKey);
+        }
+        catch (JSException)
+        {
+            // Նույնը — AuthHeaderHandler-ը սա կանչում է 401-ի ժամանակ, HTTP pipeline-ից չպիտի նետի
+        }
+
         Changed?.Invoke();
     }
 }

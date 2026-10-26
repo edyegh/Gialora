@@ -534,7 +534,9 @@ public class DbSeeder
         Dictionary<string, Ingredient> ingredients,
         Dictionary<string, Tag> tags)
     {
+        // IgnoreQueryFilters — admin-ի ջնջած seed ռեցեպտը ամեն restart-ին չպիտի հետ գա
         var existingTitles = await _db.Recipes
+            .IgnoreQueryFilters()
             .Select(r => r.Title)
             .ToListAsync();
 

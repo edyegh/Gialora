@@ -282,6 +282,30 @@ public class MealPlanningEngineTests
     }
 
     [Fact]
+    public void Regenerating_counts_the_proteins_of_the_meals_that_stay()
+    {
+        // The rest of the week is already chicken: the refilled slot should not be chicken too
+        var kept = Enumerable.Range(0, 4).Select(i => Recipe($"Kept chicken {i}", protein: ProteinType.Chicken)).ToList();
+        var pool = new List<PlanningCandidate>(kept);
+        pool.AddRange(Enumerable.Range(0, 3).Select(i => Recipe($"Chicken {i}", protein: ProteinType.Chicken)));
+        pool.AddRange(Enumerable.Range(0, 3).Select(i => Recipe($"Fish {i}", protein: ProteinType.Fish)));
+
+        for (var seed = 1; seed <= 20; seed++)
+        {
+            var result = _engine.Plan(pool, new PlanningRequest
+            {
+                Constraints = Constraints(),
+                SlotCount = 1,
+                AlreadyUsedRecipeIds = kept.Select(k => k.RecipeId).ToHashSet(),
+                KeptMeals = kept,
+                Seed = seed
+            });
+
+            Assert.Equal(ProteinType.Fish, Assert.Single(result.Selection).PrimaryProtein);
+        }
+    }
+
+    [Fact]
     public void Recipes_the_family_disliked_sink_below_neutral_ones()
     {
         var disliked = Recipe("Lentil soup", protein: ProteinType.Legume);

@@ -1,0 +1,33 @@
+@* Gialora.Client/Components/ConfirmButton.razor
+   Ջնջման կոճակ՝ inline հաստատումով ("Ջնջե՞լ — Այո / Չեղարկել")։ Նախկինում մեկ click-ը
+   անմիջապես ջնջում էր պլանը, ցանկը, ընտանիքի անդամին (ալերգիաներով հանդերձ) —
+   server-ը soft delete է անում, բայց UI-ում վերականգնելու ձև չկա։ *@
+
+@if (confirming)
+{
+    <span class="cluster" style="display:inline-flex; gap:.35rem; align-items:center;">
+        <span class="small-muted">@L["Common.AreYouSure"]</span>
+        <button type="button" class="btn btn-danger-soft btn-sm" @onclick="Confirm" disabled="@Disabled">@L["Common.YesDelete"]</button>
+        <button type="button" class="btn btn-ghost btn-sm" @onclick="() => confirming = false">@L["Common.Cancel"]</button>
+    </span>
+}
+else
+{
+    <button type="button" class="btn btn-danger-soft btn-sm" @onclick="() => confirming = true"
+            disabled="@Disabled" title="@Title">@Label</button>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public EventCallback OnConfirm { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string? Title { get; set; }
+
+    private bool confirming;
+
+    private async Task Confirm()
+    {
+        confirming = false;
+        await OnConfirm.InvokeAsync();
+    }
+}

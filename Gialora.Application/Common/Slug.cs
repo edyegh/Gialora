@@ -58,7 +58,9 @@ public static partial class Slug
             suffix++;
 
             if (suffix > 1000) // paranoia guard — անվերջ ցիկլ չգցենք
-                return $"{baseSlug}-{Guid.NewGuid():n}"[..64];
+                // Base-ը կրճատում ենք, ոչ թե ամբողջը — [..64]-ը կարճ string-ի վրա նետում էր,
+                // իսկ երկարի վրա կտրում էր հենց եզակիություն տվող GUID-ը
+                return $"{baseSlug[..Math.Min(baseSlug.Length, 180)].TrimEnd('-')}-{Guid.NewGuid():n}";
         }
 
         return candidate;

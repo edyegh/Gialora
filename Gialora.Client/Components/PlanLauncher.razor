@@ -95,7 +95,7 @@
 
                             @if (family.Preferences.ExcludedProteins.Count > 0)
                             {
-                                <li>🚫 @L["Launcher.NoProteins", string.Join(", ", family.Preferences.ExcludedProteins)]</li>
+                                <li>🚫 @L["Launcher.NoProteins", string.Join(", ", family.Preferences.ExcludedProteins.Select(p => L.Enum(p)))]</li>
                             }
 
                             @if (AllergyNames.Count > 0)

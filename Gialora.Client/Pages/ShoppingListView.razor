@@ -108,7 +108,7 @@
                     disabled="@(busy || list.CheckedItems == 0)">
                 @L["ListView.ClearPickedUp", list.CheckedItems]
             </button>
-            <button class="btn btn-danger-soft btn-sm" @onclick="DeleteList" disabled="@busy">@L["ListView.DeleteList"]</button>
+            <ConfirmButton Label="@L["ListView.DeleteList"]" OnConfirm="DeleteList" Disabled="busy" />
         </div>
     }
 </section>
@@ -190,6 +190,11 @@
 
     private async Task Run(Func<Task> action)
     {
+        // Կոճակները disabled են busy-ի ժամանակ, բայց Enter-ը (և key repeat-ը) ոչ —
+        // առանց սրա կրկնակի Enter-ը նույն ապրանքը երկու անգամ էր ավելացնում
+        if (busy)
+            return;
+
         busy = true;
         error = null;
 
