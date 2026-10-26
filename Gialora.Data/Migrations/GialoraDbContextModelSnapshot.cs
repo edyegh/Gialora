@@ -840,6 +840,49 @@ namespace Gialora.Data.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("Gialora.Data.Entities.UserActivity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Path")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<Guid?>("RecipeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Target")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Type", "CreatedAtUtc");
+
+                    b.HasIndex("UserId", "CreatedAtUtc");
+
+                    b.ToTable("UserActivities");
+                });
+
             modelBuilder.Entity("Gialora.Data.Entities.BlogPost", b =>
                 {
                     b.HasOne("Gialora.Data.Entities.User", "Author")
@@ -1054,6 +1097,16 @@ namespace Gialora.Data.Migrations
                         .HasForeignKey("FamilyId");
 
                     b.Navigation("Family");
+                });
+
+            modelBuilder.Entity("Gialora.Data.Entities.UserActivity", b =>
+                {
+                    b.HasOne("Gialora.Data.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Gialora.Data.Entities.ChatConversation", b =>

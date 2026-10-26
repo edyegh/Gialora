@@ -29,6 +29,7 @@ public class GialoraDbContext : DbContext
     public DbSet<BlogPost> BlogPosts => Set<BlogPost>();
     public DbSet<ChatConversation> ChatConversations => Set<ChatConversation>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
+    public DbSet<UserActivity> UserActivities => Set<UserActivity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -344,6 +345,25 @@ public class GialoraDbContext : DbContext
              .OnDelete(DeleteBehavior.Cascade);
 
             b.HasQueryFilter(m => !m.IsDeleted && !m.Conversation.IsDeleted);
+        });
+
+        // ---------------- Usage statistics ----------------
+        modelBuilder.Entity<UserActivity>(b =>
+        {
+            b.Property(a => a.Type).HasConversion<string>().HasMaxLength(20);
+            b.Property(a => a.Target).HasMaxLength(120);
+            b.Property(a => a.Path).HasMaxLength(300);
+
+            // Admin-ի էջը միշտ ժամանակահատվածով է ֆիլտրում
+            b.HasIndex(a => new { a.Type, a.CreatedAtUtc });
+            b.HasIndex(a => new { a.UserId, a.CreatedAtUtc });
+
+            b.HasOne(a => a.User)
+             .WithMany()
+             .HasForeignKey(a => a.UserId)
+             .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasQueryFilter(a => !a.IsDeleted);
         });
     }
 

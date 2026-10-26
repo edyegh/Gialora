@@ -1,0 +1,161 @@
+@* Gialora.Client/Pages/Admin/AdminUserStats.razor
+   Մեկ user-ի վիճակագրությունը՝ ինչ է պահպանել / հավանել, ինչ է սեղմում,
+   և վերջին գործողությունների ժամանակագրությունը։ *@
+@page "/admin/stats/users/{Id:guid}"
+@attribute [Authorize(Roles = "Admin")]
+@using Gialora.Client.Services
+@using Gialora.Shared.Enums
+@inject AdminApi Admin
+
+<PageTitle>@L["Nav.Admin"] · @(user?.DisplayName ?? L["Admin.Statistics"]) — Gialora</PageTitle>
+
+<section class="section container-wide">
+    <ErrorAlert Message="@error" />
+
+    @if (loading && user is null)
+    {
+        <Loading />
+    }
+    else if (user is null)
+    {
+        <EmptyState Icon="👤" Title="@L["AdminStats.UserNotFound"]">
+            <a class="btn btn-primary" href="admin/stats">@L["AdminStats.Back"]</a>
+        </EmptyState>
+    }
+    else
+    {
+        <div class="page-header row-between">
+            <div>
+                <p class="eyebrow"><a href="admin/stats">@L["AdminStats.Back"]</a></p>
+                <h1 style="margin:0;">@user.DisplayName</h1>
+                <p class="small-muted" style="margin:.35rem 0 0;">
+                    @user.Email
+                    · @L["AdminStats.Joined", L.ShortDate(user.CreatedAtUtc.ToLocalTime())]
+                    · @L["AdminStats.LastActive", user.LastActiveUtc is { } last ? DateTimeText(last) : L["AdminStats.Never"]]
+                </p>
+            </div>
+            <div class="cluster">
+                @foreach (var option in PeriodOptions)
+                {
+                    <button class="btn btn-outline-g btn-sm @(days == option ? "is-on" : null)"
+                            @onclick="() => SetPeriod(option)" disabled="@loading">@L["AdminStats.Days", option]</button>
+                }
+            </div>
+        </div>
+
+        <div class="stat-tiles mb-4">
+            <div class="stat-tile"><span class="stat-value">@user.PageViews</span><span class="stat-label">@L["AdminStats.PageViews"]</span></div>
+            <div class="stat-tile"><span class="stat-value">@user.Clicks</span><span class="stat-label">@L["AdminStats.Clicks"]</span></div>
+            <div class="stat-tile"><span class="stat-value">@user.RecipeViews</span><span class="stat-label">@L["AdminStats.RecipeViews"]</span></div>
+            <div class="stat-tile"><span class="stat-value">@user.SavedRecipes.Count</span><span class="stat-label">@L["AdminStats.Saved"]</span></div>
+            <div class="stat-tile"><span class="stat-value">@user.LikedRecipes.Count</span><span class="stat-label">@L["AdminStats.Liked"]</span></div>
+        </div>
+
+        <div class="grid-3 mb-4">
+            <RecipeRefCard Title="@L["AdminStats.Saved"]" Items="user.SavedRecipes" />
+            <RecipeRefCard Title="@L["AdminStats.Liked"]" Items="user.LikedRecipes" />
+            <StatRankList Title="@L["AdminStats.MostViewed"]" Items="user.MostViewedRecipes" />
+            <StatRankList Title="@L["AdminStats.TopClicks"]" Items="user.TopClicks" />
+            <StatRankList Title="@L["AdminStats.TopPages"]" Items="user.TopPages" />
+        </div>
+
+        <h2 class="h4 mb-3">@L["AdminStats.Recent"]</h2>
+
+        @if (user.Recent.Count == 0)
+        {
+            <p class="small-muted">@L["AdminStats.NoData"]</p>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="table-g">
+                    <thead>
+                        <tr><th>@L["AdminStats.ColWhen"]</th><th>@L["AdminStats.ColType"]</th><th>@L["AdminStats.ColDetail"]</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in user.Recent)
+                        {
+                            <tr>
+                                <td style="white-space:nowrap;">@DateTimeText(item.AtUtc)</td>
+                                <td><span class="pill @TypePill(item.Type)">@L.Enum(item.Type)</span></td>
+                                <td>
+                                    @switch (item.Type)
+                                    {
+                                        case ActivityType.RecipeView when item.RecipeSlug is not null:
+                                            <a href="recipes/@item.RecipeSlug">@item.RecipeTitle</a>
+                                            break;
+                                        case ActivityType.Click:
+                                            <strong>@item.Target</strong>
+                                            <span class="small-muted ms-2">@item.Path</span>
+                                            break;
+                                        default:
+                                            <span>@item.Path</span>
+                                            break;
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private static readonly int[] PeriodOptions = { 7, 30, 90 };
+
+    [Parameter] public Guid Id { get; set; }
+
+    [SupplyParameterFromQuery(Name = "days")] public int Days { get; set; }
+
+    private int days = 30;
+    private AdminUserActivityDto? user;
+    private bool loading = true;
+    private string? error;
+
+    protected override Task OnParametersSetAsync()
+    {
+        days = PeriodOptions.Contains(Days) ? Days : 30;
+
+        return Reload();
+    }
+
+    private Task SetPeriod(int value)
+    {
+        days = value;
+        return Reload();
+    }
+
+    private async Task Reload()
+    {
+        loading = true;
+        error = null;
+
+        try
+        {
+            user = await Admin.GetUserActivityAsync(Id, days);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private string DateTimeText(DateTime utc)
+    {
+        var local = utc.ToLocalTime();
+        return $"{L.ShortDate(local)} {local:HH:mm}";
+    }
+
+    private static string TypePill(ActivityType type) => type switch
+    {
+        ActivityType.Click => "pill-terracotta",
+        ActivityType.RecipeView => "pill-olive",
+        _ => "pill-sea"
+    };
+}

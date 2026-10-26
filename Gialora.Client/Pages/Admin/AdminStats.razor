@@ -1,0 +1,143 @@
+@* Gialora.Client/Pages/Admin/AdminStats.razor
+   Admin-ի վիճակագրությունը՝ ինչ են user-ները հավանում, սեղմում, անում։
+   Click-երն ու էջի դիտումները գրանցվում են միայն cookie-ների "Accept all"-ից հետո։ *@
+@page "/admin/stats"
+@attribute [Authorize(Roles = "Admin")]
+@using Gialora.Client.Services
+@inject AdminApi Admin
+
+<PageTitle>@L["Nav.Admin"] · @L["Admin.Statistics"] — Gialora</PageTitle>
+
+<section class="section container-wide">
+    <div class="page-header row-between">
+        <div>
+            <p class="eyebrow">@L["Nav.Admin"]</p>
+            <h1 style="margin:0;">@L["Admin.Statistics"]</h1>
+            <p class="small-muted" style="margin:.35rem 0 0; max-width:60ch;">@L["AdminStats.Lede"]</p>
+        </div>
+        <div class="cluster">
+            @foreach (var option in PeriodOptions)
+            {
+                <button class="btn btn-outline-g btn-sm @(days == option ? "is-on" : null)"
+                        @onclick="() => SetPeriod(option)" disabled="@loading">@L["AdminStats.Days", option]</button>
+            }
+            <a class="btn btn-outline-g" href="admin/recipes">← @L["Nav.Recipes"]</a>
+        </div>
+    </div>
+
+    <ErrorAlert Message="@error" />
+
+    @if (loading && stats is null)
+    {
+        <Loading />
+    }
+    else if (stats is not null)
+    {
+        <div class="stat-tiles mb-4">
+            <div class="stat-tile">
+                <span class="stat-value">@stats.TotalUsers</span>
+                <span class="stat-label">@L["AdminStats.TotalUsers"]</span>
+                @if (stats.NewUsers > 0)
+                {
+                    <span class="stat-sub">@L["AdminStats.NewUsers", stats.NewUsers]</span>
+                }
+            </div>
+            <div class="stat-tile"><span class="stat-value">@stats.ActiveUsers</span><span class="stat-label">@L["AdminStats.ActiveUsers"]</span></div>
+            <div class="stat-tile"><span class="stat-value">@stats.PageViews</span><span class="stat-label">@L["AdminStats.PageViews"]</span></div>
+            <div class="stat-tile"><span class="stat-value">@stats.Clicks</span><span class="stat-label">@L["AdminStats.Clicks"]</span></div>
+            <div class="stat-tile"><span class="stat-value">@stats.RecipeViews</span><span class="stat-label">@L["AdminStats.RecipeViews"]</span></div>
+            <div class="stat-tile"><span class="stat-value">@stats.FavoritesAdded</span><span class="stat-label">@L["AdminStats.FavoritesAdded"]</span></div>
+            <div class="stat-tile"><span class="stat-value">@stats.PlansCreated</span><span class="stat-label">@L["AdminStats.PlansCreated"]</span></div>
+        </div>
+
+        <div class="grid-3 mb-4">
+            <StatRankList Title="@L["AdminStats.MostSaved"]" Items="stats.MostSavedRecipes" Note="@L["AdminStats.AllTime"]" />
+            <StatRankList Title="@L["AdminStats.MostLiked"]" Items="stats.MostLikedRecipes" Note="@L["AdminStats.AllTime"]" />
+            <StatRankList Title="@L["AdminStats.MostViewed"]" Items="stats.MostViewedRecipes" />
+            <StatRankList Title="@L["AdminStats.TopClicks"]" Items="stats.TopClicks" />
+            <StatRankList Title="@L["AdminStats.TopPages"]" Items="stats.TopPages" />
+        </div>
+
+        <div class="row-between mb-3">
+            <h2 class="h4" style="margin:0;">@L["AdminStats.UsersTitle"]</h2>
+            <input class="form-control" style="max-width:20rem;" placeholder="@L["AdminUsers.FilterPlaceholder"]"
+                   @bind="search" @bind:event="oninput" />
+        </div>
+
+        @if (stats.Users.Count == 0)
+        {
+            <EmptyState Icon="👤" Title="@L["AdminStats.NoUsers"]" />
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="table-g">
+                    <thead>
+                        <tr>
+                            <th>@L["Common.Name"]</th><th>@L["Common.Email"]</th><th>@L["AdminStats.ColLastActive"]</th>
+                            <th style="text-align:right;">@L["AdminStats.ColEvents"]</th><th style="text-align:right;">@L["AdminStats.ColSaved"]</th><th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in FilteredUsers)
+                        {
+                            <tr>
+                                <td><strong>@user.DisplayName</strong></td>
+                                <td>@user.Email</td>
+                                <td>@(user.LastActiveUtc is { } last ? L.ShortDate(last.ToLocalTime()) : L["AdminStats.Never"])</td>
+                                <td style="text-align:right;">@user.Events</td>
+                                <td style="text-align:right;">@user.Favorites</td>
+                                <td style="text-align:right;">
+                                    <a class="btn btn-outline-g btn-sm" href="admin/stats/users/@user.Id?days=@days">@L["AdminStats.View"]</a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private static readonly int[] PeriodOptions = { 7, 30, 90 };
+
+    private AdminStatsDto? stats;
+    private int days = 30;
+    private string search = string.Empty;
+    private bool loading = true;
+    private string? error;
+
+    private IEnumerable<AdminUserStatsRowDto> FilteredUsers =>
+        string.IsNullOrWhiteSpace(search)
+            ? stats!.Users
+            : stats!.Users.Where(u => u.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase)
+                                   || u.Email.Contains(search, StringComparison.OrdinalIgnoreCase));
+
+    protected override Task OnInitializedAsync() => Reload();
+
+    private Task SetPeriod(int value)
+    {
+        days = value;
+        return Reload();
+    }
+
+    private async Task Reload()
+    {
+        loading = true;
+        error = null;
+
+        try
+        {
+            stats = await Admin.GetStatsAsync(days);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+}

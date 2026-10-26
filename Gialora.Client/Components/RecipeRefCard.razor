@@ -1,0 +1,30 @@
+@* Gialora.Client/Components/RecipeRefCard.razor
+   Ռեցեպտների ցուցակ՝ ամսաթվով (user-ի պահպանածները / 👍 հավանածները)։ *@
+
+<div class="card-g">
+    <div class="card-g-body">
+        <p class="eyebrow mb-2">@Title</p>
+
+        @if (Items.Count == 0)
+        {
+            <p class="small-muted mb-0">@L["AdminStats.NoData"]</p>
+        }
+        else
+        {
+            <ul class="rank-list">
+                @foreach (var item in Items)
+                {
+                    <li class="rank-row">
+                        <span class="rank-label" title="@item.Title"><a href="recipes/@item.Slug">@item.Title</a></span>
+                        <span class="rank-count small-muted">@L.ShortDate(item.AtUtc.ToLocalTime())</span>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public List<RecipeRefDto> Items { get; set; } = new();
+}

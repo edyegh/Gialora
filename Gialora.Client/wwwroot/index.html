@@ -86,6 +86,60 @@
         window.gialoraChat = {
             scrollToBottom: el => { if (el) el.scrollTop = el.scrollHeight; }
         };
+
+        // Admin-ի վիճակագրությունը. ՄԵԿ listener ամբողջ document-ի վրա, որ ամեն
+        // կոճակին առանձին @onclick կցելու կարիք չլինի։ Համաձայնությունը (cookie
+        // "Accept all") ստուգում է .NET-ի ActivityTracker-ը, ոչ թե այստեղ։
+        //
+        // Կոճակի անունը՝ ըստ առաջնահերթության.
+        //   data-track="..."      — բացահայտ, լեզվից անկախ անուն (խորհուրդ է տրվում կարևոր կոճակներին)
+        //   <a href>              — "link:/recipes/..." (path-ը լեզվից անկախ է)
+        //   <button>              — aria-label / title / տեքստը (ընթացիկ լեզվով)
+        // data-track-ignore-ով տարրերը (և ներսի ամեն ինչ) չեն հաշվվում։
+        // Input-ների ԱՐԺԵՔՆԵՐԸ երբեք չենք կարդում։
+        window.gialoraActivity = (() => {
+            let listener = null;   // ActivityTrackerHost.razor-ի հղումը
+
+            const clean = text => (text || '').replace(/\s+/g, ' ').trim().slice(0, 120) || null;
+
+            const labelOf = el => {
+                const tracked = el.closest('[data-track]');
+                if (tracked) return clean(tracked.getAttribute('data-track'));
+
+                const link = el.closest('a[href]');
+                if (link) {
+                    try {
+                        const url = new URL(link.href, location.href);
+                        return 'link:' + (url.origin === location.origin ? url.pathname : url.host);
+                    } catch { return null; }
+                }
+
+                const button = el.closest('button, [role="button"], input[type="submit"], input[type="button"]');
+                if (button)
+                    return clean(button.getAttribute('aria-label') || button.title || button.innerText || button.value);
+
+                return null;
+            };
+
+            // capture — որ stopPropagation անող բաղադրիչներն էլ հաշվվեն
+            document.addEventListener('click', e => {
+                if (!listener || !(e.target instanceof Element)) return;
+                if (e.target.closest('[data-track-ignore]')) return;
+
+                const label = labelOf(e.target);
+                if (label) listener.invokeMethodAsync('OnClick', label, location.pathname);
+            }, { capture: true });
+
+            // Tab-ը փակելիս / թաքցնելիս հերթը ուղարկում ենք, որ վերջին click-երը չկորչեն
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'hidden') listener?.invokeMethodAsync('OnHidden');
+            });
+
+            return {
+                setListener(dotNetRef) { listener = dotNetRef; },
+                clearListener() { listener = null; }
+            };
+        })();
     </script>
 
     <script>

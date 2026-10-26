@@ -1,0 +1,74 @@
+@* Gialora.Client/Components/ActivityTrackerHost.razor
+   Ոչինչ չի ցուցադրում — միայն էջի դիտումները (NavigationManager) և click-երը
+   (index.html-ի window.gialoraActivity) փոխանցում է ActivityTracker-ին։
+   App.razor-ում է, ոչ թե MainLayout-ում. layout-ը "Checking session"-ի պահին
+   վերստեղծվում է, և առաջին էջի դիտումը կկրկնվեր։ *@
+
+@using Gialora.Client.Services
+@inject ActivityTracker Tracker
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@code {
+    private DotNetObjectReference<ActivityTrackerHost>? _selfRef;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized(); // լեզվի բաժանորդագրությունը
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        await Tracker.TrackPageViewAsync(CurrentPath());
+
+        _selfRef = DotNetObjectReference.Create(this);
+
+        try
+        {
+            await JS.InvokeVoidAsync("gialoraActivity.setListener", _selfRef);
+        }
+        catch (JSException)
+        {
+            // gialoraActivity-ն չբեռնվեց — click-երը պարզապես չեն հաշվվի
+        }
+    }
+
+    /// <summary>Կանչվում է JS-ից ամեն կոճակի / հղման click-ի ժամանակ։</summary>
+    [JSInvokable]
+    public Task OnClick(string label, string path) => Tracker.TrackClickAsync(label, path);
+
+    /// <summary>Tab-ը թաքցվեց (փակում / այլ tab) — հերթը ուղարկում ենք, քանի դեռ կարող ենք։</summary>
+    [JSInvokable]
+    public Task OnHidden() => Tracker.FlushAsync();
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) =>
+        _ = Tracker.TrackPageViewAsync(CurrentPath());
+
+    private string CurrentPath() => "/" + Navigation.ToBaseRelativePath(Navigation.Uri);
+
+    public async ValueTask DisposeAsync()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+
+        try
+        {
+            await JS.InvokeVoidAsync("gialoraActivity.clearListener");
+        }
+        catch (JSException)
+        {
+            // gialoraActivity-ն չի բեռնվել — մաքրելու բան չկա։
+        }
+        finally
+        {
+            _selfRef?.Dispose();
+
+            // Տե՛ս PwaUpdatePrompt — Localizer-ի բաժանորդագրությունից դուրս գալը
+            base.Dispose();
+        }
+    }
+}

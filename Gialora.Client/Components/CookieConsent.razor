@@ -1,0 +1,74 @@
+@* Gialora.Client/Components/CookieConsent.razor
+   Cookie-ների համաձայնության banner-ը՝ առաջին այցի ժամանակ։ Ընտրությունը
+   պահվում է localStorage-ում, ուստի banner-ը կրկին չի երևում, մինչև
+   օգտատերը browser-ի տվյալները չմաքրի։ *@
+
+@using Gialora.Client.Services
+@inject IJSRuntime JS
+@inject ActivityTracker Tracker
+
+@if (_visible)
+{
+    <div class="cookie-consent" role="dialog" aria-live="polite" aria-labelledby="cookie-consent-title">
+        <div class="cookie-consent-body">
+            <strong id="cookie-consent-title" class="cookie-consent-title">@L["Cookies.Title"]</strong>
+            <p class="cookie-consent-text">@L["Cookies.Text"]</p>
+        </div>
+
+        <div class="cookie-consent-actions">
+            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="@(() => SaveAsync(NecessaryOnly))">
+                @L["Cookies.NecessaryOnly"]
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" @onclick="@(() => SaveAsync(AcceptAll))">
+                @L["Cookies.AcceptAll"]
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    public const string StorageKey = "gialora.cookieConsent";
+    public const string AcceptAll = "all";
+    public const string NecessaryOnly = "necessary";
+
+    private bool _visible;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        string? saved = null;
+        try
+        {
+            saved = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+        }
+        catch (JSException)
+        {
+            // Storage-ը արգելափակված է (private mode) — banner-ը ցույց ենք տալիս ամեն անգամ։
+        }
+
+        if (saved is not (AcceptAll or NecessaryOnly))
+        {
+            _visible = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveAsync(string choice)
+    {
+        _visible = false;
+
+        // Վիճակագրությունը (ActivityTracker) միանում / անջատվում է անմիջապես, առանց reload-ի
+        Tracker.SetConsent(choice == AcceptAll);
+
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, choice);
+        }
+        catch (JSException)
+        {
+            // Չպահվեց — այս session-ում banner-ը միևնույն է թաքնված է։
+        }
+    }
+}

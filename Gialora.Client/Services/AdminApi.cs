@@ -87,4 +87,12 @@ public class AdminApi : ApiClientBase
         PutAsync($"api/admin/users/{id}/password", new AdminSetPasswordDto { NewPassword = newPassword });
 
     public Task DeleteUserAsync(Guid id) => DeleteAsync($"api/admin/users/{id}");
+
+    // --- Statistics ---
+
+    public Task<AdminStatsDto> GetStatsAsync(int days) =>
+        GetAsync<AdminStatsDto>($"api/admin/stats?days={days}");
+
+    public Task<AdminUserActivityDto?> GetUserActivityAsync(Guid id, int days) =>
+        GetOrDefaultAsync<AdminUserActivityDto>($"api/admin/stats/users/{id}?days={days}");
 }

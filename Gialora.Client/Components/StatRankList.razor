@@ -1,0 +1,53 @@
+@* Gialora.Client/Components/StatRankList.razor
+   Վիճակագրության "Top N" քարտը՝ անուն + քանակ + հարաբերական գոտի։
+   Slug ունեցող տողը (ռեցեպտ) հղում է դառնում։ *@
+
+<div class="card-g">
+    <div class="card-g-body">
+        <div class="row-between mb-2">
+            <p class="eyebrow mb-0">@Title</p>
+            @if (!string.IsNullOrEmpty(Note))
+            {
+                <span class="small-muted">@Note</span>
+            }
+        </div>
+
+        @if (Items.Count == 0)
+        {
+            <p class="small-muted mb-0">@L["AdminStats.NoData"]</p>
+        }
+        else
+        {
+            var max = Math.Max(1, Items.Max(i => i.Count));
+
+            <ol class="rank-list">
+                @foreach (var item in Items)
+                {
+                    <li class="rank-row" style="--rank-pct:@(item.Count * 100 / max)%;">
+                        <span class="rank-label" title="@item.Label">
+                            @if (item.Slug is not null)
+                            {
+                                <a href="recipes/@item.Slug">@item.Label</a>
+                            }
+                            else
+                            {
+                                @Display(item.Label)
+                            }
+                        </span>
+                        <span class="rank-count">@item.Count</span>
+                    </li>
+                }
+            </ol>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public List<StatCountDto> Items { get; set; } = new();
+    [Parameter] public string? Note { get; set; }
+
+    // index.html-ի gialoraActivity-ն հղումները "link:/path" ձևով է գրում
+    private static string Display(string label) =>
+        label.StartsWith("link:", StringComparison.Ordinal) ? "🔗 " + label[5..] : label;
+}

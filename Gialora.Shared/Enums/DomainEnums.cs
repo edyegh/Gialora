@@ -176,3 +176,11 @@ public enum ChatSender
     User = 0,
     Admin = 1
 }
+
+/// <summary>Օգտատիրոջ գործողության տեսակը admin-ի վիճակագրության համար։</summary>
+public enum ActivityType
+{
+    PageView = 0,
+    Click = 1,
+    RecipeView = 2
+}

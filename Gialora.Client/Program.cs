@@ -52,6 +52,7 @@ builder.Services.AddScoped<PlannerApi>();
 builder.Services.AddScoped<ContentApi>();
 builder.Services.AddScoped<AdminApi>();
 builder.Services.AddScoped<ChatApi>();
+builder.Services.AddScoped<ActivityTracker>();
 
 // UI-ի լեզուն (en / hy / el)։ Singleton — բոլոր բաղադրիչները նույն բառարանն են տեսնում։
 builder.Services.AddSingleton<Localizer>();

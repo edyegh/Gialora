@@ -109,6 +109,9 @@ builder.Services.AddScoped<IChatNotifier, TelegramChatNotifier>();
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddHostedService<TelegramPollingService>();
 
+// Admin-ի վիճակագրությունը (էջի դիտումներ, click-եր, հավանած ռեցեպտներ)
+builder.Services.AddScoped<IActivityService, ActivityService>();
+
 // Engine-ը state չունի — singleton-ը բավական է
 builder.Services.AddSingleton<IMealPlanningEngine, MealPlanningEngine>();
 
@@ -158,6 +161,18 @@ builder.Services.AddRateLimiter(options =>
         factory: _ => new FixedWindowRateLimiterOptions
         {
             PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
+
+    // Վիճակագրությունը նույնպես բաց է հյուրերի համար։ Client-ը batch է ուղարկում
+    // մոտ 5 վ-ը մեկ, ուստի 30/րոպեն ազնիվ օգտատիրոջը չի խանգարում, բայց բազան
+    // աղբով լցնելը դժվարացնում է
+    options.AddPolicy("activity", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 30,
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0
         }));

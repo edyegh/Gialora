@@ -5,6 +5,7 @@
 @using Gialora.Client.Services
 @using Gialora.Shared.Enums
 @inject RecipeApi Recipes
+@inject ActivityTracker Tracker
 
 <PageTitle>@(recipe?.Title ?? L["RecipeDetail.Title"]) — Gialora</PageTitle>
 
@@ -216,6 +217,9 @@
 
             servings = recipe.Servings;
             isFavorite = recipe.IsFavorite;
+
+            // Admin-ի "ամենադիտված ռեցեպտները" (միայն cookie-ների համաձայնությամբ)
+            _ = Tracker.TrackRecipeViewAsync(recipe.Id, $"/recipes/{recipe.Slug}");
 
             ratings = await Recipes.GetRatingsAsync(recipe.Id);
 
