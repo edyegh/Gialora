@@ -66,6 +66,8 @@ public class GialoraDbContext : DbContext
             b.Property(u => u.EmailVerificationCodeHash).HasMaxLength(64);
             // Concurrency token — զուգահեռ verify request-ները չեն կարող փորձերի սահմանը շրջանցել
             b.Property(u => u.EmailVerificationAttempts).IsConcurrencyToken();
+            // Concurrency token — զուգահեռ առաջին request-ները երկու ընտանիք չստեղծեն (FamilyService)
+            b.Property(u => u.FamilyId).IsConcurrencyToken();
             // Filtered — ջնջված user-ի email-ով նորից գրանցվելը հնարավոր է
             b.HasIndex(u => u.Email).IsUnique().HasFilter("[IsDeleted] = 0");
             b.HasQueryFilter(u => !u.IsDeleted);

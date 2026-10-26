@@ -30,7 +30,7 @@ public class ChatApi : ApiClientBase
         using var request = new HttpRequestMessage(HttpMethod.Get, "api/chat/messages");
         request.Headers.Add(KeyHeader, await GetKeyAsync());
 
-        using var response = await Http.SendAsync(request);
+        using var response = await SendSafeAsync(() => Http.SendAsync(request));
         await EnsureSuccessAsync(response);
         return await ReadAsync<List<ChatMessageDto>>(response) ?? new();
     }
@@ -43,7 +43,7 @@ public class ChatApi : ApiClientBase
         };
         request.Headers.Add(KeyHeader, await GetKeyAsync());
 
-        using var response = await Http.SendAsync(request);
+        using var response = await SendSafeAsync(() => Http.SendAsync(request));
         await EnsureSuccessAsync(response);
         return await ReadAsync<ChatMessageDto>(response);
     }

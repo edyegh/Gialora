@@ -33,7 +33,10 @@ public class TelegramChatNotifier : IChatNotifier
         {
             return await _bot.SendMessageAsync(_options.AdminChatId!.Value, text, cancellationToken);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        // HttpClient-ի timeout-ը TaskCanceledException է (OperationCanceledException) —
+        // type-ով filter-ը այն բաց էր թողնում → 500, իսկ message-ը արդեն պահված էր
+        // (retry → կրկնակի հաղորդագրություն)։ Չեղարկում է միայն request-ի token-ը։
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             // ex.Message-ը token չի պարունակում (TelegramApiException-ը միայն description-ն է պահում)
             _logger.LogError("Could not relay chat message to Telegram: {Error}", ex.Message);

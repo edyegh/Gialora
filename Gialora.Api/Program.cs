@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
@@ -10,6 +11,7 @@ using Gialora.Application.Seed;
 using Gialora.Application.Services;
 using Gialora.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -29,8 +31,12 @@ if (Encoding.UTF8.GetByteCount(jwtSigningKey) < 32)
 
 // Client-ի origin-ները (Gialora.Client/Properties/launchSettings.json)։
 // Override՝ appsettings-ի "Cors:AllowedOrigins" զանգվածով։
+// Production-ում բացակայությունը startup-ի սխալ է — localhost-ի fallback-ը լուռ
+// կկոտրեր deploy արված client-ը (CORS-ի սխալ միայն browser-ի console-ում)։
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-    ?? new[] { "https://localhost:7280", "http://localhost:5056" };
+    ?? (builder.Environment.IsDevelopment()
+        ? new[] { "https://localhost:7280", "http://localhost:5056" }
+        : throw new InvalidOperationException("Cors:AllowedOrigins is not configured."));
 
 // ---------------------------------------------------------------------------
 // Services
@@ -73,7 +79,30 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 builder.Services.AddDbContext<GialoraDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseSqlServer(connectionString, sql =>
+    {
+        // Կարճ ցանցային խզումները (managed SQL-ի failover) 500-ի չվերածվեն։ Սա
+        // ձեռքով BeginTransaction-ը արգելում է — ատոմարությունը մեկ SaveChanges-ով ենք անում։
+        sql.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null);
+        // Մի քանի collection Include-ը մեկ query-ում → cartesian explosion (հազարավոր տողեր)
+        sql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
+    }));
+
+builder.Services.AddMemoryCache();
+
+// Load balancer / orchestrator-ի համար. /health — DB-ն հասանելի՞ է
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("database");
+
+// Reverse proxy-ի (nginx, IIS, App Service) հետևում RemoteIpAddress-ը proxy-ինն է —
+// rate limiter-ը բոլոր user-ներին մեկ bucket-ում կդներ։ Լռելյայն վստահում ենք միայն
+// loopback-ին (նույն մեքենայի proxy), այլ proxy-ները՝ "ForwardedHeaders:KnownProxies"։
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    foreach (var proxy in builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [])
+        options.KnownProxies.Add(IPAddress.Parse(proxy));
+});
 
 // Application services
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -148,6 +177,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             NameClaimType = JwtTokenGenerator.NameClaimType,
             RoleClaimType = JwtTokenGenerator.RoleClaimType
         };
+
+        // Ջնջված/role-ը փոխված user-ի token-ը չպիտի աշխատի մինչև expiry
+        options.Events = new JwtBearerEvents { OnTokenValidated = ActiveUserValidator.OnTokenValidated };
     });
 
 builder.Services.AddAuthorization();
@@ -257,11 +289,25 @@ _ = Task.Run(async () =>
 // Exception handler-ը ամենաառաջինն է — որ ամեն ներքևի սխալ բռնվի
 app.UseGialoraExceptionHandling();
 
+// Rate limiter-ից և HTTPS redirect-ից առաջ — որ երկուսն էլ իրական client-ի IP/scheme-ը տեսնեն
+app.UseForwardedHeaders();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+else
+{
+    app.UseHsts();
+}
+
+app.Use(async (context, next) =>
+{
+    // API-ն միայն JSON է տալիս — browser-ը չպիտի "գուշակի" այլ content type
+    context.Response.Headers.XContentTypeOptions = "nosniff";
+    await next();
+});
 
 app.UseHttpsRedirection();
 app.UseCors("AllowBlazorClient");
@@ -269,5 +315,6 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 app.Run();

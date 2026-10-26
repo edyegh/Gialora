@@ -5,6 +5,7 @@ using Gialora.Application.Common;
 using Gialora.Data;
 using Gialora.Data.Entities;
 using Gialora.Shared.Dtos;
+using Gialora.Shared.Enums;
 
 namespace Gialora.Application.Services;
 
@@ -288,6 +289,22 @@ public class RecipeService : IRecipeService
         var recipe = await _db.Recipes.FirstOrDefaultAsync(r => r.Id == id);
         if (recipe is null)
             return false;
+
+        // MealPlanEntry.Recipe-ը required navigation է, իսկ Recipe-ը query filter ունի —
+        // Include-ը INNER JOIN է, և ջնջված ռեցեպտի ճաշերը լուռ անհետանում են ընտանիքների
+        // պլաններից ու shopping list-երից (swap/lock-ն էլ 404 է տալիս)։ Ընթացիկ/ապագա
+        // պլաններում օգտագործվող ռեցեպտը չենք ջնջում — unpublish-ը այն հանում է
+        // planner-ից, բայց թողնում արդեն պլանավորված ճաշերում։
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var plansUsingIt = await _db.MealPlanEntries
+            .Where(e => e.RecipeId == id
+                && e.MealPlanDay.Date >= today
+                && e.MealPlanDay.MealPlan.Status != MealPlanStatus.Archived)
+            .Select(e => e.MealPlanDay.MealPlanId)
+            .Distinct()
+            .CountAsync();
+        if (plansUsingIt > 0)
+            throw new ConflictException($"This recipe is in {plansUsingIt} current or upcoming meal plan(s). Unpublish it instead.");
 
         // Soft delete + unpublish. Առանց unpublish-ի ջնջված ռեցեպտը կմնար
         // արդեն գեներացված meal plan-երում որպես "published"։

@@ -54,9 +54,20 @@ public class TelegramPollingService : BackgroundService
 
                 foreach (var update in updates)
                 {
-                    // Հաջորդ getUpdates-ը offset-ով "հաստատում" է այս update-ը Telegram-ում
+                    // Հաջորդ getUpdates-ը offset-ով "հաստատում" է այս update-ը Telegram-ում,
+                    // ուստի մեկ update-ի ձախողումը (օր. DB-ի կարճ խափանում) չպիտի լուռ կորցնի
+                    // admin-ի պատասխանը — բռնում ենք այստեղ և admin-ին խնդրում նորից ուղարկել։
                     offset = Math.Max(offset, update.UpdateId + 1);
-                    await HandleAsync(update, stoppingToken);
+                    try
+                    {
+                        await HandleAsync(update, stoppingToken);
+                    }
+                    catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+                    {
+                        _logger.LogError(ex, "Failed to handle Telegram update {UpdateId}", update.UpdateId);
+                        await TrySendAsync(_options.AdminChatId!.Value,
+                            "⚠️ Your reply could not be delivered to the user. Please send it again.", stoppingToken);
+                    }
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -107,15 +118,19 @@ public class TelegramPollingService : BackgroundService
         };
 
         if (hint is not null)
+            await TrySendAsync(message.Chat.Id, hint, stoppingToken);
+    }
+
+    private async Task TrySendAsync(long chatId, string text, CancellationToken stoppingToken)
+    {
+        try
         {
-            try
-            {
-                await _bot.SendMessageAsync(message.Chat.Id, hint, stoppingToken);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _logger.LogWarning("Could not send a hint to the Telegram admin chat: {Error}", ex.Message);
-            }
+            await _bot.SendMessageAsync(chatId, text, stoppingToken);
+        }
+        catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+        {
+            // HttpClient-ի timeout-ը նույնպես OperationCanceledException է — filter-ը token-ով է
+            _logger.LogWarning("Could not send a message to the Telegram admin chat: {Error}", ex.Message);
         }
     }
 

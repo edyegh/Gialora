@@ -81,10 +81,6 @@
         {
             errorMessage = ex.Message;
         }
-        catch (HttpRequestException)
-        {
-            errorMessage = L["Common.ServerUnreachable"];
-        }
         finally
         {
             isSubmitting = false;

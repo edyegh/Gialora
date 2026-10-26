@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Gialora.Data.Migrations
 {
     [DbContext(typeof(GialoraDbContext))]
-    [Migration("20261026181249_HardenEmailVerification")]
+    [Migration("20261026182316_HardenEmailVerification")]
     partial class HardenEmailVerification
     {
         /// <inheritdoc />
@@ -828,6 +828,7 @@ namespace Gialora.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<Guid?>("FamilyId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<bool>("IsDeleted")

@@ -84,8 +84,14 @@
 
         // Chat-ի նոր հաղորդագրությունը պիտի երևա — Blazor-ը scroll-ի API չունի
         window.gialoraChat = {
-            scrollToBottom: el => { if (el) el.scrollTop = el.scrollHeight; }
+            scrollToBottom: el => { if (el) el.scrollTop = el.scrollHeight; },
+            // Թաքնված tab-ում polling-ը իմաստ չունի (մարտկոց, server-ի բեռ)
+            isHidden: () => document.hidden
         };
+
+        // <html lang>-ը լեզվի փոփոխության ժամանակ (screen reader-ներ, տառատեսակներ)։
+        // Առանձին ֆունկցիա, ոչ թե eval — eval-ը կարգելեր Content-Security-Policy-ն առանց 'unsafe-eval'-ի։
+        window.gialoraSetLang = lang => { document.documentElement.lang = lang; };
 
         // Admin-ի վիճակագրությունը. ՄԵԿ listener ամբողջ document-ի վրա, որ ամեն
         // կոճակին առանձին @onclick կցելու կարիք չլինի։ Համաձայնությունը (cookie
@@ -225,6 +231,15 @@
                 // այլ թարմացում — առաջին անգամ հուշում ցույց տալը անիմաստ կլիներ։
                 if (registration.waiting && navigator.serviceWorker.controller)
                     announce(registration.waiting);
+
+                // Browser-ը service-worker.js-ը նորից ստուգում է միայն իրական navigation-ի
+                // ժամանակ, իսկ Blazor-ի routing-ը navigation չէ, և տեղադրված հավելվածը չեն
+                // փակում — առանց սրա "նոր տարբերակ" հուշումը երբեք չէր հայտնվի։
+                const checkForUpdate = () => registration.update().catch(() => { /* offline */ });
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'visible') checkForUpdate();
+                });
+                setInterval(checkForUpdate, 60 * 60 * 1000);
 
                 registration.addEventListener('updatefound', () => {
                     const installing = registration.installing;

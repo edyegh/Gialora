@@ -54,7 +54,7 @@ public class AdminApi : ApiClientBase
     /// <summary>Template-ը վերադարձնում ենք որպես տեքստ — client-ը այն պահում է որպես ֆայլ։</summary>
     public async Task<string> GetImportTemplateAsync()
     {
-        var response = await Http.GetAsync("api/admin/import/template");
+        var response = await SendSafeAsync(() => Http.GetAsync("api/admin/import/template"));
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync();
     }

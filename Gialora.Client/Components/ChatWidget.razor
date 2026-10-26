@@ -94,6 +94,7 @@
     private int _seenAdminMessages;
     private bool _scrollPending;
     private CancellationTokenSource? _pollCts;
+    private bool _disposed;
 
     private int AdminMessages => _messages.Count(m => m.Sender == ChatSender.Admin);
     private int Unread => _open ? 0 : Math.Max(0, AdminMessages - _seenAdminMessages);
@@ -104,6 +105,13 @@
         {
             _seenAdminMessages = await ReadSeenAsync();
             await RefreshAsync(silent: true);
+
+            // MainLayout-ը cold start-ին կառուցվում է երկու անգամ (<Authorizing>, հետո route)։
+            // Եթե await-ների ընթացքում արդեն dispose ենք եղել, polling չենք սկսում —
+            // այլապես CancellationTokenSource-ը ոչ ոք չէր չեղարկի, և loop-ը ընդմիշտ կմնար։
+            if (_disposed)
+                return;
+
             RestartPolling();
             StateHasChanged();
         }
@@ -160,10 +168,6 @@
         {
             _error = ex.Message;
         }
-        catch (HttpRequestException)
-        {
-            _error = L["Chat.Offline"];
-        }
         finally
         {
             _sending = false;
@@ -202,8 +206,8 @@
         _pollCts?.Dispose();
         _pollCts = null;
 
-        // Փակ է և խոսակցություն չկա — հարցնելու բան չկա
-        if (!_open && _messages.Count == 0)
+        // Փակ է և խոսակցություն չկա — հարցնելու բան չկա. dispose-ից հետո՝ նույնպես
+        if (_disposed || (!_open && _messages.Count == 0))
             return;
 
         _pollCts = new CancellationTokenSource();
@@ -218,6 +222,9 @@
         {
             while (await timer.WaitForNextTickAsync(token))
             {
+                if (await IsHiddenAsync())
+                    continue; // tab-ը թաքնված է — հաջորդ tick-ին
+
                 await RefreshAsync(silent: true);
                 await InvokeAsync(StateHasChanged);
             }
@@ -248,8 +255,15 @@
         }
     }
 
+    private async Task<bool> IsHiddenAsync()
+    {
+        try { return await JS.InvokeAsync<bool>("gialoraChat.isHidden"); }
+        catch (JSException) { return false; }
+    }
+
     public ValueTask DisposeAsync()
     {
+        _disposed = true;
         _pollCts?.Cancel();
         _pollCts?.Dispose();
         Dispose(); // LocalizedComponentBase-ի լեզվի բաժանորդագրությունը

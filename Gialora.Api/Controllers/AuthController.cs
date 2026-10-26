@@ -69,6 +69,7 @@ public class AuthController : ControllerBase
     /// <summary>Client-ը սա կանչում է token-ի վավերականությունը ստուգելու համար։</summary>
     [HttpGet("me")]
     [Authorize]
+    [DisableRateLimiting] // token-ի ստուգում է, ոչ թե login — մի NAT-ի հետևի մի քանի tab-ը 429 չստանա
     public async Task<ActionResult<AuthResultDto>> Me()
     {
         if (User.GetUserId() is not { } userId)

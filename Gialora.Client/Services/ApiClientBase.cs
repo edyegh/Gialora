@@ -43,7 +43,7 @@ public abstract class ApiClientBase
 
     protected async Task<T> GetAsync<T>(string url)
     {
-        var response = await Http.GetAsync(url);
+        var response = await SendSafeAsync(() => Http.GetAsync(url));
         await EnsureSuccessAsync(response);
         return await ReadAsync<T>(response);
     }
@@ -51,7 +51,7 @@ public abstract class ApiClientBase
     /// <summary>404-ը այստեղ սխալ չէ — "դեռ չկա" նորմալ վիճակ է (օր. ընթացիկ պլան)։</summary>
     protected async Task<T?> GetOrDefaultAsync<T>(string url)
     {
-        var response = await Http.GetAsync(url);
+        var response = await SendSafeAsync(() => Http.GetAsync(url));
 
         if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NoContent)
             return default;
@@ -88,8 +88,25 @@ public abstract class ApiClientBase
 
     protected async Task DeleteAsync(string url)
     {
-        var response = await Http.DeleteAsync(url);
+        var response = await SendSafeAsync(() => Http.DeleteAsync(url));
         await EnsureSuccessAsync(response);
+    }
+
+    /// <summary>
+    /// Ցանցի սխալը (offline, API-ն անջատված, CORS, timeout) դարձնում ենք ApiException։
+    /// Էջերը բռնում են միայն ApiException — առանց սրա offline բացված PWA-ի ամեն էջ
+    /// OnInitializedAsync-ից "An unhandled error has occurred" էր ցույց տալիս։
+    /// </summary>
+    protected async Task<HttpResponseMessage> SendSafeAsync(Func<Task<HttpResponseMessage>> send)
+    {
+        try
+        {
+            return await send();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            throw new ApiException(HttpStatusCode.ServiceUnavailable, _localizer["Common.ServerUnreachable"]);
+        }
     }
 
     private async Task<HttpResponseMessage> SendJsonAsync(HttpMethod method, string url, object? body)
@@ -99,16 +116,25 @@ public abstract class ApiClientBase
         if (body is not null)
             request.Content = JsonContent.Create(body, body.GetType(), options: GialoraJson.Options);
 
-        return await Http.SendAsync(request);
+        return await SendSafeAsync(() => Http.SendAsync(request));
     }
 
-    protected static async Task<T> ReadAsync<T>(HttpResponseMessage response)
+    protected async Task<T> ReadAsync<T>(HttpResponseMessage response)
     {
         // 204 No Content — մարմին չկա, բայց caller-ը տիպ է սպասում
         if (response.StatusCode == HttpStatusCode.NoContent || response.Content.Headers.ContentLength == 0)
             return default!;
 
-        return await response.Content.ReadFromJsonAsync<T>(GialoraJson.Options) ?? default!;
+        try
+        {
+            return await response.Content.ReadFromJsonAsync<T>(GialoraJson.Options) ?? default!;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            // Օր. API-ի նոր enum արժեք, որը cache-ված (հին) client-ը չգիտի — JsonStringEnumConverter-ը
+            // նետում է։ Էջերը բռնում են միայն ApiException, ուստի առանց սրա էջը կփլվեր։
+            throw new ApiException(HttpStatusCode.BadGateway, _localizer["Api.GenericError"]);
+        }
     }
 
     protected async Task EnsureSuccessAsync(HttpResponseMessage response)

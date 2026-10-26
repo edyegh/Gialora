@@ -825,6 +825,7 @@ namespace Gialora.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<Guid?>("FamilyId")
+                        .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<bool>("IsDeleted")

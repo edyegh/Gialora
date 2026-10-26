@@ -133,7 +133,8 @@ public class Localizer
         try
         {
             // Screen reader-ների ու hyphenation-ի համար <html lang> պիտի համընկնի
-            await _js.InvokeVoidAsync("eval", $"document.documentElement.lang='{language}'");
+            // (index.html-ի gialoraSetLang — eval-ը կարգելեր CSP-ն)
+            await _js.InvokeVoidAsync("gialoraSetLang", language);
         }
         catch (JSException)
         {

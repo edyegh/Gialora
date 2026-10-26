@@ -38,7 +38,8 @@
             @if (!string.IsNullOrEmpty(fileName))
             {
                 <p class="small-muted" style="margin:0;">
-                    @((MarkupString)L["AdminImport.Loaded", fileName, csvContent.Length])
+                    @* fileName-ը ֆայլի ստեղծողինն է (կարող է "<img onerror=...>.csv" լինել) — encode, հետո MarkupString *@
+                    @((MarkupString)L["AdminImport.Loaded", System.Net.WebUtility.HtmlEncode(fileName), csvContent.Length])
                 </p>
             }
 

@@ -135,10 +135,6 @@
             // Միգուցե password-ը փոխվել է (նույն email-ով նորից գրանցում) — թույլ ենք տալիս մուտքագրել
             askPassword = true;
         }
-        catch (HttpRequestException)
-        {
-            errorMessage = L["Common.ServerUnreachable"];
-        }
         finally
         {
             isSubmitting = false;
@@ -162,10 +158,6 @@
         catch (ApiException ex)
         {
             errorMessage = ex.Message;
-        }
-        catch (HttpRequestException)
-        {
-            errorMessage = L["Common.ServerUnreachable"];
         }
         finally
         {

@@ -511,7 +511,7 @@ All anonymous `/auth` routes sit behind a fixed-window rate limiter of 10 reques
 | PUT | `/recipes/{id}` | Admin | Update, including publish state. |
 | POST | `/recipes/{id}/publish` | Admin | |
 | POST | `/recipes/{id}/unpublish` | Admin | |
-| DELETE | `/recipes/{id}` | Admin | Soft delete and unpublish. |
+| DELETE | `/recipes/{id}` | Admin | Soft delete and unpublish. 409 while the recipe is in a current or upcoming non-archived plan (its meals would silently vanish from those plans) — unpublish it instead. |
 
 `GET /recipes` accepts: `Search`, `MealType`, `Cuisine`, `DietType`, `Difficulty`, `MaxTotalMinutes`, `SuitableForAgeMonths`, `FreezerFriendly`, `LunchboxFriendly`, `KidFriendly`, `HighProtein`, `IronRich`, `BatchFriendly`, `Tags` (repeatable), `ExcludeIngredients` (repeatable), `FavoritesOnly`, `SortBy`, `Page`, `PageSize`.
 
@@ -728,6 +728,8 @@ A filled-in template is downloadable from the import page.
 
 **Configuration.** The JWT signing key and the connection string come from configuration. `appsettings.Development.json` holds development-only values; production must supply its own through user secrets, environment variables or a secret store. Seeding is **disabled by default** in `appsettings.json` and enabled in Development, so no automatic administrator account is ever created in production.
 
+**Production hardening.** Outside Development the API refuses to start without `Cors:AllowedOrigins` or SMTP, and sends HSTS plus `X-Content-Type-Options: nosniff`. `GET /health` checks that the database is reachable. Forwarded headers (`X-Forwarded-For`/`-Proto`) are honoured from loopback proxies, plus any IPs listed in `ForwardedHeaders:KnownProxies`, so rate limits partition on the real client IP behind nginx/IIS. SQL Server connections retry transient failures (`EnableRetryOnFailure`), which forbids hand-rolled `BeginTransaction` — keep multi-row changes atomic in a single `SaveChanges`. Queries default to split mode to avoid cartesian explosion on multi-collection `Include`s. A validated JWT is also checked against the database (user still exists, same role), cached for one minute, so deleting or demoting a user revokes their token within a minute instead of at expiry.
+
 ---
 
 ## 11. Running the project
@@ -808,7 +810,7 @@ Also deferred, in line with the MVP boundary: nutrition tracking, grocery delive
 2. Image upload with a storage provider.
 3. Import the real recipe library so plans stop coming back partial.
 4. Server-side rendering or prerendering for the public recipe and blog pages, for SEO.
-5. Structured logging and health checks before deployment.
+5. Structured logging (health checks are in place: `GET /health`).
 
 ---
 

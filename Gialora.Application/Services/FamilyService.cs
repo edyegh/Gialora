@@ -34,7 +34,25 @@ public class FamilyService : IFamilyService
             var family = new Family { Name = $"{user.DisplayName}'s Family" };
             _db.Families.Add(family);
             user.Family = family;
-            await _db.SaveChangesAsync();
+
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // User.FamilyId-ը concurrency token է. երկու զուգահեռ առաջին request
+                // (երկու tab, էջ + nav component) երկուսն էլ ընտանիք էին ստեղծում, և վերջինը
+                // "հաղթում" էր — առաջինի պլանը անհասանելի էր դառնում։ Հիմա պարտվողի INSERT-ը
+                // rollback է լինում (նույն SaveChanges-ում է), և վերադարձնում ենք հաղթողինը։
+                _db.Entry(family).State = EntityState.Detached;
+                await _db.Entry(user).ReloadAsync();
+
+                var winner = await _db.Families.AsNoTracking()
+                    .Include(f => f.FamilyMembers)
+                    .FirstAsync(f => f.Id == user.FamilyId);
+                return Map(winner);
+            }
 
             _logger.LogInformation("Family {FamilyId} auto-created for user {UserId}", family.Id, userId);
             return Map(family);

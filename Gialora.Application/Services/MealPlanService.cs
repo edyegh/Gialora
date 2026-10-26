@@ -166,14 +166,21 @@ public class MealPlanService : IMealPlanService
     // Read
     // -----------------------------------------------------------------------
 
+    public const int MaxPlansListed = 52;
+
     public async Task<List<MealPlanDto>> GetMyPlansAsync(Guid userId)
     {
         var familyId = await _familyService.GetFamilyIdAsync(userId);
 
+        // Սահման — առանց դրա ամեն կանչ բերում էր ընտանիքի ԲՈԼՈՐ պլանները (տարեկան 52+)՝
+        // օրերով, ճաշերով, ռեցեպտներով ու tag-երով։ Ամենաթարմ MaxPlansListed-ը բավական է։
         var plans = await BaseQuery()
             .Where(p => p.FamilyId == familyId)
             .OrderByDescending(p => p.WeekStartDate)
             .ThenByDescending(p => p.CreatedAtUtc)
+            .ThenBy(p => p.Id) // split query + Take-ը պահանջում է միանշանակ հերթականություն
+            .Take(MaxPlansListed)
+            .AsNoTracking()
             .ToListAsync();
 
         return plans.Select(Map).ToList();
