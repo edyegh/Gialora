@@ -72,7 +72,7 @@ public class MealPlanService : IMealPlanService
 
         if (result.Selection.Count == 0)
             throw new ValidationFailedException(result.Notes.FirstOrDefault()
-                ?? "No recipes match your preferences yet.");
+                ?? PlanningNotes.Encode(PlanningNotes.NoMatches));
 
         var plan = new MealPlan
         {
@@ -393,7 +393,7 @@ public class MealPlanService : IMealPlanService
 
         if (result.Selection.Count == 0)
             throw new ValidationFailedException(result.Notes.FirstOrDefault()
-                ?? "No recipes match your preferences yet.");
+                ?? PlanningNotes.Encode(PlanningNotes.NoMatches));
 
         // Չլցված slot-ը պահում է իր հին ռեցեպտը
         for (var i = 0; i < result.Selection.Count; i++)

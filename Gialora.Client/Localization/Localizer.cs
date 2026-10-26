@@ -58,6 +58,23 @@ public class Localizer
     /// <summary>Նույնը, բայց string.Format-ի placeholder-ներով ({0}, {1}…)։</summary>
     public string this[string key, params object?[] args] => string.Format(this[key], args);
 
+    /// <summary>
+    /// Planner-ի կոդավորված բացատրությունը ("Plan.Note.Proteins::4::5") ընթացիկ լեզվով։
+    /// "Goal."-ով արգումենտը նույնպես թարգմանվում է։ Կոդավորված չէ (հին պլանի անգլերեն
+    /// տեքստ, API-ի սովորական սխալ)՝ վերադարձնում է ինչպես կա — ուստի ErrorAlert-ը
+    /// կարող է սա կանչել ամեն հաղորդագրության համար։
+    /// </summary>
+    public string Note(string? note)
+    {
+        if (!Gialora.Shared.PlanningNotes.TryDecode(note, out var key, out var args))
+            return note ?? string.Empty;
+
+        var formatted = args
+            .Select(a => (object?)(a.StartsWith("Goal.", StringComparison.Ordinal) ? this[a] : a))
+            .ToArray();
+        return this[key, formatted];
+    }
+
     /// <summary>Enum-ի արժեքի ցուցադրվող անունը ("Enum.MealType.Breakfast"); բանալի չկա՝ enum-ի անունն է։</summary>
     public string Enum<T>(T value) where T : struct, System.Enum
     {

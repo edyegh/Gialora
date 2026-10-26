@@ -60,6 +60,16 @@ public class GialoraDbContext : DbContext
             v => v.Aggregate(0, (acc, x) => HashCode.Combine(acc, x.GetHashCode())),
             v => v.ToList());
 
+        // List<Guid> <-> "id|id"։ Անվավեր հատվածը (ձեռքով խմբագրված DB) բաց է թողնվում։
+        var guidListConverter = new ValueConverter<List<Guid>, string>(
+            v => string.Join("|", v),
+            v => ParseGuids(v));
+
+        var guidListComparer = new ValueComparer<List<Guid>>(
+            (a, b) => a != null && b != null && a.SequenceEqual(b),
+            v => v.Aggregate(0, (acc, x) => HashCode.Combine(acc, x.GetHashCode())),
+            v => v.ToList());
+
         // ---------------- User ----------------
         modelBuilder.Entity<User>(b =>
         {
@@ -82,6 +92,7 @@ public class GialoraDbContext : DbContext
             b.Property(f => f.Name).HasMaxLength(150).IsRequired();
             b.Property(f => f.ExcludedProteins).HasConversion(csvConverter).Metadata.SetValueComparer(csvComparer);
             b.Property(f => f.DislikedIngredients).HasConversion(csvConverter).Metadata.SetValueComparer(csvComparer);
+            b.Property(f => f.DislikedIngredientIds).HasConversion(guidListConverter).Metadata.SetValueComparer(guidListComparer);
             b.HasQueryFilter(f => !f.IsDeleted);
         });
 
@@ -302,6 +313,7 @@ public class GialoraDbContext : DbContext
             b.Property(i => i.DisplayName).HasMaxLength(150).IsRequired();
             b.Property(i => i.Quantity).HasPrecision(10, 3);
             b.Property(i => i.SourceRecipes).HasConversion(csvConverter).Metadata.SetValueComparer(csvComparer);
+            b.Property(i => i.SourceRecipeIds).HasConversion(guidListConverter).Metadata.SetValueComparer(guidListComparer);
 
             b.HasOne(i => i.ShoppingList)
              .WithMany(s => s.Items)
@@ -435,6 +447,12 @@ public class GialoraDbContext : DbContext
              .Where(a => a.HasValue)
              .Select(a => a!.Value)
              .Distinct()
+             .ToList();
+
+    private static List<Guid> ParseGuids(string value) =>
+        value.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+             .Select(s => Guid.TryParse(s, out var id) ? id : Guid.Empty)
+             .Where(id => id != Guid.Empty)
              .ToList();
 
     /// <summary>

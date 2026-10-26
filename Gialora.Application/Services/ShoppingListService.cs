@@ -59,8 +59,8 @@ public class ShoppingListService : IShoppingListService
             .FirstOrDefaultAsync(p => p.Id == mealPlanId && p.FamilyId == familyId)
             ?? throw new NotFoundException("Meal plan not found.");
 
-        // Անունները պահվում են ԳԵՆԵՐԱՑՄԱՆ պահի լեզվով (snapshot)։ Phase 2-ում
-        // դրանք կկարդացվեն IngredientId-ով՝ ընթացիկ լեզվով։
+        // DisplayName/SourceRecipes-ը snapshot են (fallback). կարդալիս անունները
+        // վերցվում են IngredientId/SourceRecipeIds-ով՝ ընթացիկ լեզվով (MapAsync)։
         var consolidated = Consolidate(plan, _language.Code);
 
         var list = plan.ShoppingList;
@@ -195,7 +195,7 @@ public class ShoppingListService : IShoppingListService
                 }
 
                 bucket.BaseQuantity += UnitConverter.ToBase(scaled, ri.Unit);
-                bucket.Recipes.Add(recipe.TitleIn(language));
+                bucket.Recipes[recipe.Id] = recipe.TitleIn(language);
 
                 // Տողը ոչ-պարտադիր է միայն եթե ԲՈԼՈՐ ռեցեպտներում է ոչ-պարտադիր
                 if (!ri.IsOptional)
@@ -220,7 +220,8 @@ public class ShoppingListService : IShoppingListService
                     Unit = unit,
                     Category = b.Category,
                     IsOptional = b.IsOptional,
-                    SourceRecipes = b.Recipes.OrderBy(r => r).ToList()
+                    SourceRecipes = b.Recipes.OrderBy(r => r.Value).Select(r => r.Value).ToList(),
+                    SourceRecipeIds = b.Recipes.OrderBy(r => r.Value).Select(r => r.Key).ToList()
                 };
             })
             .OrderBy(i => i.Category)
@@ -236,7 +237,7 @@ public class ShoppingListService : IShoppingListService
         public UnitOfMeasure ReferenceUnit { get; init; }
         public decimal BaseQuantity { get; set; }
         public bool IsOptional { get; set; }
-        public HashSet<string> Recipes { get; } = new();
+        public Dictionary<Guid, string> Recipes { get; } = new();
     }
 
     // -----------------------------------------------------------------------
@@ -247,30 +248,29 @@ public class ShoppingListService : IShoppingListService
     {
         var familyId = await _familyService.GetFamilyIdAsync(userId);
 
-        var lists = await _db.ShoppingLists.AsNoTracking()
-            .Include(l => l.Items).ThenInclude(i => i.Ingredient)
+        var lists = await WithItems(_db.ShoppingLists.AsNoTracking())
             .Where(l => l.FamilyId == familyId && l.Status != ShoppingListStatus.Archived)
             .OrderByDescending(l => l.CreatedAtUtc)
             .ToListAsync();
 
-        return lists.Select(Map).ToList();
+        var titles = await SourceTitlesAsync(lists.SelectMany(l => l.Items));
+        return lists.Select(l => Map(l, titles)).ToList();
     }
 
     public async Task<ShoppingListDto?> GetByIdAsync(Guid userId, Guid listId)
     {
         var list = await LoadAsync(userId, listId, tracking: false);
-        return list is null ? null : Map(list);
+        return list is null ? null : await MapAsync(list);
     }
 
     public async Task<ShoppingListDto?> GetForMealPlanAsync(Guid userId, Guid mealPlanId)
     {
         var familyId = await _familyService.GetFamilyIdAsync(userId);
 
-        var list = await _db.ShoppingLists.AsNoTracking()
-            .Include(l => l.Items).ThenInclude(i => i.Ingredient)
+        var list = await WithItems(_db.ShoppingLists.AsNoTracking())
             .FirstOrDefaultAsync(l => l.MealPlanId == mealPlanId && l.FamilyId == familyId);
 
-        return list is null ? null : Map(list);
+        return list is null ? null : await MapAsync(list);
     }
 
     // -----------------------------------------------------------------------
@@ -289,7 +289,7 @@ public class ShoppingListService : IShoppingListService
 
         item.IsChecked = isChecked;
         await _db.SaveChangesAsync();
-        return MapItem(item);
+        return MapItem(item, await SourceTitlesAsync(new[] { item }));
     }
 
     public async Task<ShoppingListItemDto> AddItemAsync(Guid userId, Guid listId, ShoppingListItemCreateDto dto)
@@ -313,7 +313,7 @@ public class ShoppingListService : IShoppingListService
         // որը 0 տող է փոխում և ձախողվում DbUpdateConcurrencyException-ով։
         _db.ShoppingListItems.Add(item);
         await _db.SaveChangesAsync();
-        return MapItem(item);
+        return MapItem(item, new Dictionary<Guid, string>());
     }
 
     public async Task<bool> RemoveItemAsync(Guid userId, Guid listId, Guid itemId)
@@ -368,15 +368,29 @@ public class ShoppingListService : IShoppingListService
 
         // Ingredient-ը պետք է IsPantryStaple-ի համար — առանց Include-ի ամեն տող
         // "ոչ staple" կերևար և "check your cupboard" խումբը միշտ դատարկ կմնար։
-        var query = tracking
-            ? _db.ShoppingLists.Include(l => l.Items).ThenInclude(i => i.Ingredient)
-            : _db.ShoppingLists.AsNoTracking().Include(l => l.Items).ThenInclude(i => i.Ingredient);
+        var query = WithItems(tracking ? _db.ShoppingLists : _db.ShoppingLists.AsNoTracking());
 
         // FamilyId-ի ստուգումը — ուրիշի ցանկը չպիտի հասանելի լինի միայն Id-ով
         return await query.FirstOrDefaultAsync(l => l.Id == listId && l.FamilyId == familyId);
     }
 
-    private static ShoppingListDto Map(ShoppingList list) => new()
+    /// <summary>
+    /// Տողեր + բաղադրիչ (IsPantryStaple-ի համար) + նրա թարգմանությունները (անունը
+    /// ընթացիկ լեզվով)։ Split query — Items × Translations-ի դեկարտյան արտադրյալից խուսափելու համար։
+    /// </summary>
+    private static IQueryable<ShoppingList> WithItems(IQueryable<ShoppingList> query) =>
+        query
+            .Include(l => l.Items).ThenInclude(i => i.Ingredient).ThenInclude(i => i!.Translations)
+            .AsSplitQuery();
+
+    /// <summary>Տողերի "for: X, Y" ռեցեպտների վերնագրերը՝ ընթացիկ լեզվով, մեկ query-ով։</summary>
+    private Task<Dictionary<Guid, string>> SourceTitlesAsync(IEnumerable<ShoppingListItem> items) =>
+        _db.LoadRecipeTitlesAsync(items.SelectMany(i => i.SourceRecipeIds), _language.Code);
+
+    private async Task<ShoppingListDto> MapAsync(ShoppingList list) =>
+        Map(list, await SourceTitlesAsync(list.Items));
+
+    private ShoppingListDto Map(ShoppingList list, IReadOnlyDictionary<Guid, string> recipeTitles) => new()
     {
         Id = list.Id,
         Name = list.Name,
@@ -391,16 +405,19 @@ public class ShoppingListService : IShoppingListService
             {
                 Category = g.Key,
                 CategoryName = CategoryName(g.Key),
-                Items = g.OrderBy(i => i.DisplayName).Select(MapItem).ToList()
+                Items = g.Select(i => MapItem(i, recipeTitles))
+                    .OrderBy(i => i.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+                    .ToList()
             })
             .ToList()
     };
 
-    private static ShoppingListItemDto MapItem(ShoppingListItem item) => new()
+    private ShoppingListItemDto MapItem(ShoppingListItem item, IReadOnlyDictionary<Guid, string> recipeTitles) => new()
     {
         Id = item.Id,
         IngredientId = item.IngredientId,
-        DisplayName = item.DisplayName,
+        // Կատալոգի բաղադրիչը՝ ընթացիկ լեզվով. ձեռքով ավելացրածը (կամ ջնջված բաղադրիչը)՝ ինչպես գրված է
+        DisplayName = item.Ingredient?.Translations.Best(_language.Code)?.Name ?? item.DisplayName,
         Quantity = item.Quantity,
         Unit = item.Unit,
         QuantityDisplay = UnitConverter.Format(item.Quantity, item.Unit),
@@ -410,7 +427,12 @@ public class ShoppingListService : IShoppingListService
         // Ingredient-ի navigation-ը կարող է բեռնված չլինել (ձեռքով ավելացրած տող) —
         // այդ դեպքում staple չէ, և դա ճիշտ պատասխանն է։
         IsPantryStaple = item.Ingredient?.IsPantryStaple ?? false,
-        SourceRecipes = item.SourceRecipes
+        // Հին տողերը SourceRecipeIds չունեն — դրանց համար մնում է պահված snapshot-ը
+        SourceRecipes = item.SourceRecipeIds.Count == item.SourceRecipes.Count && item.SourceRecipeIds.Count > 0
+            ? item.SourceRecipeIds
+                .Select((id, index) => recipeTitles.GetValueOrDefault(id) ?? item.SourceRecipes[index])
+                .ToList()
+            : item.SourceRecipes
     };
 
     /// <summary>Խանութի բաժնի ընթեռնելի անունը — UI-ում խմբի վերնագիրն է։</summary>

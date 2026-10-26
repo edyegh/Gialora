@@ -260,8 +260,10 @@
 
                 <div>
                     <label class="form-label" for="disliked">@L["Family.Disliked"]</label>
-                    <input id="disliked" class="form-control" placeholder="@L["Family.DislikedPlaceholder"]"
-                           @bind="dislikedIngredients" />
+                    <DislikedIngredientPicker SelectedIds="preferences.DislikedIngredientIds"
+                                              OtherTerms="preferences.DislikedIngredients"
+                                              KnownNames="preferences.DislikedIngredientNames"
+                                              Disabled="busy" />
                     <p class="form-text">@L["Family.DislikedHint"]</p>
                 </div>
 
@@ -300,7 +302,6 @@
     private static IReadOnlyList<NutritionGoals.NutritionGoal> SupportedGoals => NutritionGoals.All;
 
     private List<string> unrecognisedGoals = new();
-    private string dislikedIngredients = string.Empty;
 
     private bool loading = true;
     private bool busy;
@@ -333,7 +334,6 @@
         {
             family = await Planner.GetFamilyAsync();
             preferences = family.Preferences;
-            dislikedIngredients = string.Join(", ", preferences.DislikedIngredients);
             RefreshUnrecognisedGoals();
         }
         catch (ApiException ex)
@@ -450,9 +450,7 @@
 
     private Task SavePreferences() => Run(async () =>
     {
-        preferences.DislikedIngredients = SplitList(dislikedIngredients);
         preferences = await Planner.SavePreferencesAsync(preferences);
-        dislikedIngredients = string.Join(", ", preferences.DislikedIngredients);
         status = L["Family.StatusPreferencesSaved"];
     });
 

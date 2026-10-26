@@ -128,7 +128,8 @@ Every persisted entity except the pure join tables derives from `BaseEntity`.
 | Budget | `Any`, `Low`, `Medium`, `High`. |
 | DietPreference | Optional household-wide diet. |
 | ExcludedProteins | Stored as a pipe-delimited list of enum **names**. This is where "no fish" lives. |
-| DislikedIngredients | Pipe-delimited, normalised to lowercase. |
+| DislikedIngredientIds | Catalogue picks, pipe-delimited Guids. Language-independent; names are resolved in the reader's language (`FamilyPreferencesDto.DislikedIngredientNames`). |
+| DislikedIngredients | Free-text terms (not in the catalogue, or saved before ids existed). Pipe-delimited, normalised to lowercase. |
 | PreferFreezerFriendly | Scoring preference. |
 
 Excluded proteins are persisted by name rather than by numeric value so the database stays readable and so reordering the `ProteinType` enum cannot silently corrupt existing rows.
@@ -190,7 +191,7 @@ The parents hold only language-independent data. Translation rows are not `BaseE
 
 **Writing.** Create/update DTOs carry a `Language` (default `en`) and write only that row; other languages are untouched. The admin pages save back into the language the text was loaded in, so editing a fallback never creates a mislabelled translation. The slug is regenerated only when the **English** title changes. CSV import and the seeder are English: they match recipes by English title and ingredients by name (English first).
 
-**Planner.** `PlanningCandidate.IngredientNames` contains every language's names, so a disliked-ingredient word matches in whichever language the family typed it. Shopping list items still store a name snapshot in the language active when the list was generated.
+**Planner and lists.** Disliked ingredients are catalogue ids (matched against `IngredientIds`), plus free-text terms matched against every language's names. Planning notes are translation keys (§4.6). Shopping-list items keep `DisplayName`/`SourceRecipes` as a snapshot but are read through `IngredientId` / `SourceRecipeIds` in the reader's language; hand-added lines and items generated before `SourceRecipeIds` existed show the snapshot.
 
 ### 3.4 Meal plans
 
@@ -206,7 +207,7 @@ The parents hold only language-independent data. Translation rows are not `BaseE
 
 **ShoppingList** — FamilyId, optional MealPlanId, Name, Status.
 
-**ShoppingListItem** — optional IngredientId (null means a hand-added line such as "kitchen roll"), DisplayName, Quantity, Unit, Category, IsChecked, IsOptional, SourceRecipes, SortOrder.
+**ShoppingListItem** — optional IngredientId (null means a hand-added line such as "kitchen roll"), DisplayName, Quantity, Unit, Category, IsChecked, IsOptional, SourceRecipes, SourceRecipeIds, SortOrder. `DisplayName` and `SourceRecipes` are snapshots in the generating language; reads resolve the name from the ingredient's translations and the titles from `SourceRecipeIds` (same order), falling back to the snapshot.
 
 `SourceRecipes` records which recipes contributed to the line. This is the visible trace of consolidation: the user sees *"Onion — 825 g · for Chicken meatballs, Chickpea stew, Lamb pilaf, Red lentil soup"* and understands where the number came from.
 
@@ -276,7 +277,7 @@ A candidate that fails any of these is removed from consideration entirely. It i
 | Excluded proteins | The "no fish" rule. Direct match on `PrimaryProtein`. |
 | Age | If the youngest child is 24 months, a recipe with `MinAgeMonths = 36` is excluded. |
 | Allergies | Blocked if any ingredient is marked with a ticked `Allergen`; if the family has any allergy, also blocked when any ingredient is unreviewed; "Other" allergies match ingredient names. |
-| Disliked ingredients | Substring match against ingredient names; the whole recipe is excluded. |
+| Disliked ingredients | Catalogue picks match by ingredient id; free-text terms match by substring against ingredient names in every language. The whole recipe is excluded. |
 | Budget | `Low` allows up to 3 per serving, `Medium` up to 6, `High` and `Any` are unlimited. Recipes with no cost recorded are never excluded on price. |
 
 Two of these deserve comment.
@@ -335,6 +336,8 @@ Every result carries human-readable notes, shown on the plan page under "Why thi
 - *2 legume-based meal(s) included.*
 - *Shared ingredients across meals: 12 repeats over 23 distinct items — fewer things to buy.*
 - *4 recipe(s) can be frozen for later.*
+
+The engine stores each note as a **translation key with arguments** (`PlanningNotes.Encode` in Shared, e.g. `Plan.Note.Proteins::4::5`; goal names travel as `Goal.<key>` and are translated too), and the client renders it with `L.Note(...)` in the current UI language. Plans saved before this change hold English sentences, which `L.Note` shows unchanged. Generation failures reuse the same keys as the error message, and `ErrorAlert` decodes them.
 
 These exist because a plan the user does not understand is a plan they will not trust. They are **persisted on the meal plan**, not just returned from the generate call — the launcher navigates to the plan page, which re-reads the plan, so notes held only in the generate response would never be seen. Regenerating replaces them, so the explanation always describes the plan currently on screen.
 

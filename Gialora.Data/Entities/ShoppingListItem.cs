@@ -25,8 +25,17 @@ public class ShoppingListItem : BaseEntity
 
     public bool IsOptional { get; set; }
 
-    /// <summary>Որ ռեցեպտներից է եկել այս տողը — UI-ում ցույց ենք տալիս "for: X, Y"։</summary>
+    /// <summary>
+    /// Որ ռեցեպտներից է եկել այս տողը — UI-ում ցույց ենք տալիս "for: X, Y"։ Գեներացման
+    /// պահի լեզվով snapshot է. կարդալիս վերնագրերը վերցվում են SourceRecipeIds-ով։
+    /// </summary>
     public List<string> SourceRecipes { get; set; } = new();
+
+    /// <summary>
+    /// SourceRecipes-ի ռեցեպտների Id-ները՝ նույն հերթականությամբ։ Դատարկ է
+    /// AddContentTranslations-ից առաջ գեներացված տողերի համար (դրանք snapshot-ն են ցույց տալիս)։
+    /// </summary>
+    public List<Guid> SourceRecipeIds { get; set; } = new();
 
     public int SortOrder { get; set; }
 }

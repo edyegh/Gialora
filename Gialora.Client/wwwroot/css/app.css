@@ -689,6 +689,43 @@ a:hover { color: var(--terracotta-dark); }
 .chip-check input { margin: 0; }
 .chip-check.is-on { background: rgba(92, 111, 71, .12); border-color: var(--olive-light); color: var(--olive-dark); font-weight: 600; }
 
+/* Չսիրած բաղադրիչների picker-ը (DislikedIngredientPicker.razor) */
+.picker-chip { gap: .35rem; padding-right: .3rem; }
+
+.picker-remove {
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0 .2rem;
+    border-radius: 50%;
+    cursor: pointer;
+    opacity: .7;
+}
+
+.picker-remove:hover:not(:disabled) { opacity: 1; background: rgba(44, 42, 38, .08); }
+
+.picker-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin-top: .5rem;
+    max-width: 32rem;
+}
+
+.picker-option {
+    padding: .3rem .7rem;
+    border: 1px dashed var(--olive-light);
+    border-radius: 999px;
+    background: var(--cream);
+    color: var(--olive-dark);
+    font-size: .86rem;
+    cursor: pointer;
+}
+
+.picker-option:hover { background: rgba(92, 111, 71, .1); border-style: solid; }
+
 /* Ոչ ակտիվ ընտանիքի անդամ — մնում է ցուցակում, բայց տեսանելիորեն "դուրս է խաղից" */
 .member-inactive td:not(:first-child) { opacity: .5; }
 .member-inactive td strong { text-decoration: line-through; text-decoration-color: var(--ink-faint); }

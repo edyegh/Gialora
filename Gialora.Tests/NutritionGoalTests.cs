@@ -1,5 +1,6 @@
 // Gialora.Tests/NutritionGoalTests.cs
 using Gialora.Application.Planning;
+using Gialora.Shared;
 using Gialora.Shared.Enums;
 using Gialora.Shared.Goals;
 
@@ -122,7 +123,7 @@ public class NutritionGoalTests
         var result = _engine.Plan(new[] { plain }, Request("more-iron"));
 
         Assert.Single(result.Selection);
-        Assert.Contains(result.Notes, n => n.Contains("More iron") && n.Contains("no matching recipes"));
+        Assert.Contains(PlanningNotes.Encode(PlanningNotes.GoalNone, "Goal.more-iron"), result.Notes);
     }
 
     [Fact]
@@ -137,6 +138,6 @@ public class NutritionGoalTests
 
         var result = _engine.Plan(pool, Request(slots: 3, "more-iron"));
 
-        Assert.Contains(result.Notes, n => n.Contains("Goal \"More iron\": 2 of 3 meals match."));
+        Assert.Contains(PlanningNotes.Encode(PlanningNotes.GoalMatched, "Goal.more-iron", 2, 3), result.Notes);
     }
 }

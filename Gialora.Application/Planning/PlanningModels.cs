@@ -59,6 +59,10 @@ public class PlanningConstraints
     public bool PreferFreezerFriendly { get; init; }
 
     public HashSet<ProteinType> ExcludedProteins { get; init; } = new();
+    /// <summary>Կատալոգից ընտրված չսիրածները — համեմատվում են IngredientIds-ի հետ (լեզվից անկախ)։</summary>
+    public HashSet<Guid> DislikedIngredientIds { get; init; } = new();
+
+    /// <summary>Ազատ տեքստով չսիրածները — համեմատվում են բաղադրիչների անունների հետ (բոլոր լեզուներով)։</summary>
     public HashSet<string> DislikedIngredients { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>Ակտիվ անդամների ընտրած ալերգենները — ամենախիստ hard rule-ը։</summary>
     public HashSet<Allergen> Allergens { get; init; } = new();

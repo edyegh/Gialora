@@ -1,0 +1,143 @@
+@* Gialora.Client/Components/DislikedIngredientPicker.razor
+   Չսիրած բաղադրիչները՝ կատալոգից (Id-ով, ուստի աշխատում են ցանկացած լեզվով) կամ
+   ազատ տեքստով (կատալոգում չկան)։ Անունները ցույց են տրվում UI-ի ընթացիկ լեզվով։ *@
+@using Gialora.Client.Services
+@inject RecipeApi Catalog
+
+<div class="picker">
+    @if (SelectedIds.Count > 0 || OtherTerms.Count > 0)
+    {
+        <div class="cluster mb-2">
+            @foreach (var id in SelectedIds)
+            {
+                var name = NameOf(id);
+                <span class="pill pill-olive picker-chip">
+                    @name
+                    <button type="button" class="picker-remove" disabled="@Disabled"
+                            aria-label="@L["Family.DislikedRemove", name]" @onclick="() => RemoveId(id)">×</button>
+                </span>
+            }
+            @foreach (var term in OtherTerms)
+            {
+                <span class="pill pill-outline picker-chip">
+                    @term
+                    <button type="button" class="picker-remove" disabled="@Disabled"
+                            aria-label="@L["Family.DislikedRemove", term]" @onclick="() => RemoveTerm(term)">×</button>
+                </span>
+            }
+        </div>
+    }
+
+    <div class="cluster">
+        <input id="@InputId" class="form-control" style="max-width:22rem;" autocomplete="off"
+               placeholder="@L["Family.DislikedPlaceholder"]" disabled="@Disabled"
+               @bind="query" @bind:event="oninput" @onkeydown="OnKeyDown" />
+        <button type="button" class="btn btn-outline-g btn-sm" @onclick="AddTyped"
+                disabled="@(Disabled || string.IsNullOrWhiteSpace(query))">@L["Common.Add"]</button>
+    </div>
+
+    @if (Suggestions.Count > 0)
+    {
+        <div class="picker-suggestions" role="listbox">
+            @foreach (var ingredient in Suggestions)
+            {
+                <button type="button" role="option" class="picker-option" @onclick="() => Pick(ingredient)">
+                    @ingredient.Name
+                </button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Կատալոգից ընտրվածները — component-ը փոխում է հենց այս ցուցակը։</summary>
+    [Parameter, EditorRequired] public List<Guid> SelectedIds { get; set; } = new();
+
+    /// <summary>Ազատ տեքստով չսիրածները — նույնպես փոխվում են տեղում։</summary>
+    [Parameter, EditorRequired] public List<string> OtherTerms { get; set; } = new();
+
+    /// <summary>Server-ի տված անունները SelectedIds-ի համար (մինչ կատալոգը բեռնվի)։</summary>
+    [Parameter] public List<string> KnownNames { get; set; } = new();
+
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string InputId { get; set; } = "disliked";
+
+    private List<IngredientDto> catalogue = new();
+    private string query = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Ընթացիկ լեզվով — LanguageHeaderHandler-ը Accept-Language-ն արդեն կցում է
+            catalogue = await Catalog.GetIngredientsAsync();
+        }
+        catch (ApiException)
+        {
+            // Կատալոգ չկա — ազատ տեքստը դեռ աշխատում է
+        }
+    }
+
+    private List<IngredientDto> Suggestions
+    {
+        get
+        {
+            var term = query.Trim();
+            if (term.Length == 0)
+                return new();
+
+            return catalogue
+                .Where(i => !SelectedIds.Contains(i.Id) && i.Name.Contains(term, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(i => !i.Name.StartsWith(term, StringComparison.OrdinalIgnoreCase))
+                .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
+                .Take(8)
+                .ToList();
+        }
+    }
+
+    private string NameOf(Guid id)
+    {
+        var fromCatalogue = catalogue.FirstOrDefault(i => i.Id == id)?.Name;
+        if (fromCatalogue is not null)
+            return fromCatalogue;
+
+        var index = SelectedIds.IndexOf(id);
+        return index >= 0 && index < KnownNames.Count ? KnownNames[index] : "…";
+    }
+
+    private void Pick(IngredientDto ingredient)
+    {
+        if (!SelectedIds.Contains(ingredient.Id))
+            SelectedIds.Add(ingredient.Id);
+        query = string.Empty;
+    }
+
+    /// <summary>Կատալոգում ճշգրիտ համընկնում կա՝ ընտրում ենք այն, չկա՝ ազատ տեքստ է։</summary>
+    private void AddTyped()
+    {
+        var term = query.Trim();
+        if (term.Length == 0)
+            return;
+
+        var exact = catalogue.FirstOrDefault(i => i.Name.Equals(term, StringComparison.OrdinalIgnoreCase));
+        if (exact is not null)
+        {
+            Pick(exact);
+            return;
+        }
+
+        if (!OtherTerms.Contains(term, StringComparer.OrdinalIgnoreCase))
+            OtherTerms.Add(term.ToLowerInvariant());
+        query = string.Empty;
+    }
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            AddTyped();
+    }
+
+    private void RemoveId(Guid id) => SelectedIds.Remove(id);
+
+    private void RemoveTerm(string term) => OtherTerms.Remove(term);
+}

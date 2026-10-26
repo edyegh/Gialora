@@ -66,6 +66,7 @@ public static class FamilyPlanningInput
                 .Where(p => p.HasValue)
                 .Select(p => p!.Value)
                 .ToHashSet(),
+            DislikedIngredientIds = family.DislikedIngredientIds.ToHashSet(),
             DislikedIngredients = family.DislikedIngredients.ToHashSet(StringComparer.OrdinalIgnoreCase),
             Allergens = members.SelectMany(m => m.Allergens).ToHashSet(),
             OtherAllergies = Texts(members.SelectMany(m => m.OtherAllergies)),

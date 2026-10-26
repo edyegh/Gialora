@@ -70,6 +70,16 @@ public class FamilyPreferencesDto
     /// <summary>"no fish" — բացառվող սպիտակուցները։</summary>
     public List<ProteinType> ExcludedProteins { get; set; } = new();
 
+    /// <summary>Կատալոգից ընտրված չսիրած բաղադրիչները։</summary>
+    public List<Guid> DislikedIngredientIds { get; set; } = new();
+
+    /// <summary>
+    /// Միայն կարդալու համար — DislikedIngredientIds-ի անունները ընթացիկ լեզվով, նույն
+    /// հերթականությամբ։ Server-ը լրացնում է, save-ի ժամանակ անտեսվում է։
+    /// </summary>
+    public List<string> DislikedIngredientNames { get; set; } = new();
+
+    /// <summary>Ազատ տեքստով չսիրածները (կատալոգում չկան կամ հին տվյալ են)։</summary>
     public List<string> DislikedIngredients { get; set; } = new();
 
     public bool PreferFreezerFriendly { get; set; }

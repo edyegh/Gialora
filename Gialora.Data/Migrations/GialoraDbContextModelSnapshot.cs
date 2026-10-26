@@ -176,6 +176,10 @@ namespace Gialora.Data.Migrations
                     b.Property<int?>("DietPreference")
                         .HasColumnType("int");
 
+                    b.Property<string>("DislikedIngredientIds")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("DislikedIngredients")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -758,6 +762,10 @@ namespace Gialora.Data.Migrations
 
                     b.Property<int>("SortOrder")
                         .HasColumnType("int");
+
+                    b.Property<string>("SourceRecipeIds")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("SourceRecipes")
                         .IsRequired()

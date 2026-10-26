@@ -12,11 +12,13 @@ namespace Gialora.Application.Services;
 public class FamilyService : IFamilyService
 {
     private readonly GialoraDbContext _db;
+    private readonly IContentLanguage _language;
     private readonly ILogger<FamilyService> _logger;
 
-    public FamilyService(GialoraDbContext db, ILogger<FamilyService> logger)
+    public FamilyService(GialoraDbContext db, IContentLanguage language, ILogger<FamilyService> logger)
     {
         _db = db;
+        _language = language;
         _logger = logger;
     }
 
@@ -51,14 +53,14 @@ public class FamilyService : IFamilyService
                 var winner = await _db.Families.AsNoTracking()
                     .Include(f => f.FamilyMembers)
                     .FirstAsync(f => f.Id == user.FamilyId);
-                return Map(winner);
+                return await MapAsync(winner);
             }
 
             _logger.LogInformation("Family {FamilyId} auto-created for user {UserId}", family.Id, userId);
-            return Map(family);
+            return await MapAsync(family);
         }
 
-        return Map(user.Family);
+        return await MapAsync(user.Family);
     }
 
     public async Task<FamilyDto> RenameAsync(Guid userId, FamilyUpdateDto dto)
@@ -66,7 +68,7 @@ public class FamilyService : IFamilyService
         var family = await LoadFamilyAsync(userId);
         family.Name = dto.Name.Trim();
         await _db.SaveChangesAsync();
-        return Map(family);
+        return await MapAsync(family);
     }
 
     public async Task<FamilyPreferencesDto> UpdatePreferencesAsync(Guid userId, FamilyPreferencesDto dto)
@@ -86,8 +88,16 @@ public class FamilyService : IFamilyService
         family.ExcludedProteins = dto.ExcludedProteins.Distinct().Select(p => p.ToString()).ToList();
         family.DislikedIngredients = NormalizeList(dto.DislikedIngredients);
 
+        // Միայն գոյություն ունեցող բաղադրիչները — սխալ/ջնջված Id-ն լուռ բաց ենք թողնում
+        var wantedIds = dto.DislikedIngredientIds.Distinct().ToList();
+        var knownIds = await _db.Ingredients
+            .Where(i => wantedIds.Contains(i.Id))
+            .Select(i => i.Id)
+            .ToListAsync();
+        family.DislikedIngredientIds = wantedIds.Where(knownIds.Contains).ToList();
+
         await _db.SaveChangesAsync();
-        return MapPreferences(family);
+        return await MapPreferencesAsync(family);
     }
 
     public async Task<FamilyMemberDto> AddMemberAsync(Guid userId, FamilyMemberCreateDto dto)
@@ -204,7 +214,7 @@ public class FamilyService : IFamilyService
              .Distinct()
              .ToList();
 
-    private static FamilyDto Map(Family family) => new()
+    private async Task<FamilyDto> MapAsync(Family family) => new()
     {
         Id = family.Id,
         Name = family.Name,
@@ -214,9 +224,28 @@ public class FamilyService : IFamilyService
             .ThenBy(m => m.Name)
             .Select(MapMember)
             .ToList(),
-        Preferences = MapPreferences(family),
+        Preferences = await MapPreferencesAsync(family),
         ActiveMemberCount = family.FamilyMembers.Count(m => !m.IsDeleted && m.IsActive)
     };
+
+    private async Task<FamilyPreferencesDto> MapPreferencesAsync(Family family)
+    {
+        // Չսիրածների անունները՝ ընթացիկ լեզվով։ Ջնջված բաղադրիչը (query filter-ը
+        // այն հանում է) ցուցակից դուրս է մնում — engine-ին էլ արդեն չի խանգարում։
+        var names = await _db.IngredientTranslations.AsNoTracking()
+            .Where(t => family.DislikedIngredientIds.Contains(t.IngredientId))
+            .Select(t => new { t.IngredientId, t.Language, t.Name })
+            .ToListAsync();
+
+        var byId = names
+            .GroupBy(n => n.IngredientId)
+            .ToDictionary(g => g.Key, g => g.Best(_language.Code, n => n.Language)!.Name);
+
+        var dto = MapPreferences(family);
+        dto.DislikedIngredientIds = family.DislikedIngredientIds.Where(byId.ContainsKey).ToList();
+        dto.DislikedIngredientNames = dto.DislikedIngredientIds.Select(id => byId[id]).ToList();
+        return dto;
+    }
 
     private static FamilyPreferencesDto MapPreferences(Family family) => new()
     {

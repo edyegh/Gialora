@@ -1,4 +1,5 @@
 // Gialora.Application/Planning/MealPlanningEngine.cs
+using Gialora.Shared;
 using Gialora.Shared.Enums;
 using Gialora.Shared.Goals;
 
@@ -80,7 +81,10 @@ public class MealPlanningEngine : IMealPlanningEngine
         if (constraints.RestrictionTerms.Any(term => MentionsIngredient(candidate, term)))
             return false;
 
-        // Չսիրած բաղադրիչներ
+        // Չսիրած բաղադրիչներ — կատալոգից ընտրվածները Id-ով, ազատ տեքստը՝ անունով
+        if (candidate.IngredientIds.Overlaps(constraints.DislikedIngredientIds))
+            return false;
+
         if (constraints.DislikedIngredients.Count > 0 &&
             candidate.IngredientNames.Any(name =>
                 constraints.DislikedIngredients.Any(d => name.Contains(d, StringComparison.OrdinalIgnoreCase))))
@@ -184,7 +188,7 @@ public class MealPlanningEngine : IMealPlanningEngine
         if (pool.Count == 0)
         {
             result.IsPartial = true;
-            result.Notes.Add("No recipes match your current preferences. Try relaxing the cooking time or dietary filters.");
+            result.Notes.Add(PlanningNotes.Encode(PlanningNotes.NoMatches));
             return result;
         }
 
@@ -204,11 +208,11 @@ public class MealPlanningEngine : IMealPlanningEngine
             if (batchPool.Count > 0)
             {
                 pool = batchPool;
-                result.Notes.Add("Only batch- and freezer-friendly recipes were considered.");
+                result.Notes.Add(PlanningNotes.Encode(PlanningNotes.BatchOnly));
             }
             else
             {
-                result.Notes.Add("No batch-friendly recipes available yet — showing regular recipes instead.");
+                result.Notes.Add(PlanningNotes.Encode(PlanningNotes.NoBatchRecipes));
             }
         }
 
@@ -278,9 +282,7 @@ public class MealPlanningEngine : IMealPlanningEngine
         if (unfilledSlots > 0)
         {
             result.IsPartial = true;
-            result.Notes.Add(
-                $"Only {selected.Count} of {request.SlotCount} meals could be planned — " +
-                "there aren't enough matching recipes yet.");
+            result.Notes.Add(PlanningNotes.Encode(PlanningNotes.PartialPlan, selected.Count, request.SlotCount));
         }
 
         result.Selection.AddRange(selected);
@@ -378,13 +380,13 @@ public class MealPlanningEngine : IMealPlanningEngine
             return;
 
         var distinctProteins = selected.Select(s => s.PrimaryProtein).Distinct().Count();
-        result.Notes.Add($"{distinctProteins} different protein sources across {selected.Count} meals.");
+        result.Notes.Add(PlanningNotes.Encode(PlanningNotes.Proteins, distinctProteins, selected.Count));
 
         if (vegetableMeals > 0)
-            result.Notes.Add($"{vegetableMeals} vegetable-rich meals.");
+            result.Notes.Add(PlanningNotes.Encode(PlanningNotes.VegetableMeals, vegetableMeals));
 
         if (legumeMeals >= targetLegumeMeals && targetLegumeMeals > 0)
-            result.Notes.Add($"{legumeMeals} legume-based meal(s) included.");
+            result.Notes.Add(PlanningNotes.Encode(PlanningNotes.LegumeMeals, legumeMeals));
 
         if (request.OptimizeIngredientReuse)
         {
@@ -393,15 +395,14 @@ public class MealPlanningEngine : IMealPlanningEngine
 
             if (totalIngredientSlots > distinctIngredients)
             {
-                result.Notes.Add(
-                    $"Shared ingredients across meals: {totalIngredientSlots - distinctIngredients} " +
-                    $"repeats over {distinctIngredients} distinct items — fewer things to buy.");
+                result.Notes.Add(PlanningNotes.Encode(
+                    PlanningNotes.SharedIngredients, totalIngredientSlots - distinctIngredients, distinctIngredients));
             }
         }
 
         var freezerCount = selected.Count(s => s.IsFreezerFriendly);
         if (freezerCount > 0)
-            result.Notes.Add($"{freezerCount} recipe(s) can be frozen for later.");
+            result.Notes.Add(PlanningNotes.Encode(PlanningNotes.Freezable, freezerCount));
 
         // Նպատակների ազդեցությունը պիտի տեսանելի լինի — այլապես user-ը չի իմանա,
         // արդյոք "more iron"-ը որևէ բան փոխեց, թե ոչ։
@@ -412,9 +413,10 @@ public class MealPlanningEngine : IMealPlanningEngine
                 continue;
 
             var matched = selected.Count(c => GoalMatchers.Matches(goal.Key, c));
+            // Նպատակի անունը բանալի է ("Goal.more-iron") — client-ը այն էլ է թարգմանում
             result.Notes.Add(matched > 0
-                ? $"Goal \"{goal.Label}\": {matched} of {selected.Count} meals match."
-                : $"Goal \"{goal.Label}\": no matching recipes were available this time.");
+                ? PlanningNotes.Encode(PlanningNotes.GoalMatched, $"Goal.{goal.Key}", matched, selected.Count)
+                : PlanningNotes.Encode(PlanningNotes.GoalNone, $"Goal.{goal.Key}"));
         }
     }
 

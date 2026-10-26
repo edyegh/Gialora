@@ -4,7 +4,9 @@
 @if (!string.IsNullOrWhiteSpace(Message))
 {
     <div class="alert alert-danger" role="alert">
-        <div>@Message</div>
+        @* L.Note — planner-ի կոդավորված սխալը ("Plan.Note.NoMatches") թարգմանում է,
+           մնացած հաղորդագրությունները թողնում ինչպես կան *@
+        <div>@L.Note(Message)</div>
 
         @if (Errors is { Count: > 0 })
         {

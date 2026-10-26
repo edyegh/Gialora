@@ -31,7 +31,16 @@ public class Family : BaseEntity
     /// <summary>"no fish" — բացառվող սպիտակուցները (CSV column)։</summary>
     public List<string> ExcludedProteins { get; set; } = new();
 
-    /// <summary>Չսիրած բաղադրիչների անունները (normalized, lowercase)։</summary>
+    /// <summary>
+    /// Չսիրած բաղադրիչները՝ կատալոգից ընտրված (Id-ով)։ Լեզվից անկախ են — "Սխտոր"-ն ու
+    /// "Garlic"-ը նույն Id-ն են, իսկ անունը ցույց է տրվում ընթացիկ լեզվով։
+    /// </summary>
+    public List<Guid> DislikedIngredientIds { get; set; } = new();
+
+    /// <summary>
+    /// Ազատ տեքստով չսիրածները (normalized, lowercase) — կատալոգում չեղածների և
+    /// Id-ներից առաջ պահվածների համար։ Համընկնում են ցանկացած լեզվի անվան հետ։
+    /// </summary>
     public List<string> DislikedIngredients { get; set; } = new();
 
     public bool PreferFreezerFriendly { get; set; }

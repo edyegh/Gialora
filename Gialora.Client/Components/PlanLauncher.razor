@@ -103,9 +103,10 @@
                                 <li>⚠️ @L["Launcher.Allergies", string.Join(", ", AllergyNames)]</li>
                             }
 
-                            @if (family.Preferences.DislikedIngredients.Count > 0)
+                            @* Կատալոգից ընտրվածները (ընթացիկ լեզվով) + ազատ տեքստով գրվածները *@
+                            @if (Disliked.Count > 0)
                             {
-                                <li>👎 @L["Launcher.Avoiding", string.Join(", ", family.Preferences.DislikedIngredients)]</li>
+                                <li>👎 @L["Launcher.Avoiding", string.Join(", ", Disliked)]</li>
                             }
                         </ul>
 
@@ -135,6 +136,10 @@
     // Render-ի ժամանակ, ոչ թե բեռնելիս — լեզուն փոխելիս անունները պիտի թարգմանվեն
     private List<string> AllergyNames =>
         allergens.Select(a => L.Enum(a)).Concat(otherAllergies).ToList();
+
+    private List<string> Disliked => family is null
+        ? new()
+        : family.Preferences.DislikedIngredientNames.Concat(family.Preferences.DislikedIngredients).ToList();
     private List<string> inactiveMembers = new();
 
     private int daysCount;

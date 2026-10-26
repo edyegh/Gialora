@@ -1,5 +1,6 @@
 // Gialora.Tests/MealPlanningEngineTests.cs
 using Gialora.Application.Planning;
+using Gialora.Shared;
 using Gialora.Shared.Enums;
 
 namespace Gialora.Tests;
@@ -179,6 +180,24 @@ public class MealPlanningEngineTests
     }
 
     [Fact]
+    public void Disliked_ingredients_picked_from_the_catalogue_match_by_id_in_any_language()
+    {
+        // The family picked "Սխտոր" in Armenian; the recipe only knows the ingredient as "Garlic".
+        // Matching by id means the language of either side does not matter.
+        var garlic = Recipe("Garlic bread", ingredients: new[] { "Garlic", "Bread" });
+        var plain = Recipe("Plain rice", ingredients: new[] { "Rice" });
+        var garlicId = garlic.IngredientIds.First();
+
+        var allowed = _engine.Filter(new[] { garlic, plain }, new PlanningConstraints
+        {
+            MaxCookingTimeMinutes = 60,
+            DislikedIngredientIds = new HashSet<Guid> { garlicId }
+        });
+
+        Assert.Equal("Plain rice", Assert.Single(allowed).Title);
+    }
+
+    [Fact]
     public void A_low_budget_excludes_expensive_recipes_but_keeps_uncosted_ones()
     {
         var pool = new[]
@@ -260,7 +279,7 @@ public class MealPlanningEngineTests
 
         Assert.Single(result.Selection);
         Assert.True(result.IsPartial);
-        Assert.Contains(result.Notes, n => n.Contains("Only 1 of 5"));
+        Assert.Contains(PlanningNotes.Encode(PlanningNotes.PartialPlan, 1, 5), result.Notes);
     }
 
     [Fact]
