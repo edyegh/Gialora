@@ -9,32 +9,78 @@
 <PageTitle>@L["Home.Title"]</PageTitle>
 
 <section class="section container-wide">
-    <div class="page-header" style="text-align:center; max-width:46rem; margin-inline:auto;">
-        <p class="eyebrow">@L["Home.Eyebrow"]</p>
-        <h1>@L["Home.Heading"]</h1>
-        <p class="lede" style="margin-inline:auto;">@L["Home.Lede"]</p>
+    <div class="hero">
+        <div>
+            <p class="eyebrow">@L["Home.Eyebrow"]</p>
+            <h1>@L["Home.Heading"]</h1>
+            <p class="lede">@L["Home.Lede"]</p>
+            <div class="hero-actions">
+                <a class="btn btn-accent" href="weekly">@L["Common.PlanMyWeek"]</a>
+                <a class="btn btn-outline-g" href="recipes">@L["Common.BrowseRecipes"]</a>
+            </div>
+        </div>
+
+        @* Միջերկրածովյան կամարաձև պատուհան՝ արև, ծով, ձիթապտղի ճյուղ։ Զուտ զարդ է *@
+        <div class="hero-art" aria-hidden="true">
+            <svg viewBox="0 0 300 360" focusable="false">
+                <defs>
+                    <linearGradient id="hero-sky" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stop-color="#f6d9b0" />
+                        <stop offset=".6" stop-color="#f3e2c8" />
+                        <stop offset="1" stop-color="#e4eef0" />
+                    </linearGradient>
+                    <linearGradient id="hero-sea" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stop-color="#7fa6b0" />
+                        <stop offset="1" stop-color="#3d6b78" />
+                    </linearGradient>
+                    <clipPath id="hero-arch">
+                        <path d="M30 360V150a120 120 0 0 1 240 0v210z" />
+                    </clipPath>
+                </defs>
+
+                <path d="M14 360V150a136 136 0 0 1 272 0v210z" fill="#fffdf8" stroke="#e2dacb" stroke-width="2" />
+                <g clip-path="url(#hero-arch)">
+                    <rect width="300" height="360" fill="url(#hero-sky)" />
+                    <circle cx="190" cy="190" r="46" fill="#e8a33d" opacity=".9" />
+                    <path d="M0 215h300v145H0z" fill="url(#hero-sea)" />
+                    <path d="M0 240c25-8 50-8 75 0s50 8 75 0 50-8 75 0 50 8 75 0" stroke="#fffdf8" stroke-opacity=".45" stroke-width="3" fill="none" />
+                    <path d="M0 275c25-8 50-8 75 0s50 8 75 0 50-8 75 0 50 8 75 0" stroke="#fffdf8" stroke-opacity=".3" stroke-width="3" fill="none" />
+                    <path d="M0 310c25-8 50-8 75 0s50 8 75 0 50-8 75 0 50 8 75 0" stroke="#fffdf8" stroke-opacity=".2" stroke-width="3" fill="none" />                </g>
+
+                <g transform="translate(-6 40)">
+                    <path d="M40 300C70 240 110 190 170 150" stroke="#43522f" stroke-width="4" stroke-linecap="round" fill="none" />
+                    <ellipse cx="72" cy="248" rx="24" ry="9" transform="rotate(-60 72 248)" fill="#5c6f47" />
+                    <ellipse cx="96" cy="236" rx="24" ry="9" transform="rotate(-15 96 236)" fill="#8ca06f" />
+                    <ellipse cx="100" cy="200" rx="22" ry="8.5" transform="rotate(-70 100 200)" fill="#8ca06f" />
+                    <ellipse cx="128" cy="196" rx="22" ry="8.5" transform="rotate(-20 128 196)" fill="#5c6f47" />
+                    <ellipse cx="140" cy="164" rx="20" ry="8" transform="rotate(-75 140 164)" fill="#5c6f47" />
+                    <ellipse cx="86" cy="270" rx="11" ry="14" fill="#43522f" />
+                    <ellipse cx="118" cy="226" rx="10" ry="13" fill="#c25b3a" />
+                </g>
+            </svg>
+        </div>
     </div>
 
-    <div class="grid-3">
-        <a class="route-card" href="daily">
+    <div class="grid-3" style="margin-top:2rem;">
+        <a class="route-card route-daily" href="daily">
             <span class="route-icon" aria-hidden="true">🍅</span>
             <h3>@L["Nav.Daily"]</h3>
             <p>@L["Home.DailyText"]</p>
-            <span class="route-go">@L["Home.DailyGo"] →</span>
+            <span class="route-go">@L["Home.DailyGo"] <span aria-hidden="true">→</span></span>
         </a>
 
-        <a class="route-card" href="weekly">
+        <a class="route-card route-weekly" href="weekly">
             <span class="route-icon" aria-hidden="true">🗓️</span>
             <h3>@L["Nav.Weekly"]</h3>
             <p>@L["Home.WeeklyText"]</p>
-            <span class="route-go">@L["Common.PlanMyWeek"] →</span>
+            <span class="route-go">@L["Common.PlanMyWeek"] <span aria-hidden="true">→</span></span>
         </a>
 
-        <a class="route-card" href="batch">
+        <a class="route-card route-batch" href="batch">
             <span class="route-icon" aria-hidden="true">❄️</span>
             <h3>@L["Nav.Batch"]</h3>
             <p>@L["Home.BatchText"]</p>
-            <span class="route-go">@L["Home.BatchGo"] →</span>
+            <span class="route-go">@L["Home.BatchGo"] <span aria-hidden="true">→</span></span>
         </a>
     </div>
 </section>

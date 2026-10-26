@@ -1,16 +1,16 @@
 @* Gialora.Client/Layout/NavMenu.razor
    Կառուցվածքը ուղիղ հետևում է app structure §2-ի "Website structure"-ին՝
-   HOME / DAILY / WEEKLY / BATCH & FREEZE / RECIPES / SHOPPING LIST / BLOG *@
+   HOME / DAILY / WEEKLY / BATCH & FREEZE / RECIPES / SHOPPING LIST / BLOG։
+   Հաշվի հղումները (Saved, My family, Admin, Sign out) աջ անկյան մարդու
+   պատկերակի dropdown-ում են, որ հիմնական տողը չլցվի և չփաթաթվի։ *@
 @inject NavigationManager Navigation
 
 <header class="site-header">
-    <div class="container-wide site-header-inner">
-        <a class="brand" href="">Gialora<span class="brand-mark">.</span></a>
-
-        <button class="nav-toggle" type="button" @onclick="ToggleMenu"
-                aria-label="@L["Nav.ToggleNavigation"]" aria-expanded="@(!collapsed)">
-            ☰
-        </button>
+    <div class="site-header-inner">
+        <a class="brand" href="">
+            <BrandLogo />
+            <span>Gialora<span class="brand-mark">.</span></span>
+        </a>
 
         @* Class, ոչ թե hidden attribute — hidden-ը թաքցնում է ամեն լայնության վրա,
            իսկ մեզ պետք է, որ desktop-ում մենյուն միշտ երևա *@
@@ -28,24 +28,9 @@
             </AuthorizeView>
 
             <NavLink href="blog">@L["Nav.Blog"]</NavLink>
+        </nav>
 
-            <span class="site-nav-spacer"></span>
-
-            <AuthorizeView>
-                <Authorized Context="auth">
-                    <AuthorizeView Roles="Admin" Context="adminAuth">
-                        <NavLink href="admin/recipes">@L["Nav.Admin"]</NavLink>
-                    </AuthorizeView>
-                    <NavLink href="favorites">@L["Nav.Saved"]</NavLink>
-                    <NavLink href="family">@L["Nav.MyFamily"]</NavLink>
-                    <NavLink href="logout">@L["Nav.SignOut"]</NavLink>
-                </Authorized>
-                <NotAuthorized>
-                    <NavLink href="login">@L["Nav.SignIn"]</NavLink>
-                    <NavLink href="register">@L["Nav.CreateAccount"]</NavLink>
-                </NotAuthorized>
-            </AuthorizeView>
-
+        <div class="site-actions">
             @* Լեզվի ընտրիչ — արժեքը localStorage-ում է, բոլոր էջերը միանգամից re-render են լինում *@
             <select class="lang-select" aria-label="@L["Nav.Language"]" title="@L["Nav.Language"]"
                     value="@L.Language" @onchange="OnLanguageChanged">
@@ -54,7 +39,53 @@
                     <option value="@language.Code">@language.NativeName</option>
                 }
             </select>
-        </nav>
+
+            <div class="user-menu" @onkeydown="OnUserMenuKeyDown">
+                <button class="user-menu-toggle @(userMenuOpen ? "is-open" : null)" type="button"
+                        @onclick="ToggleUserMenu" aria-haspopup="menu" aria-expanded="@userMenuOpen"
+                        aria-label="@L["Nav.Account"]" title="@L["Nav.Account"]">
+                    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+                        <circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="1.8" />
+                        <path d="M4 20.5c1.2-4 4.4-6 8-6s6.8 2 8 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                    </svg>
+                </button>
+
+                @if (userMenuOpen)
+                {
+                    @* Թափանցիկ շերտ — դրսում սեղմելը փակում է մենյուն *@
+                    <div class="user-menu-backdrop" @onclick="CloseUserMenu"></div>
+
+                    <div class="user-menu-panel" role="menu">
+                        <AuthorizeView>
+                            <Authorized Context="auth">
+                                @if (!string.IsNullOrWhiteSpace(auth.User.Identity?.Name))
+                                {
+                                    <div class="user-menu-head">@auth.User.Identity!.Name</div>
+                                }
+
+                                <NavLink href="favorites" role="menuitem">@L["Nav.Saved"]</NavLink>
+                                <NavLink href="family" role="menuitem">@L["Nav.MyFamily"]</NavLink>
+                                <AuthorizeView Roles="Admin" Context="adminAuth">
+                                    <NavLink href="admin/recipes" role="menuitem">@L["Nav.Admin"]</NavLink>
+                                </AuthorizeView>
+
+                                <div class="user-menu-divider"></div>
+                                <NavLink href="logout" role="menuitem" class="user-menu-danger">@L["Nav.SignOut"]</NavLink>
+                            </Authorized>
+                            <NotAuthorized>
+                                <NavLink href="login" role="menuitem">@L["Nav.SignIn"]</NavLink>
+                                <NavLink href="register" role="menuitem">@L["Nav.CreateAccount"]</NavLink>
+                            </NotAuthorized>
+                        </AuthorizeView>
+                    </div>
+                }
+            </div>
+
+            <button class="nav-toggle" type="button" @onclick="ToggleMenu"
+                    aria-label="@L["Nav.ToggleNavigation"]" aria-expanded="@(!collapsed)">
+                ☰
+            </button>
+        </div>
     </div>
 </header>
 
@@ -62,6 +93,7 @@
     // Մենյուն միշտ "collapsed" վիճակում ենք պահում. desktop-ում CSS-ը այն
     // ամեն դեպքում ցույց է տալիս, ուստի սա ազդում է միայն նեղ էկրանին։
     private bool collapsed = true;
+    private bool userMenuOpen;
 
     protected override void OnInitialized()
     {
@@ -69,18 +101,37 @@
         Navigation.LocationChanged += OnLocationChanged;
     }
 
-    private void ToggleMenu() => collapsed = !collapsed;
+    private void ToggleMenu()
+    {
+        collapsed = !collapsed;
+        userMenuOpen = false;
+    }
+
+    private void ToggleUserMenu()
+    {
+        userMenuOpen = !userMenuOpen;
+        collapsed = true;
+    }
+
+    private void CloseUserMenu() => userMenuOpen = false;
+
+    private void OnUserMenuKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+            userMenuOpen = false;
+    }
 
     private Task OnLanguageChanged(ChangeEventArgs e) =>
         L.SetLanguageAsync(e.Value?.ToString() ?? Localizer.DefaultLanguage);
 
-    // Էջ փոխելուց հետո բացված մենյուն պիտի փակվի — հակառակ դեպքում հեռախոսին
+    // Էջ փոխելուց հետո բացված մենյուները պիտի փակվեն — հակառակ դեպքում հեռախոսին
     // նոր էջը բացվում է մենյուի տակ թաքնված։
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
-        if (collapsed) return;
+        if (collapsed && !userMenuOpen) return;
 
         collapsed = true;
+        userMenuOpen = false;
         StateHasChanged();
     }
 

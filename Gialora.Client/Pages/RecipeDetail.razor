@@ -24,6 +24,13 @@
     else
     {
         <article>
+            @if (!string.IsNullOrWhiteSpace(recipe.ImageUrl))
+            {
+                <div class="recipe-hero-media">
+                    <img src="@recipe.ImageUrl" alt="@recipe.Title" />
+                </div>
+            }
+
             <div class="page-header">
                 <p class="eyebrow">@L.Enum(recipe.MealType) · @L.Enum(recipe.Cuisine)</p>
                 <h1 style="margin:0 0 .5rem;">@recipe.Title</h1>
