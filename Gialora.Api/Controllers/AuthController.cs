@@ -25,11 +25,30 @@ public class AuthController : ControllerBase
 
     [HttpPost("register")]
     [AllowAnonymous]
-    public async Task<ActionResult<AuthResponseDto>> Register([FromBody] RegisterDto dto)
+    public async Task<ActionResult<RegisterResultDto>> Register([FromBody] RegisterDto dto)
     {
-        // ConflictException-ը 409-ի է վերածում middleware-ը — այստեղ try/catch պետք չէ
+        // ConflictException-ը 409-ի է վերածում middleware-ը — այստեղ try/catch պետք չէ։
+        // Token ՉԵՆՔ տալիս — նախ email-ի կոդը (verify-email)։
         var result = await _authService.RegisterAsync(dto);
+        return Ok(result);
+    }
+
+    [HttpPost("verify-email")]
+    [AllowAnonymous]
+    public async Task<ActionResult<AuthResponseDto>> VerifyEmail([FromBody] VerifyEmailDto dto)
+    {
+        // Սխալ/ժամկետանց կոդը ValidationFailedException է → 400 (middleware)
+        var result = await _authService.VerifyEmailAsync(dto);
         return Ok(BuildResponse(result));
+    }
+
+    [HttpPost("resend-verification")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ResendVerification([FromBody] ResendVerificationDto dto)
+    {
+        // Միշտ 204 — պատասխանից չպիտի երևա՝ email-ը գրանցված է, թե ոչ
+        await _authService.ResendVerificationAsync(dto);
+        return NoContent();
     }
 
     [HttpPost("login")]

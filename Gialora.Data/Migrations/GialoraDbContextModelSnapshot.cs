@@ -807,6 +807,19 @@ namespace Gialora.Data.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("bit");
 
+                    b.Property<int>("EmailVerificationAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EmailVerificationCodeHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("EmailVerificationExpiresUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("EmailVerificationSentUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("FailedLoginAttempts")
                         .HasColumnType("int");
 

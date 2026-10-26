@@ -114,7 +114,7 @@ Every persisted entity except the pure join tables derives from `BaseEntity`.
 
 ### 3.2 Users, families and members
 
-**User** — Email (unique, 256 chars), PasswordHash, DisplayName, EmailConfirmed, Role (`User` or `Admin`), FailedLoginAttempts, LockoutEndUtc, optional FamilyId.
+**User** — Email (unique, 256 chars), PasswordHash, DisplayName, EmailConfirmed (login requires it), EmailVerificationCodeHash/ExpiresUtc/SentUtc/Attempts (SHA-256 of the pending code; cleared on confirmation), Role (`User` or `Admin`), FailedLoginAttempts, LockoutEndUtc, optional FamilyId.
 
 **Family** — the household, and the complete input to the planning engine alongside its members.
 
@@ -477,11 +477,13 @@ All endpoints are prefixed `/api`. "Anonymous" means no token is required; "User
 
 | Method | Route | Access | Purpose |
 | --- | --- | --- | --- |
-| POST | `/auth/register` | Anonymous | Create an account, returns a token. |
-| POST | `/auth/login` | Anonymous | Sign in, returns a token. |
+| POST | `/auth/register` | Anonymous | Create an unconfirmed account and email a 6-digit code. No token. |
+| POST | `/auth/verify-email` | Anonymous | Confirm the code (15 min, 5 attempts), returns a token. |
+| POST | `/auth/resend-verification` | Anonymous | Send a new code (60 s cooldown). Always 204. |
+| POST | `/auth/login` | Anonymous | Sign in, returns a token. Unconfirmed email → 403 with `Code = "EmailNotConfirmed"` and a fresh code is sent. |
 | GET | `/auth/me` | User | Validate a token, return the current user. |
 
-Both anonymous routes sit behind a fixed-window rate limiter of 10 requests per minute per IP address.
+All anonymous `/auth` routes sit behind a fixed-window rate limiter of 10 requests per minute per IP address.
 
 ### Family
 
@@ -645,7 +647,7 @@ Claim names are short (`name`, `role`) and the same constants are used on both s
 | `/favorites` | Saved recipes | User |
 | `/family` (also `/family-setup`) | Members and preferences | User |
 | `/blog`, `/blog/{slug}` | Blog | Anonymous |
-| `/login`, `/register`, `/logout` | Account | Anonymous |
+| `/login`, `/register`, `/verify-email`, `/logout` | Account | Anonymous |
 | `/admin/recipes`, `/admin/recipes/new`, `/admin/recipes/{id}` | Recipe admin | Admin |
 | `/admin/ingredients`, `/admin/import`, `/admin/blog`, `/admin/blog/{id}` | Admin tools | Admin |
 

@@ -16,11 +16,15 @@ public class ApiException : Exception
     public HttpStatusCode StatusCode { get; }
     public Dictionary<string, string[]>? ValidationErrors { get; }
 
-    public ApiException(HttpStatusCode statusCode, string message, Dictionary<string, string[]>? errors = null)
+    /// <summary>ApiErrorDto.Code — օր. ApiErrorCodes.EmailNotConfirmed։</summary>
+    public string? ErrorCode { get; }
+
+    public ApiException(HttpStatusCode statusCode, string message, Dictionary<string, string[]>? errors = null, string? errorCode = null)
         : base(message)
     {
         StatusCode = statusCode;
         ValidationErrors = errors;
+        ErrorCode = errorCode;
     }
 
     public bool IsUnauthorized => StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden;
@@ -121,6 +125,7 @@ public abstract class ApiClientBase
         };
 
         Dictionary<string, string[]>? errors = null;
+        string? errorCode = null;
 
         // API-ն ամեն սխալ վերադարձնում է ApiErrorDto-ով, բայց 500-ի կամ proxy-ի
         // դեպքում մարմինը կարող է HTML լինել — այդ պատճառով try/catch։
@@ -132,12 +137,13 @@ public abstract class ApiClientBase
                 message = payload.Message;
 
             errors = payload?.Errors;
+            errorCode = payload?.Code;
         }
         catch
         {
             // Մնում ենք status-ի հիման վրա կառուցված message-ի վրա
         }
 
-        throw new ApiException(response.StatusCode, message, errors);
+        throw new ApiException(response.StatusCode, message, errors, errorCode);
     }
 }

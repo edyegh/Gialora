@@ -19,6 +19,13 @@ public class User : BaseEntity
     public int FailedLoginAttempts { get; set; } = 0;
     public DateTime? LockoutEndUtc { get; set; }
 
+    // Email-ի հաստատման կոդը։ Պահում ենք միայն hash-ը (SHA-256) — բազայի արտահոսքը
+    // չպիտի թույլ տա ուրիշի account-ը հաստատել։ Հաստատվելուց հետո դաշտերը մաքրվում են։
+    public string? EmailVerificationCodeHash { get; set; }
+    public DateTime? EmailVerificationExpiresUtc { get; set; }
+    public DateTime? EmailVerificationSentUtc { get; set; }
+    public int EmailVerificationAttempts { get; set; } = 0;
+
     public Guid? FamilyId { get; set; }
     public Family? Family { get; set; }
 

@@ -69,8 +69,11 @@
 
         try
         {
-            await Account.RegisterAsync(registerDto);
-            Navigation.NavigateTo("family", replace: true);
+            registerDto.Language = L.Language;
+            var result = await Account.RegisterAsync(registerDto);
+
+            // Token դեռ չկա — նախ email-ի կոդը, հետո՝ family setup
+            Navigation.NavigateTo($"verify-email?email={Uri.EscapeDataString(result.Email)}", replace: true);
         }
         catch (ApiException ex)
         {

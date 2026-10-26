@@ -983,3 +983,11 @@ code { color: var(--terracotta-dark); background: var(--sand-deep); padding: .1r
 
 .rank-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rank-count { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ink-soft); }
+
+/* Email-ի հաստատման կոդը — մեծ, տարածված թվանշաններ */
+.verify-code-input {
+    font-size: 1.5rem;
+    letter-spacing: 0.5em;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}

@@ -30,4 +30,16 @@ public class ApiErrorDto
 {
     public string Message { get; set; } = string.Empty;
     public Dictionary<string, string[]>? Errors { get; set; }
+
+    /// <summary>
+    /// Մեքենայական կոդ այն սխալների համար, որոնց client-ը պետք է տարբեր կերպ արձագանքի
+    /// (օր. <see cref="ApiErrorCodes.EmailNotConfirmed"/> → verify էջ)։ Message-ի տեքստով
+    /// կռահելը կկոտրվեր առաջին իսկ թարգմանության ժամանակ։
+    /// </summary>
+    public string? Code { get; set; }
+}
+
+public static class ApiErrorCodes
+{
+    public const string EmailNotConfirmed = "EmailNotConfirmed";
 }

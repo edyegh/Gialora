@@ -75,8 +75,17 @@
 
         try
         {
+            loginDto.Language = L.Language;
             await Account.LoginAsync(loginDto);
             NavigateAfterLogin();
+        }
+        catch (ApiException ex) when (ex.ErrorCode == ApiErrorCodes.EmailNotConfirmed)
+        {
+            // Password-ը ճիշտ էր, email-ը՝ չհաստատված. API-ն արդեն նոր կոդ է ուղարկել
+            var url = $"verify-email?email={Uri.EscapeDataString(loginDto.Email.Trim())}";
+            if (!string.IsNullOrWhiteSpace(ReturnUrl))
+                url += $"&returnUrl={Uri.EscapeDataString(ReturnUrl)}";
+            Navigation.NavigateTo(url);
         }
         catch (ApiException ex)
         {

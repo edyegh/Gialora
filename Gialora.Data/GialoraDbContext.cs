@@ -63,6 +63,7 @@ public class GialoraDbContext : DbContext
             b.Property(u => u.Email).HasMaxLength(256).IsRequired();
             b.Property(u => u.DisplayName).HasMaxLength(100).IsRequired();
             b.Property(u => u.PasswordHash).HasMaxLength(256).IsRequired();
+            b.Property(u => u.EmailVerificationCodeHash).HasMaxLength(64);
             b.HasIndex(u => u.Email).IsUnique();
             b.HasQueryFilter(u => !u.IsDeleted);
         });

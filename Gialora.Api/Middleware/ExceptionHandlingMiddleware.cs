@@ -66,6 +66,12 @@ public class ExceptionHandlingMiddleware
         ConflictException => (StatusCodes.Status409Conflict, new ApiErrorDto { Message = ex.Message }),
         ForbiddenException => (StatusCodes.Status403Forbidden, new ApiErrorDto { Message = ex.Message }),
 
+        EmailNotConfirmedException => (
+            StatusCodes.Status403Forbidden,
+            new ApiErrorDto { Message = ex.Message, Code = ApiErrorCodes.EmailNotConfirmed }),
+
+        EmailDeliveryException => (StatusCodes.Status503ServiceUnavailable, new ApiErrorDto { Message = ex.Message }),
+
         // Չսպասված սխալի մանրամասնը երբեք չի հասնում client — stack trace-ը
         // տեղեկություն է տալիս attacker-ին բազայի ու կոդի կառուցվածքի մասին
         _ => (StatusCodes.Status500InternalServerError,

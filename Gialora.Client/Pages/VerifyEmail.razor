@@ -1,0 +1,175 @@
+@* Gialora.Client/Pages/VerifyEmail.razor
+   Գրանցումից (կամ չհաստատված account-ով login-ից) հետո user-ը այստեղ է մուտքագրում
+   email-ով ստացած 6-նիշանոց կոդը։ Ճիշտ կոդ → token, user-ը մուտք է գործած։ *@
+@page "/verify-email"
+@using Gialora.Client.Services
+@inject AccountApi Account
+@inject NavigationManager Navigation
+
+<PageTitle>@L["Verify.Heading"] — Gialora</PageTitle>
+
+<section class="section container-narrow" style="max-width:26rem;">
+    <div class="page-header">
+        <p class="eyebrow">@L["Verify.Eyebrow"]</p>
+        <h1 style="margin:0;">@L["Verify.Heading"]</h1>
+    </div>
+
+    <div class="card-g">
+        <div class="card-g-body">
+            @if (string.IsNullOrWhiteSpace(Email))
+            {
+                <p class="mb-0">@L["Verify.NoEmail"] <a href="register">@L["Nav.CreateAccount"]</a></p>
+            }
+            else
+            {
+                <p>@L["Verify.Intro", Email]</p>
+
+                <EditForm Model="@verifyDto" OnValidSubmit="HandleVerify" FormName="verify-email">
+                    <DataAnnotationsValidator />
+
+                    <div class="mb-3">
+                        <label class="form-label" for="code">@L["Verify.Code"]</label>
+                        <InputText id="code" class="form-control verify-code-input" inputmode="numeric"
+                                   autocomplete="one-time-code" maxlength="6" placeholder="000000"
+                                   @bind-Value="verifyDto.Code" />
+                        <ValidationMessage For="@(() => verifyDto.Code)" />
+                    </div>
+
+                    <ErrorAlert Message="@errorMessage" />
+
+                    @if (infoMessage is not null)
+                    {
+                        <div class="alert alert-success" role="status">@infoMessage</div>
+                    }
+
+                    <button type="submit" class="btn btn-primary w-100" disabled="@isSubmitting">
+                        @(isSubmitting ? L["Verify.Submitting"] : L["Verify.Submit"])
+                    </button>
+                </EditForm>
+
+                <p class="mt-3 mb-0 small-muted">
+                    @L["Verify.NoCode"]
+                    @if (cooldownSeconds > 0)
+                    {
+                        <span>@L["Verify.ResendIn", cooldownSeconds]</span>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-link p-0 align-baseline" disabled="@isResending" @onclick="HandleResend">
+                            @L["Verify.Resend"]
+                        </button>
+                    }
+                </p>
+            }
+        </div>
+    </div>
+</section>
+
+@code {
+    // Նույնը, ինչ API-ի AuthService.ResendCooldown-ը
+    private const int ResendCooldownSeconds = 60;
+
+    [SupplyParameterFromQuery(Name = "email")]
+    private string? Email { get; set; }
+
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    private string? ReturnUrl { get; set; }
+
+    private VerifyEmailDto verifyDto = new();
+    private string? errorMessage;
+    private string? infoMessage;
+    private bool isSubmitting;
+    private bool isResending;
+    private int cooldownSeconds;
+    private System.Threading.Timer? cooldownTimer;
+
+    protected override void OnInitialized()
+    {
+        verifyDto.Email = Email?.Trim() ?? string.Empty;
+
+        // Կոդը հենց նոր է ուղարկվել (գրանցում / login) — resend-ը միանգամից իմաստ չունի
+        StartCooldown();
+    }
+
+    private async Task HandleVerify()
+    {
+        if (isSubmitting) return;
+
+        isSubmitting = true;
+        errorMessage = null;
+        infoMessage = null;
+
+        try
+        {
+            verifyDto.Code = verifyDto.Code.Trim();
+            await Account.VerifyEmailAsync(verifyDto);
+
+            // Login-ից եկածը վերադառնում է իր էջին, նոր գրանցվածը՝ family setup
+            var target = string.IsNullOrWhiteSpace(ReturnUrl) ? "family" : ReturnUrlGuard.Sanitize(ReturnUrl);
+            Navigation.NavigateTo(target, replace: true);
+        }
+        catch (ApiException ex)
+        {
+            errorMessage = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = L["Common.ServerUnreachable"];
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task HandleResend()
+    {
+        if (isResending || cooldownSeconds > 0) return;
+
+        isResending = true;
+        errorMessage = null;
+        infoMessage = null;
+
+        try
+        {
+            await Account.ResendVerificationAsync(new ResendVerificationDto { Email = verifyDto.Email, Language = L.Language });
+            infoMessage = L["Verify.Resent"];
+            StartCooldown();
+        }
+        catch (ApiException ex)
+        {
+            errorMessage = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = L["Common.ServerUnreachable"];
+        }
+        finally
+        {
+            isResending = false;
+        }
+    }
+
+    private void StartCooldown()
+    {
+        cooldownSeconds = ResendCooldownSeconds;
+        cooldownTimer?.Dispose();
+        cooldownTimer = new System.Threading.Timer(_ =>
+        {
+            if (cooldownSeconds <= 0)
+            {
+                cooldownTimer?.Dispose();
+                return;
+            }
+
+            cooldownSeconds--;
+            InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+    }
+
+    public override void Dispose()
+    {
+        cooldownTimer?.Dispose();
+        base.Dispose();
+    }
+}

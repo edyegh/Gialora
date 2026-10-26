@@ -40,3 +40,25 @@ public class ForbiddenException : AppException
 {
     public ForbiddenException(string message = "You do not have access to this resource.") : base(message) { }
 }
+
+/// <summary>
+/// 403 + <c>ApiErrorCodes.EmailNotConfirmed</c> — password-ը ճիշտ է, բայց email-ը դեռ
+/// հաստատված չէ։ Նետվում է ՄԻԱՅՆ ճիշտ password-ից հետո, ուստի email enumeration չի բացում։
+/// </summary>
+public class EmailNotConfirmedException : AppException
+{
+    public string Email { get; }
+
+    public EmailNotConfirmedException(string email)
+        : base("Please confirm your email address. We have sent you a verification code.")
+    {
+        Email = email;
+    }
+}
+
+/// <summary>503 — email-ը չհաջողվեց ուղարկել (SMTP-ն անհասանելի է կամ մերժեց)։</summary>
+public class EmailDeliveryException : AppException
+{
+    public EmailDeliveryException(string message = "We could not send the verification email. Please try again in a moment.")
+        : base(message) { }
+}

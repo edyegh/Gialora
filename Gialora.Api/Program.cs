@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Gialora.Api.Middleware;
 using Gialora.Api.Services;
+using Gialora.Api.Services.Email;
 using Gialora.Api.Services.Telegram;
 using Gialora.Application.Planning;
 using Gialora.Application.Seed;
@@ -108,6 +109,18 @@ builder.Services.AddHttpClient<TelegramBotClient>(client =>
 builder.Services.AddScoped<IChatNotifier, TelegramChatNotifier>();
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddHostedService<TelegramPollingService>();
+
+// Email-ի հաստատման կոդերը։ Կարգավորումը՝ "Smtp" section (Password-ը ԳԱՂՏՆԻ է՝
+// user-secrets / environment variable)։ Առանց SMTP-ի ոչ ոք չի կարող գրանցվել, ուստի
+// production-ում դա startup-ի սխալ է, իսկ Development-ում email-ը գնում է log։
+var smtpOptions = builder.Configuration.GetSection(SmtpOptions.Section).Get<SmtpOptions>() ?? new SmtpOptions();
+builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.Section));
+if (smtpOptions.IsConfigured)
+    builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+else if (builder.Environment.IsDevelopment())
+    builder.Services.AddScoped<IEmailSender, LoggingEmailSender>();
+else
+    throw new InvalidOperationException("SMTP is not configured (Smtp:Host / Smtp:FromAddress) — verification emails cannot be sent.");
 
 // Admin-ի վիճակագրությունը (էջի դիտումներ, click-եր, հավանած ռեցեպտներ)
 builder.Services.AddScoped<IActivityService, ActivityService>();
