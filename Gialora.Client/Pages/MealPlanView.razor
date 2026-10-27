@@ -8,7 +8,7 @@
 @inject PlannerApi Planner
 @inject NavigationManager Navigation
 
-<PageTitle>@(plan?.Name ?? L["PlanView.Title"]) — Gialora</PageTitle>
+<PageTitle>@(plan is null ? L["PlanView.Title"] : L.Note(plan.Name)) — Gialora</PageTitle>
 
 <section class="section container-wide">
     @if (loading)
@@ -29,7 +29,7 @@
                 <p class="eyebrow mb-1">
                     @L.Enum(plan.PlanType) · @L.Enum(plan.Status) · @plan.ServingsPerMeal @L["Common.Servings"]
                 </p>
-                <h1 style="margin:0;">@plan.Name</h1>
+                <h1 style="margin:0;">@L.Note(plan.Name)</h1>
             </div>
 
             <div class="cluster">

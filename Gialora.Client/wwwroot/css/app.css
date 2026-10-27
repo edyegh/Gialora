@@ -689,6 +689,46 @@ a:hover { color: var(--terracotta-dark); }
 .chip-check input { margin: 0; }
 .chip-check.is-on { background: rgba(92, 111, 71, .12); border-color: var(--olive-light); color: var(--olive-dark); font-weight: 600; }
 
+/* Admin-ի լեզուների tab-երը (LanguageTabs.razor) */
+.lang-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .35rem;
+    padding-bottom: .6rem;
+    border-bottom: 1px solid var(--line);
+}
+
+.lang-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .4rem .85rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--cream);
+    color: var(--ink-soft);
+    font-size: .9rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.lang-tab:hover:not(:disabled) { border-color: var(--olive-light); color: var(--ink); }
+.lang-tab.is-active { background: var(--olive); border-color: var(--olive); color: #fff; }
+
+.lang-tab-missing {
+    font-size: .7rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--warning);
+}
+
+.lang-tab.is-active .lang-tab-missing { color: #ffe3b0; }
+
+/* Ցուցակներում՝ "բացակայող լեզու" նշանները */
+.lang-badges { display: inline-flex; gap: .25rem; margin-left: .5rem; vertical-align: middle; }
+
 /* Չսիրած բաղադրիչների picker-ը (DislikedIngredientPicker.razor) */
 .picker-chip { gap: .35rem; padding-right: .3rem; }
 

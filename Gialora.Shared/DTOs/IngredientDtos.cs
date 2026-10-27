@@ -12,6 +12,9 @@ public class IngredientDto
     /// <summary>Name-ի լեզուն (թարգմանություն չլինելու դեպքում՝ fallback-ինը)։</summary>
     public string NameLanguage { get; set; } = ContentLanguages.Default;
 
+    /// <summary>Որ լեզուներով կա անուն — admin-ի ցուցակում "բացակայող լեզու" նշանի համար։</summary>
+    public List<string> Languages { get; set; } = new();
+
     public UnitOfMeasure DefaultUnit { get; set; }
     public IngredientCategory Category { get; set; }
 

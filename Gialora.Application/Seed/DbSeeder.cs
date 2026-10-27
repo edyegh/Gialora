@@ -642,9 +642,16 @@ public class DbSeeder
         if (await _db.BlogPosts.AnyAsync())
             return;
 
-        var posts = new[]
+        // Seed-ի տեքստերը անգլերեն են — գրառումն ու նրա "en" թարգմանությունը զույգով
+        var posts = new (BlogPost Post, BlogPostTranslation Text)[]
         {
-            new BlogPost
+            (new BlogPost
+            {
+                AuthorId = admin.Id,
+                IsPublished = true,
+                PublishedAtUtc = DateTime.UtcNow
+            },
+            new BlogPostTranslation
             {
                 Title = "How to plan a Mediterranean week in ten minutes",
                 Excerpt = "Pick your cooking days, set your time limit, and let the planner do the rest.",
@@ -653,12 +660,15 @@ public class DbSeeder
                     "Most weeknight stress comes from deciding, not cooking.",
                     "Start by telling Gialora who eats with you and how much time you actually have on a Tuesday. Five dinners at thirty minutes is a far more honest plan than seven at ninety.",
                     "Generate the week, swap the one meal you are not in the mood for, and send the shopping list to your phone. That is the whole routine."
-                }),
+                })
+            }),
+            (new BlogPost
+            {
                 AuthorId = admin.Id,
                 IsPublished = true,
-                PublishedAtUtc = DateTime.UtcNow
+                PublishedAtUtc = DateTime.UtcNow.AddDays(-3)
             },
-            new BlogPost
+            new BlogPostTranslation
             {
                 Title = "Cook once, eat three times: batch cooking basics",
                 Excerpt = "A ragu, a pilaf and a lentil soup will carry you through the busiest week.",
@@ -667,17 +677,20 @@ public class DbSeeder
                     "Batch cooking is not about spending your Sunday in the kitchen.",
                     "It is about choosing two or three recipes that genuinely improve overnight — stews, ragus, pilafs and soups — and doubling them.",
                     "Freeze in portions the size you actually serve, label them with the date, and your Thursday is already solved."
-                }),
-                AuthorId = admin.Id,
-                IsPublished = true,
-                PublishedAtUtc = DateTime.UtcNow.AddDays(-3)
-            }
+                })
+            })
         };
 
-        foreach (var post in posts)
-            post.Slug = Slug.From(post.Title);
+        foreach (var (post, text) in posts)
+        {
+            post.Slug = Slug.From(text.Title);
+            _db.BlogPosts.Add(post);
 
-        _db.BlogPosts.AddRange(posts);
+            text.BlogPostId = post.Id;
+            text.Language = ContentLanguages.Default;
+            _db.BlogPostTranslations.Add(text);
+        }
+
         await _db.SaveChangesAsync();
     }
 }

@@ -8,7 +8,7 @@
 @inject PlannerApi Planner
 @inject NavigationManager Navigation
 
-<PageTitle>@(list?.Name ?? L["Nav.ShoppingList"]) — Gialora</PageTitle>
+<PageTitle>@(list is null ? L["Nav.ShoppingList"] : L.Note(list.Name)) — Gialora</PageTitle>
 
 <section class="section container-narrow">
     @if (loading)
@@ -25,7 +25,7 @@
     {
         <div class="page-header">
             <p class="eyebrow">@L["ListView.Eyebrow"]</p>
-            <h1 style="margin:0 0 .75rem;">@list.Name</h1>
+            <h1 style="margin:0 0 .75rem;">@L.Note(list.Name)</h1>
 
             <div class="row-between">
                 <span class="small-muted">@L["ShoppingLists.PickedUp", list.CheckedItems, list.TotalItems]</span>

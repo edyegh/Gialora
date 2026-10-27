@@ -116,6 +116,9 @@ public class LanguageIndependenceTests
         var generated = await Lists("en").GenerateFromMealPlanAsync(user.Id, plan.Id);
         _db.ChangeTracker.Clear();
 
+        // The list name is a key + date, rendered in the reader's language by the client
+        Assert.Equal("List.Name.Weekly::Date:2026-11-02", generated.Name);
+
         var armenian = await Lists("hy").GetByIdAsync(user.Id, generated.Id);
         var items = armenian!.Groups.SelectMany(g => g.Items).ToList();
 

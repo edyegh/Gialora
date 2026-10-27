@@ -19,6 +19,9 @@ public class RecipeSummaryDto
     /// </summary>
     public string ContentLanguage { get; set; } = ContentLanguages.Default;
 
+    /// <summary>Որ լեզուներով կա թարգմանություն — admin-ի ցուցակում "բացակայող լեզու" նշանի համար։</summary>
+    public List<string> Languages { get; set; } = new();
+
     public MealType MealType { get; set; }
     public CuisineType Cuisine { get; set; }
     public DifficultyLevel Difficulty { get; set; }

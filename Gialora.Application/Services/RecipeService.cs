@@ -233,30 +233,7 @@ public class RecipeService : IRecipeService
         await ValidateIngredientsAsync(dto.Ingredients);
 
         // Գրում ենք ՄԻԱՅՆ dto.Language-ի թարգմանությունը — մյուս լեզուներինը մնում են
-        var wantedText = BuildTranslation(recipe.Id, dto);
-        var text = await _db.RecipeTranslations
-            .FirstOrDefaultAsync(t => t.RecipeId == id && t.Language == wantedText.Language);
-
-        // Slug-ը գալիս է ԱՆԳԼԵՐԵՆ վերնագրից և վերագեներացվում է միայն երբ այն փոխվում է —
-        // թարգմանություն ավելացնելը կամ փոքր խմբագրումը արդեն տարածված link-երը չի կոտրում։
-        // (Ոչ-լատինական վերնագրով ստեղծված ռեցեպտը անգլերեն վերնագիր ստանալիս կարդացվող slug է ստանում։)
-        if (wantedText.Language == ContentLanguages.Default &&
-            !string.Equals(text?.Title.Trim(), wantedText.Title, StringComparison.OrdinalIgnoreCase))
-        {
-            recipe.Slug = await Slug.UniqueAsync(wantedText.Title,
-                s => _db.Recipes.AnyAsync(r => r.Slug == s && r.Id != id));
-        }
-
-        if (text is null)
-        {
-            _db.RecipeTranslations.Add(wantedText);
-        }
-        else
-        {
-            text.Title = wantedText.Title;
-            text.Description = wantedText.Description;
-            text.Instructions = wantedText.Instructions;
-        }
+        await WriteTextAsync(recipe, BuildTranslation(recipe.Id, dto));
 
         ApplyScalarFields(recipe, dto);
         recipe.CreatedByAdminId = editedByAdminId; // audit trail — վերջին խմբագրողը
@@ -307,6 +284,98 @@ public class RecipeService : IRecipeService
         _logger.LogInformation("Recipe {RecipeId} updated", recipe.Id);
         return true;
     }
+
+    // -----------------------------------------------------------------------
+    // Translations (admin-ի լեզուների tab-երը)
+    // -----------------------------------------------------------------------
+
+    public async Task<List<RecipeTextDto>?> GetTranslationsAsync(Guid id)
+    {
+        if (!await _db.Recipes.AnyAsync(r => r.Id == id))
+            return null;
+
+        return await _db.RecipeTranslations.AsNoTracking()
+            .Where(t => t.RecipeId == id)
+            .OrderBy(t => t.Language)
+            .Select(t => new RecipeTextDto
+            {
+                Language = t.Language,
+                Title = t.Title,
+                Description = t.Description,
+                Instructions = t.Instructions ?? string.Empty
+            })
+            .ToListAsync();
+    }
+
+    public async Task<bool> SaveTranslationAsync(Guid id, string language, RecipeTextDto dto)
+    {
+        var recipe = await _db.Recipes.FirstOrDefaultAsync(r => r.Id == id);
+        if (recipe is null)
+            return false;
+
+        await WriteTextAsync(recipe, new RecipeTranslation
+        {
+            RecipeId = id,
+            Language = RequireLanguage(language),
+            Title = dto.Title.Trim(),
+            Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim(),
+            Instructions = dto.Instructions.Trim()
+        });
+
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    /// <summary>Վերջին թարգմանությունը հանել չի կարելի — ռեցեպտը կմնար առանց վերնագրի։</summary>
+    public async Task<bool> DeleteTranslationAsync(Guid id, string language)
+    {
+        var translations = await _db.RecipeTranslations.Where(t => t.RecipeId == id).ToListAsync();
+        var target = translations.FirstOrDefault(t => t.Language == language);
+        if (target is null)
+            return false;
+
+        if (translations.Count == 1)
+            throw new ValidationFailedException("A recipe needs at least one language.");
+
+        _db.RecipeTranslations.Remove(target);
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    /// <summary>
+    /// Մեկ լեզվի տեքստը՝ ավելացնել կամ թարմացնել (SaveChanges-ը կանչողինն է)։
+    /// Slug-ը գալիս է ԱՆԳԼԵՐԵՆ վերնագրից և վերագեներացվում է միայն երբ այն փոխվում է —
+    /// թարգմանություն ավելացնելը կամ փոքր խմբագրումը արդեն տարածված link-երը չի կոտրում։
+    /// (Ոչ-լատինական վերնագրով ստեղծված ռեցեպտը անգլերեն վերնագիր ստանալիս կարդացվող slug է ստանում։)
+    /// </summary>
+    private async Task WriteTextAsync(Recipe recipe, RecipeTranslation wanted)
+    {
+        var text = await _db.RecipeTranslations
+            .FirstOrDefaultAsync(t => t.RecipeId == recipe.Id && t.Language == wanted.Language);
+
+        if (wanted.Language == ContentLanguages.Default &&
+            !string.Equals(text?.Title.Trim(), wanted.Title, StringComparison.OrdinalIgnoreCase))
+        {
+            recipe.Slug = await Slug.UniqueAsync(wanted.Title,
+                s => _db.Recipes.AnyAsync(r => r.Slug == s && r.Id != recipe.Id));
+        }
+
+        if (text is null)
+        {
+            _db.RecipeTranslations.Add(wanted);
+        }
+        else
+        {
+            text.Title = wanted.Title;
+            text.Description = wanted.Description;
+            text.Instructions = wanted.Instructions;
+        }
+    }
+
+    internal static string RequireLanguage(string? code) =>
+        ContentLanguages.IsSupported(code)
+            ? code!
+            : throw new ValidationFailedException($"Unsupported language \"{code}\".");
 
     public async Task<bool> SetPublishedAsync(Guid id, bool isPublished)
     {

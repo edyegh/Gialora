@@ -7,10 +7,12 @@ namespace Gialora.Data.Entities;
 /// </summary>
 public class BlogPost : BaseEntity
 {
-    public string Title { get; set; } = string.Empty;
+    /// <summary>ՄԵԿ է բոլոր լեզուների համար (անգլերեն վերնագրից), որ link-երը չկոտրվեն։</summary>
     public string Slug { get; set; } = string.Empty;
-    public string? Excerpt { get; set; }
-    public string Content { get; set; } = string.Empty;
+
+    /// <summary>Title/Excerpt/Content-ը՝ ամեն լեզվով մեկ տող։</summary>
+    public ICollection<BlogPostTranslation> Translations { get; set; } = new List<BlogPostTranslation>();
+
     public string? CoverImageUrl { get; set; }
 
     public bool IsPublished { get; set; }

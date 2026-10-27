@@ -87,6 +87,7 @@
                         <tr>
                             <td>
                                 <strong>@ingredient.Name</strong>
+                                <MissingLanguages Languages="ingredient.Languages" />
                                 @if (ingredient.IsPantryStaple)
                                 {
                                     <span class="pill pill-outline ms-2">@L["AdminIngredients.Staple"]</span>
@@ -113,7 +114,7 @@
                             <td>@L["AdminIngredients.RecipeCount", ingredient.UsedInRecipeCount]</td>
                             <td style="text-align:right; white-space:nowrap;">
                                 <button class="btn btn-outline-g btn-sm" @onclick="() => StartEdit(ingredient)"
-                                        disabled="@busy">@L["AdminIngredients.ReviewAllergens"]</button>
+                                        disabled="@busy">@L["Common.Edit"]</button>
                                 @* Օգտագործվողը ջնջելը server-ը մերժում է 409-ով —
                                    կոճակը նախապես անջատում ենք, որ սխալ չառաջանա *@
                                 <ConfirmButton Label="@L["Common.Delete"]" OnConfirm="() => Delete(ingredient.Id)"
@@ -127,6 +128,21 @@
                             <tr>
                                 <td colspan="6">
                                     <div class="stack">
+                                        @* Անունը ամեն լեզվով — դատարկ թողնելը (եթե կար) հանում է այդ թարգմանությունը *@
+                                        <p class="eyebrow" style="margin:0;">@L["Translations.Names"]</p>
+                                        <div class="cluster">
+                                            @foreach (var language in Localizer.Languages)
+                                            {
+                                                var code = language.Code;
+                                                <label class="small-muted" style="display:flex; flex-direction:column; gap:.2rem;">
+                                                    @language.NativeName
+                                                    <input class="form-control" style="max-width:14rem;" maxlength="120"
+                                                           value="@editNames.GetValueOrDefault(code)"
+                                                           @onchange="e => editNames[code] = e.Value?.ToString() ?? string.Empty" />
+                                                </label>
+                                            }
+                                        </div>
+
                                         <p class="eyebrow" style="margin:0;">@L["AdminIngredients.AllergensOf", ingredient.Name]</p>
                                         <AllergenPicker Selected="edit.Allergens" Disabled="busy" />
                                         <p class="form-text mb-0">@L["AdminIngredients.SaveMarksReviewed"]</p>
@@ -142,6 +158,48 @@
                 </tbody>
             </table>
         </div>
+
+        @* ---------------------------------------------- tag-երի անունները *@
+        <div class="card-g mt-4">
+            <div class="card-g-body stack">
+                <div>
+                    <h2 style="margin:0;">@L["Translations.TagsTitle"]</h2>
+                    <p class="small-muted" style="margin:.25rem 0 0;">@L["Translations.TagsHint"]</p>
+                </div>
+
+                <div class="table-wrap">
+                    <table class="table-g">
+                        <thead>
+                            <tr>
+                                <th>Tag</th>
+                                @foreach (var language in Localizer.Languages) { <th>@language.NativeName</th> }
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var tag in tags)
+                            {
+                                <tr>
+                                    <td><code>@tag.Name</code></td>
+                                    @foreach (var language in Localizer.Languages)
+                                    {
+                                        var code = language.Code;
+                                        <td>
+                                            <input class="form-control" maxlength="60" value="@TagName(tag, code)"
+                                                   @onchange="e => SetTagName(tag, code, e.Value?.ToString())" />
+                                        </td>
+                                    }
+                                    <td style="text-align:right;">
+                                        <button class="btn btn-outline-g btn-sm" @onclick="() => SaveTag(tag)"
+                                                disabled="@(busy || !dirtyTags.Contains(tag.Id))">@L["Common.Save"]</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     }
 </section>
 
@@ -155,6 +213,13 @@
     private Guid? editingId;
     private IngredientUpdateDto edit = new();
 
+    // Խմբագրվող բաղադրիչի անունները՝ լեզուն → անուն (և ինչ կար պահված)
+    private Dictionary<string, string> editNames = new();
+    private Dictionary<string, string> savedNames = new();
+
+    private List<TagAdminDto> tags = new();
+    private readonly HashSet<Guid> dirtyTags = new();
+
     private int UnreviewedCount => ingredients.Count(i => !i.AllergensReviewed);
     private bool loading = true;
     private bool busy;
@@ -166,9 +231,22 @@
 
     protected override Task OnInitializedAsync() => Reload();
 
-    private void StartEdit(IngredientDto ingredient)
+    private async Task StartEdit(IngredientDto ingredient)
     {
         editingId = ingredient.Id;
+        editNames = new();
+        savedNames = new();
+
+        try
+        {
+            savedNames = (await Admin.GetIngredientTranslationsAsync(ingredient.Id))
+                .ToDictionary(n => n.Language, n => n.Name);
+            editNames = new Dictionary<string, string>(savedNames);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
 
         // PUT-ը փոխարինում է ամբողջը — մնացած դաշտերը պահում ենք ինչպես կան
         edit = new IngredientUpdateDto
@@ -193,7 +271,31 @@
 
         try
         {
+            var names = editNames
+                .Where(n => !string.IsNullOrWhiteSpace(n.Value))
+                .ToDictionary(n => n.Key, n => n.Value.Trim());
+
+            if (names.Count == 0)
+            {
+                error = L["Translations.NeedOneName"];
+                return;
+            }
+
+            // Ընդհանուր դաշտերը + մեկ անուն (սկզբնական լեզվով, եթե այն դեռ լրացված է)
+            edit.Language = names.ContainsKey(edit.Language ?? string.Empty) ? edit.Language : names.Keys.First();
+            edit.Name = names[edit.Language!];
             await Admin.UpdateIngredientAsync(id, edit);
+
+            // Մյուս լեզուները՝ ավելացնել/փոխել, իսկ դատարկվածները՝ հանել
+            foreach (var (language, name) in names.Where(n => n.Key != edit.Language))
+            {
+                if (savedNames.GetValueOrDefault(language) != name)
+                    await Admin.SaveIngredientTranslationAsync(id, new IngredientNameDto { Language = language, Name = name });
+            }
+
+            foreach (var language in savedNames.Keys.Where(l => !names.ContainsKey(l)))
+                await Admin.DeleteIngredientTranslationAsync(id, language);
+
             editingId = null;
             await Reload();
         }
@@ -219,6 +321,43 @@
             await Admin.CreateIngredientAsync(draft);
             draft = new IngredientCreateDto();
             await Reload();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private string TagName(TagAdminDto tag, string language) =>
+        tag.Names.FirstOrDefault(n => n.Language == language)?.DisplayName ?? string.Empty;
+
+    private void SetTagName(TagAdminDto tag, string language, string? value)
+    {
+        var existing = tag.Names.FirstOrDefault(n => n.Language == language);
+        if (existing is null)
+            tag.Names.Add(new TagNameDto { Language = language, DisplayName = value ?? string.Empty });
+        else
+            existing.DisplayName = value ?? string.Empty;
+
+        dirtyTags.Add(tag.Id);
+    }
+
+    /// <summary>Լրացված անունները պահում ենք. դատարկը՝ բաց թողնում (ցուցադրվում է fallback-ը)։</summary>
+    private async Task SaveTag(TagAdminDto tag)
+    {
+        busy = true;
+        error = null;
+
+        try
+        {
+            foreach (var name in tag.Names.Where(n => !string.IsNullOrWhiteSpace(n.DisplayName)))
+                await Admin.SaveTagTranslationAsync(tag.Id, name);
+
+            dirtyTags.Remove(tag.Id);
         }
         catch (ApiException ex)
         {
@@ -257,6 +396,8 @@
         try
         {
             ingredients = await RecipeCatalog.GetIngredientsAsync();
+            tags = await Admin.GetTagsAsync();
+            dirtyTags.Clear();
         }
         catch (ApiException ex)
         {

@@ -13,6 +13,12 @@ public class BlogPostSummaryDto
     public string AuthorName { get; set; } = string.Empty;
     public bool IsPublished { get; set; }
     public DateTime? PublishedAtUtc { get; set; }
+
+    /// <summary>Title/Excerpt/Content-ի լեզուն (fallback-ի դեպքում՝ անգլերեն կամ առկա այլ լեզու)։</summary>
+    public string ContentLanguage { get; set; } = ContentLanguages.Default;
+
+    /// <summary>Որ լեզուներով կա թարգմանություն — admin-ի ցուցակի համար։</summary>
+    public List<string> Languages { get; set; } = new();
 }
 
 public class BlogPostDetailDto : BlogPostSummaryDto
@@ -22,6 +28,10 @@ public class BlogPostDetailDto : BlogPostSummaryDto
 
 public class BlogPostCreateDto
 {
+    /// <summary>Ո՞ր լեզվի թարգմանության մեջ գրել Title/Excerpt/Content-ը։ Դատարկ → անգլերեն։</summary>
+    [StringLength(8)]
+    public string? Language { get; set; }
+
     [Required, StringLength(200, MinimumLength = 3)]
     public string Title { get; set; } = string.Empty;
 

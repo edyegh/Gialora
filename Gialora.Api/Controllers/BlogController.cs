@@ -67,4 +67,21 @@ public class BlogController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(Guid id) =>
         await _blog.DeleteAsync(id) ? NoContent() : NotFound();
+
+    // --- Թարգմանություններ (admin-ի լեզուների tab-երը) ---
+
+    [HttpGet("admin/{id:guid}/translations")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<List<BlogPostTextDto>>> GetTranslations(Guid id) =>
+        await _blog.GetTranslationsAsync(id) is { } texts ? Ok(texts) : NotFound();
+
+    [HttpPut("{id:guid}/translations/{language}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> SaveTranslation(Guid id, string language, [FromBody] BlogPostTextDto dto) =>
+        await _blog.SaveTranslationAsync(id, language, dto) ? NoContent() : NotFound();
+
+    [HttpDelete("{id:guid}/translations/{language}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> DeleteTranslation(Guid id, string language) =>
+        await _blog.DeleteTranslationAsync(id, language) ? NoContent() : NotFound();
 }

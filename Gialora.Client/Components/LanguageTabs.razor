@@ -1,0 +1,37 @@
+@* Gialora.Client/Components/LanguageTabs.razor
+   Admin-ի խմբագրիչների լեզուների tab-երը (ռեցեպտ, blog)։ Ամեն լեզու առանձին
+   թարգմանություն է. "բացակայում է" նշանը ցույց է տալիս, թե որը դեռ չկա, որ
+   admin-ը տեսնի՝ ինչ է մնացել թարգմանելու։ *@
+
+<div class="lang-tabs" role="tablist" aria-label="@L["Nav.Language"]">
+    @foreach (var language in Localizer.Languages)
+    {
+        var code = language.Code;
+        var isActive = code == Active;
+        <button type="button" role="tab" aria-selected="@isActive" disabled="@Disabled"
+                class="lang-tab @(isActive ? "is-active" : null)" @onclick="() => OnSelect.InvokeAsync(code)">
+            @language.NativeName
+            @if (!Present.Contains(code))
+            {
+                <span class="lang-tab-missing">@L["Translations.Missing"]</span>
+            }
+        </button>
+    }
+
+    @if (OnRemove.HasDelegate && Present.Contains(Active) && Present.Count > 1)
+    {
+        @* Վերջին լեզուն հանել չի կարելի — server-ն էլ է մերժում *@
+        <ConfirmButton Label="@L["Translations.Remove"]" OnConfirm="() => OnRemove.InvokeAsync(Active)" Disabled="@Disabled" />
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Active { get; set; } = Localizer.DefaultLanguage;
+
+    /// <summary>Որ լեզուներով արդեն կա տեքստ (պահված կամ լրացված)։</summary>
+    [Parameter, EditorRequired] public ISet<string> Present { get; set; } = new HashSet<string>();
+
+    [Parameter] public EventCallback<string> OnSelect { get; set; }
+    [Parameter] public EventCallback<string> OnRemove { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+}

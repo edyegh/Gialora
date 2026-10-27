@@ -151,6 +151,95 @@ public class IngredientService : IIngredientService
         return tags.OrderBy(t => t.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
+    // -----------------------------------------------------------------------
+    // Translations (admin)
+    // -----------------------------------------------------------------------
+
+    public async Task<List<IngredientNameDto>?> GetTranslationsAsync(Guid id)
+    {
+        if (!await _db.Ingredients.AnyAsync(i => i.Id == id))
+            return null;
+
+        return await _db.IngredientTranslations.AsNoTracking()
+            .Where(t => t.IngredientId == id)
+            .OrderBy(t => t.Language)
+            .Select(t => new IngredientNameDto { Language = t.Language, Name = t.Name })
+            .ToListAsync();
+    }
+
+    public async Task<bool> SaveTranslationAsync(Guid id, string language, IngredientNameDto dto)
+    {
+        if (!await _db.Ingredients.AnyAsync(i => i.Id == id))
+            return false;
+
+        language = RecipeService.RequireLanguage(language);
+        var name = dto.Name.Trim();
+        await EnsureNameIsFreeAsync(language, name, exceptId: id);
+
+        var translation = await _db.IngredientTranslations
+            .FirstOrDefaultAsync(t => t.IngredientId == id && t.Language == language);
+
+        if (translation is null)
+            _db.IngredientTranslations.Add(new IngredientTranslation { IngredientId = id, Language = language, Name = name });
+        else
+            translation.Name = name;
+
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    /// <summary>Վերջին անունը հանել չի կարելի — բաղադրիչը կմնար անանուն։</summary>
+    public async Task<bool> DeleteTranslationAsync(Guid id, string language)
+    {
+        var translations = await _db.IngredientTranslations.Where(t => t.IngredientId == id).ToListAsync();
+        var target = translations.FirstOrDefault(t => t.Language == language);
+        if (target is null)
+            return false;
+
+        if (translations.Count == 1)
+            throw new ValidationFailedException("An ingredient needs a name in at least one language.");
+
+        _db.IngredientTranslations.Remove(target);
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<List<TagAdminDto>> GetTagsForAdminAsync()
+    {
+        var tags = await _db.Tags.AsNoTracking()
+            .Select(t => new TagAdminDto
+            {
+                Id = t.Id,
+                Name = t.Name,
+                RecipeCount = t.RecipeTags.Count(rt => rt.Recipe.IsPublished),
+                Names = t.Translations
+                    .OrderBy(tr => tr.Language)
+                    .Select(tr => new TagNameDto { Language = tr.Language, DisplayName = tr.DisplayName })
+                    .ToList()
+            })
+            .ToListAsync();
+
+        return tags.OrderBy(t => t.Name, StringComparer.Ordinal).ToList();
+    }
+
+    public async Task<bool> SaveTagTranslationAsync(Guid tagId, string language, TagNameDto dto)
+    {
+        if (!await _db.Tags.AnyAsync(t => t.Id == tagId))
+            return false;
+
+        language = RecipeService.RequireLanguage(language);
+        var translation = await _db.TagTranslations
+            .FirstOrDefaultAsync(t => t.TagId == tagId && t.Language == language);
+
+        if (translation is null)
+            _db.TagTranslations.Add(new TagTranslation { TagId = tagId, Language = language, DisplayName = dto.DisplayName.Trim() });
+        else
+            translation.DisplayName = dto.DisplayName.Trim();
+
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
     /// <summary>
     /// Նույն լեզվով երկու բաղադրիչ նույն անունով չի կարող լինել։ DB-ում էլ unique index կա —
     /// սա պարզապես 500-ի փոխարեն հասկանալի 409 է տալիս։
@@ -187,6 +276,7 @@ public class IngredientService : IIngredientService
             .ThenBy(t => t.Language)
             .Select(t => t.Language)
             .FirstOrDefault() ?? ContentLanguages.Default,
+        Languages = i.Translations.Select(t => t.Language).ToList(),
         DefaultUnit = i.DefaultUnit,
         Category = i.Category,
         Allergens = i.Allergens,

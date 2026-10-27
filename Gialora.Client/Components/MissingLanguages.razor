@@ -1,0 +1,22 @@
+@* Gialora.Client/Components/MissingLanguages.razor
+   Admin-ի ցուցակներում՝ որ լեզուներով դեռ թարգմանություն չկա ("չկա HY")։ *@
+
+@if (Missing.Count > 0)
+{
+    <span class="lang-badges">
+        @foreach (var language in Missing)
+        {
+            <span class="pill pill-warning" title="@L["Translations.MissingIn", language.NativeName]">
+                @L["Translations.MissingShort", language.Code.ToUpperInvariant()]
+            </span>
+        }
+    </span>
+}
+
+@code {
+    /// <summary>Լեզուները, որոնցով թարգմանություն ԿԱ (DTO-ի Languages)։</summary>
+    [Parameter, EditorRequired] public IReadOnlyCollection<string> Languages { get; set; } = Array.Empty<string>();
+
+    private List<LanguageOption> Missing =>
+        Localizer.Languages.Where(l => !Languages.Contains(l.Code)).ToList();
+}

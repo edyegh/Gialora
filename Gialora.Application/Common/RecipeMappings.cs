@@ -33,6 +33,7 @@ public static class RecipeMappings
                 .OrderBy(t => t.Language == lang ? 0 : t.Language == ContentLanguages.Default ? 1 : 2)
                 .ThenBy(t => t.Language)
                 .Select(t => t.Language).FirstOrDefault() ?? ContentLanguages.Default,
+            Languages = r.Translations.Select(t => t.Language).ToList(),
             Slug = r.Slug,
             ImageUrl = r.ImageUrl,
             MealType = r.MealType,
@@ -79,6 +80,7 @@ public static class RecipeMappings
                 .OrderBy(t => t.Language == lang ? 0 : t.Language == ContentLanguages.Default ? 1 : 2)
                 .ThenBy(t => t.Language)
                 .Select(t => t.Language).FirstOrDefault() ?? ContentLanguages.Default,
+            Languages = r.Translations.Select(t => t.Language).ToList(),
             Slug = r.Slug,
             ImageUrl = r.ImageUrl,
             MealType = r.MealType,

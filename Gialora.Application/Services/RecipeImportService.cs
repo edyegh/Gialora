@@ -39,11 +39,14 @@ public class RecipeImportService : IRecipeImportService
     public string GetTemplateCsv()
     {
         var builder = new StringBuilder();
-        builder.AppendLine("recipe,description,mealtype,cuisine,difficulty,diettype,protein,servings,preptime,cooktime,minagemonths,freezer,lunchbox,kidfriendly,highprotein,ironrich,batch,image,tags,ingredient,quantity,unit,category,allergens,note,optional,instructions");
-        builder.AppendLine("Chicken meatballs,Soft Mediterranean meatballs kids love,Dinner,Mediterranean,Easy,Meat,Chicken,4,15,20,12,yes,yes,yes,yes,no,yes,,\"kid-friendly|high-protein\",Chicken mince,500,Gram,Meat,none,,no,\"Mix everything|Shape into balls|Bake 20 min at 200C\"");
-        builder.AppendLine("Chicken meatballs,,,,,,,,,,,,,,,,,,,Egg,1,Piece,DairyAndEggs,Eggs,,no,");
-        builder.AppendLine("Chicken meatballs,,,,,,,,,,,,,,,,,,,Onion,100,Gram,Vegetables,none,finely chopped,no,");
-        builder.AppendLine("Chicken meatballs,,,,,,,,,,,,,,,,,,,Breadcrumbs,50,Gram,Pantry,Gluten,,no,");
+        // Վերջին սյունակները ոչ պարտադիր թարգմանություններն են (_hy, _el)։ Ռեցեպտը
+        // ճանաչվում է անգլերեն "recipe"-ով. թարգմանությունը գրվում է միայն եթե վերնագիրն
+        // ու քայլերը երկուսն էլ կան, բաղադրիչի անունը՝ եթե այդ լեզվով դեռ անուն չունի։
+        builder.AppendLine("recipe,description,mealtype,cuisine,difficulty,diettype,protein,servings,preptime,cooktime,minagemonths,freezer,lunchbox,kidfriendly,highprotein,ironrich,batch,image,tags,ingredient,quantity,unit,category,allergens,note,optional,instructions,recipe_hy,description_hy,instructions_hy,ingredient_hy,recipe_el,description_el,instructions_el,ingredient_el");
+        builder.AppendLine("Chicken meatballs,Soft Mediterranean meatballs kids love,Dinner,Mediterranean,Easy,Meat,Chicken,4,15,20,12,yes,yes,yes,yes,no,yes,,\"kid-friendly|high-protein\",Chicken mince,500,Gram,Meat,none,,no,\"Mix everything|Shape into balls|Bake 20 min at 200C\",Հավի կոլոլակ,Փափուկ կոլոլակներ,\"Խառնել ամեն ինչ|Գնդիկներ ձևավորել|Թխել 20 րոպե 200°C-ում\",Հավի աղացած միս,,,,");
+        builder.AppendLine("Chicken meatballs,,,,,,,,,,,,,,,,,,,Egg,1,Piece,DairyAndEggs,Eggs,,no,,,,,Ձու,,,,");
+        builder.AppendLine("Chicken meatballs,,,,,,,,,,,,,,,,,,,Onion,100,Gram,Vegetables,none,finely chopped,no,,,,,Սոխ,,,,");
+        builder.AppendLine("Chicken meatballs,,,,,,,,,,,,,,,,,,,Breadcrumbs,50,Gram,Pantry,Gluten,,no,,,,,Հացի փշրանք,,,,");
         return builder.ToString();
     }
 
@@ -115,6 +118,10 @@ public class RecipeImportService : IRecipeImportService
         foreach (var translation in knownNames)
             ingredientCache.TryAdd(translation.Name.ToLowerInvariant(), translation.Ingredient);
 
+        var names = new ImportNames();
+        foreach (var translation in knownNames)
+            names.Add(translation.IngredientId, translation.Language, translation.Name);
+
         var tagCache = await _db.Tags
             .ToDictionaryAsync(t => t.Name, t => t);
 
@@ -124,7 +131,7 @@ public class RecipeImportService : IRecipeImportService
         {
             try
             {
-                await ImportOneAsync(title, groupRows, columns, request, adminId, ingredientCache, tagCache, reservedSlugs, result);
+                await ImportOneAsync(title, groupRows, columns, request, adminId, ingredientCache, names, tagCache, reservedSlugs, result);
             }
             catch (Exception ex)
             {
@@ -149,6 +156,7 @@ public class RecipeImportService : IRecipeImportService
         RecipeImportRequestDto request,
         Guid adminId,
         Dictionary<string, Ingredient> ingredientCache,
+        ImportNames names,
         Dictionary<string, Tag> tagCache,
         HashSet<string> reservedSlugs,
         RecipeImportResultDto result)
@@ -238,7 +246,25 @@ public class RecipeImportService : IRecipeImportService
                     Name = ingredientName
                 });
                 ingredientCache[key] = ingredient;
+                names.Add(ingredient.Id, ContentLanguages.Default, ingredientName);
                 result.IngredientsCreated++;
+            }
+
+            // ingredient_hy / ingredient_el — միայն եթե այդ լեզվով դեռ անուն չունի
+            foreach (var language in TranslatedLanguages)
+            {
+                var translated = Value(row, columns, $"ingredient_{language}").Trim();
+                if (translated.Length == 0 || names.Has(ingredient.Id, language))
+                    continue;
+
+                if (names.IsTaken(language, translated, ingredient.Id))
+                {
+                    result.Warnings.Add($"\"{title}\": {language} name \"{translated}\" already belongs to another ingredient — skipped.");
+                    continue;
+                }
+
+                _db.IngredientTranslations.Add(new IngredientTranslation { IngredientId = ingredient.Id, Language = language, Name = translated });
+                names.Add(ingredient.Id, language, translated);
             }
 
             // Նույն բաղադրիչը երկու տողում → composite key-ի բախում։ Առաջինը պահում ենք։
@@ -273,6 +299,33 @@ public class RecipeImportService : IRecipeImportService
         text.Title = title;
         text.Description = Nullify(Meta("description"));
         text.Instructions = instructions;
+
+        // recipe_hy/_el + instructions_hy/_el — թարգմանությունը գրվում է միայն ամբողջական
+        // (առանց քայլերի հայերեն վերնագիրը էջում կթողներ դատարկ "Պատրաստում" բաժին)
+        foreach (var language in TranslatedLanguages)
+        {
+            var translatedTitle = Meta($"recipe_{language}");
+            if (translatedTitle.Length == 0)
+                continue;
+
+            var translatedSteps = Meta($"instructions_{language}").Replace("|", "\n");
+            if (translatedSteps.Length == 0)
+            {
+                result.Warnings.Add($"\"{title}\": {language} title given without instructions_{language} — {language} translation skipped.");
+                continue;
+            }
+
+            var translation = recipe.Translations.FirstOrDefault(t => t.Language == language);
+            if (translation is null)
+            {
+                translation = new RecipeTranslation { RecipeId = recipe.Id, Language = language };
+                _db.RecipeTranslations.Add(translation);
+            }
+
+            translation.Title = translatedTitle;
+            translation.Description = Nullify(Meta($"description_{language}"));
+            translation.Instructions = translatedSteps;
+        }
 
         recipe.ImageUrl = Nullify(Meta("image"));
         recipe.MealType = ParseEnum(Meta("mealtype"), MealType.Dinner);
@@ -345,6 +398,32 @@ public class RecipeImportService : IRecipeImportService
             result.RecipesCreated++;
         else
             result.RecipesUpdated++;
+    }
+
+    /// <summary>Անգլերենից բացի լեզուները, որոնց սյունակները ("_hy", "_el") import-ը կարդում է։</summary>
+    private static readonly string[] TranslatedLanguages =
+        ContentLanguages.All.Where(l => l != ContentLanguages.Default).ToArray();
+
+    /// <summary>
+    /// Բաղադրիչների անունները ամեն լեզվով՝ import-ի ընթացքում։ Նոր ավելացվածներն էլ են
+    /// այստեղ (DB-ում դեռ չկան), որ նույն ֆայլի երկու տողը նույն անունը երկու բաղադրիչի
+    /// չտան — (Language, Name) unique index-ը կտապալեր ամբողջ SaveChanges-ը։
+    /// </summary>
+    private sealed class ImportNames
+    {
+        private readonly HashSet<(Guid, string)> _byIngredient = new();
+        private readonly Dictionary<(string, string), Guid> _byName = new();
+
+        public void Add(Guid ingredientId, string language, string name)
+        {
+            _byIngredient.Add((ingredientId, language));
+            _byName.TryAdd((language, name.ToLowerInvariant()), ingredientId);
+        }
+
+        public bool Has(Guid ingredientId, string language) => _byIngredient.Contains((ingredientId, language));
+
+        public bool IsTaken(string language, string name, Guid ingredientId) =>
+            _byName.TryGetValue((language, name.ToLowerInvariant()), out var owner) && owner != ingredientId;
     }
 
     // -----------------------------------------------------------------------

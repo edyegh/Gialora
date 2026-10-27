@@ -30,6 +30,7 @@ public class GialoraDbContext : DbContext
     public DbSet<ShoppingList> ShoppingLists => Set<ShoppingList>();
     public DbSet<ShoppingListItem> ShoppingListItems => Set<ShoppingListItem>();
     public DbSet<BlogPost> BlogPosts => Set<BlogPost>();
+    public DbSet<BlogPostTranslation> BlogPostTranslations => Set<BlogPostTranslation>();
     public DbSet<ChatConversation> ChatConversations => Set<ChatConversation>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<UserActivity> UserActivities => Set<UserActivity>();
@@ -366,11 +367,25 @@ public class GialoraDbContext : DbContext
         });
 
         // ---------------- Blog ----------------
+        modelBuilder.Entity<BlogPostTranslation>(b =>
+        {
+            b.HasKey(t => new { t.BlogPostId, t.Language });
+            b.Property(t => t.Language).HasMaxLength(8);
+            b.Property(t => t.Title).HasMaxLength(200).IsRequired();
+            b.Property(t => t.Excerpt).HasMaxLength(500);
+            b.Property(t => t.Content).IsRequired();
+
+            b.HasOne(t => t.BlogPost)
+             .WithMany(p => p.Translations)
+             .HasForeignKey(t => t.BlogPostId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasQueryFilter(t => !t.BlogPost.IsDeleted);
+        });
+
         modelBuilder.Entity<BlogPost>(b =>
         {
-            b.Property(p => p.Title).HasMaxLength(200).IsRequired();
             b.Property(p => p.Slug).HasMaxLength(220).IsRequired();
-            b.Property(p => p.Excerpt).HasMaxLength(500);
             b.Property(p => p.CoverImageUrl).HasMaxLength(500);
             b.HasIndex(p => p.Slug).IsUnique().HasFilter("[IsDeleted] = 0");
 

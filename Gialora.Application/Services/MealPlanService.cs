@@ -1,5 +1,4 @@
 // Gialora.Application/Services/MealPlanService.cs
-using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Gialora.Application.Common;
@@ -150,21 +149,18 @@ public class MealPlanService : IMealPlanService
         return today.AddDays(daysUntilMonday);
     }
 
-    private static string BuildPlanName(MealPlanType planType, DateOnly start)
-    {
-        // InvariantCulture-ը պարտադիր է. առանց դրա ամսվա անունը գալիս է սերվերի
-        // locale-ից ("Week of 14 սեպ"), ինչը կախված է նրանից, թե որ մեքենայի վրա է
-        // աշխատում API-ն — նույն պլանը տարբեր անուն կստանար տարբեր սերվերներում։
-        var date = start.ToString("d MMM", CultureInfo.InvariantCulture);
-
-        return planType switch
+    /// <summary>
+    /// Անունը բանալի է + ամսաթիվ ("Plan.Name.Weekly::Date:2026-10-26"), ոչ թե անգլերեն
+    /// տեքստ — client-ը այն ցույց է տալիս ընթացիկ լեզվով ("Week of 26 Oct" / "Շաբաթ՝ 26 Հոկ")։
+    /// </summary>
+    internal static string BuildPlanName(MealPlanType planType, DateOnly start) =>
+        PlanningNotes.Encode(planType switch
         {
-            MealPlanType.Daily => $"Today — {date}",
-            MealPlanType.BatchAndFreeze => $"Batch cook — {date}",
-            MealPlanType.Biweekly => $"Two weeks from {date}",
-            _ => $"Week of {date}"
-        };
-    }
+            MealPlanType.Daily => PlanningNotes.PlanNameDaily,
+            MealPlanType.BatchAndFreeze => PlanningNotes.PlanNameBatch,
+            MealPlanType.Biweekly => PlanningNotes.PlanNameBiweekly,
+            _ => PlanningNotes.PlanNameWeekly
+        }, PlanningNotes.DateArg(start));
 
     // -----------------------------------------------------------------------
     // Read

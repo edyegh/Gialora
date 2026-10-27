@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Gialora.Application.Common;
 using Gialora.Data;
 using Gialora.Data.Entities;
+using Gialora.Shared;
 using Gialora.Shared.Dtos;
 using Gialora.Shared.Enums;
 
@@ -72,7 +73,14 @@ public class ShoppingListService : IShoppingListService
             {
                 FamilyId = familyId,
                 MealPlanId = plan.Id,
-                Name = $"Shopping — {plan.Name}",
+                // Բանալի + ամսաթիվ, ինչպես պլանի անունը — client-ը թարգմանում է
+                Name = PlanningNotes.Encode(plan.PlanType switch
+                {
+                    MealPlanType.Daily => PlanningNotes.ListNameDaily,
+                    MealPlanType.BatchAndFreeze => PlanningNotes.ListNameBatch,
+                    MealPlanType.Biweekly => PlanningNotes.ListNameBiweekly,
+                    _ => PlanningNotes.ListNameWeekly
+                }, PlanningNotes.DateArg(plan.WeekStartDate)),
                 Status = ShoppingListStatus.Active
             };
             _db.ShoppingLists.Add(list);

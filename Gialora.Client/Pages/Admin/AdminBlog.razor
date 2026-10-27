@@ -28,14 +28,19 @@
         <div class="card-g-body stack">
             <h2 style="margin:0;">@(PostId is null ? L["AdminBlog.NewPost"] : L["AdminBlog.EditPost"])</h2>
 
+            @* Վերնագիրը, ամփոփումը և տեքստը ամեն լեզվով առանձին են. նկարն ու կարգավիճակը՝ ընդհանուր *@
+            <LanguageTabs Active="@activeLanguage" Present="PresentLanguages" Disabled="busy"
+                          OnSelect="SelectLanguage" OnRemove="RemoveLanguage" />
+            <p class="form-text" style="margin:0;">@L["Translations.Hint"]</p>
+
             <div>
                 <label class="form-label" for="title">@L["Common.Title"]</label>
-                <input id="title" class="form-control" @bind="draft.Title" maxlength="200" />
+                <input id="title" class="form-control" @bind="Current.Title" @bind:event="oninput" maxlength="200" />
             </div>
 
             <div>
                 <label class="form-label" for="excerpt">@L["AdminBlog.Excerpt"]</label>
-                <input id="excerpt" class="form-control" @bind="draft.Excerpt" maxlength="500" />
+                <input id="excerpt" class="form-control" @bind="Current.Excerpt" maxlength="500" />
             </div>
 
             <div>
@@ -45,7 +50,7 @@
 
             <div>
                 <label class="form-label" for="content">@L["AdminBlog.Content"]</label>
-                <textarea id="content" class="form-control" rows="10" @bind="draft.Content"></textarea>
+                <textarea id="content" class="form-control" rows="10" @bind="Current.Content"></textarea>
                 <p class="form-text">@L["AdminBlog.ParagraphHint"]</p>
             </div>
 
@@ -55,7 +60,7 @@
                 </label>
 
                 <button class="btn btn-primary" @onclick="Save"
-                        disabled="@(busy || string.IsNullOrWhiteSpace(draft.Title))">
+                        disabled="@(busy || string.IsNullOrWhiteSpace(Current.Title))">
                     @(PostId is null ? L["AdminBlog.CreatePost"] : L["Common.SaveChanges"])
                 </button>
 
@@ -84,6 +89,7 @@
                         <tr>
                             <td>
                                 <strong>@post.Title</strong>
+                                <MissingLanguages Languages="post.Languages" />
                                 <div class="small-muted">/@post.Slug</div>
                             </td>
                             <td>
@@ -108,6 +114,17 @@
     [Parameter] public Guid? PostId { get; set; }
 
     private BlogPostUpdateDto draft = new();
+
+    // Տեքստերը ամեն լեզվով. draft-ի տեքստային դաշտերը լրացվում են ակտիվ tab-ից save-ի պահին
+    private Dictionary<string, BlogPostTextDto> texts = new();
+    private Dictionary<string, string> savedTexts = new();
+    private string activeLanguage = Localizer.DefaultLanguage;
+
+    private BlogPostTextDto Current =>
+        texts.TryGetValue(activeLanguage, out var text) ? text : texts[activeLanguage] = new BlogPostTextDto { Language = activeLanguage };
+
+    private ISet<string> PresentLanguages =>
+        texts.Values.Where(t => !IsEmpty(t)).Select(t => t.Language).ToHashSet();
     private List<BlogPostSummaryDto> posts = new();
     private bool loading = true;
     private bool busy;
@@ -130,18 +147,24 @@
                     ? new BlogPostUpdateDto()
                     : new BlogPostUpdateDto
                     {
-                        Title = existing.Title,
-                        Excerpt = existing.Excerpt,
-                        Content = existing.Content,
                         CoverImageUrl = existing.CoverImageUrl,
                         IsPublished = existing.IsPublished
                     };
+
+                texts = existing is null
+                    ? new()
+                    : (await Admin.GetPostTranslationsAsync(id)).ToDictionary(t => t.Language);
+                RememberSaved();
+                activeLanguage = existing?.ContentLanguage ?? L.Language;
             }
             else
             {
                 // /admin/blog-ի վրա վերադառնալիս ձևը պիտի մաքուր լինի, ոչ թե
                 // պահի նախորդ խմբագրած գրառումը
                 draft = new BlogPostUpdateDto();
+                texts = new();
+                savedTexts = new();
+                activeLanguage = L.Language;
             }
         }
         catch (ApiException ex)
@@ -162,17 +185,77 @@
 
         try
         {
+            // Ընդհանուր դաշտերը + ակտիվ լեզվի տեքստը՝ մեկ create/update-ով
+            draft.Language = activeLanguage;
+            draft.Title = Current.Title;
+            draft.Excerpt = Current.Excerpt;
+            draft.Content = Current.Content;
+
             if (PostId is { } id)
             {
                 await Admin.UpdatePostAsync(id, draft);
+
+                // Մյուս լեզուների փոփոխությունները՝ ամեն մեկն իր PUT-ով
+                foreach (var text in ChangedOtherTexts().ToList())
+                    await Admin.SavePostTranslationAsync(id, text);
+
+                RememberSaved();
                 status = L["AdminBlog.StatusSaved"];
                 posts = await Admin.GetPostsAsync();
             }
             else
             {
                 var newId = await Admin.CreatePostAsync(draft);
+                foreach (var text in ChangedOtherTexts().ToList())
+                    await Admin.SavePostTranslationAsync(newId, text);
+
                 Navigation.NavigateTo($"admin/blog/{newId}");
             }
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private static bool IsEmpty(BlogPostTextDto text) =>
+        string.IsNullOrWhiteSpace(text.Title) && string.IsNullOrWhiteSpace(text.Excerpt) && string.IsNullOrWhiteSpace(text.Content);
+
+    private static string Snapshot(BlogPostTextDto text) => $"{text.Title}\u0001{text.Excerpt}\u0001{text.Content}";
+
+    private void RememberSaved() => savedTexts = texts.ToDictionary(t => t.Key, t => Snapshot(t.Value));
+
+    private IEnumerable<BlogPostTextDto> ChangedOtherTexts() =>
+        texts.Values.Where(t => t.Language != activeLanguage && !IsEmpty(t)
+            && (!savedTexts.TryGetValue(t.Language, out var saved) || saved != Snapshot(t)));
+
+    private void SelectLanguage(string language) => activeLanguage = language;
+
+    private async Task RemoveLanguage(string language)
+    {
+        if (PostId is not { } id)
+        {
+            texts.Remove(language);
+            activeLanguage = texts.Keys.FirstOrDefault() ?? L.Language;
+            return;
+        }
+
+        busy = true;
+        error = null;
+        status = null;
+
+        try
+        {
+            await Admin.DeletePostTranslationAsync(id, language);
+            texts.Remove(language);
+            RememberSaved();
+            activeLanguage = texts.Keys.OrderBy(k => k == Localizer.DefaultLanguage ? 0 : 1).First();
+            posts = await Admin.GetPostsAsync();
+            status = L["Translations.Removed", Localizer.Languages.First(l => l.Code == language).NativeName];
         }
         catch (ApiException ex)
         {

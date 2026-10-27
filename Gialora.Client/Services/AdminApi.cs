@@ -36,7 +36,35 @@ public class AdminApi : ApiClientBase
 
     public Task DeleteRecipeAsync(Guid id) => DeleteAsync($"api/recipes/{id}");
 
+    // Թարգմանությունները — admin-ի լեզուների tab-երը (մեկ PUT/DELETE ամեն լեզվի համար)
+
+    public Task<List<RecipeTextDto>> GetRecipeTranslationsAsync(Guid id) =>
+        GetAsync<List<RecipeTextDto>>($"api/recipes/admin/{id}/translations");
+
+    public Task SaveRecipeTranslationAsync(Guid id, RecipeTextDto dto) =>
+        PutAsync($"api/recipes/{id}/translations/{dto.Language}", dto);
+
+    public Task DeleteRecipeTranslationAsync(Guid id, string language) =>
+        DeleteAsync($"api/recipes/{id}/translations/{language}");
+
     // --- Ingredients ---
+
+    public Task<List<IngredientNameDto>> GetIngredientTranslationsAsync(Guid id) =>
+        GetAsync<List<IngredientNameDto>>($"api/ingredients/{id}/translations");
+
+    public Task SaveIngredientTranslationAsync(Guid id, IngredientNameDto dto) =>
+        PutAsync($"api/ingredients/{id}/translations/{dto.Language}", dto);
+
+    public Task DeleteIngredientTranslationAsync(Guid id, string language) =>
+        DeleteAsync($"api/ingredients/{id}/translations/{language}");
+
+    // --- Tags ---
+
+    public Task<List<TagAdminDto>> GetTagsAsync() =>
+        GetAsync<List<TagAdminDto>>("api/tags/admin");
+
+    public Task SaveTagTranslationAsync(Guid id, TagNameDto dto) =>
+        PutAsync($"api/tags/{id}/translations/{dto.Language}", dto);
 
     public Task<IngredientDto> CreateIngredientAsync(IngredientCreateDto dto) =>
         PostAsync<IngredientDto>("api/ingredients", dto);
@@ -74,6 +102,15 @@ public class AdminApi : ApiClientBase
         PutAsync($"api/blog/{id}", dto);
 
     public Task DeletePostAsync(Guid id) => DeleteAsync($"api/blog/{id}");
+
+    public Task<List<BlogPostTextDto>> GetPostTranslationsAsync(Guid id) =>
+        GetAsync<List<BlogPostTextDto>>($"api/blog/admin/{id}/translations");
+
+    public Task SavePostTranslationAsync(Guid id, BlogPostTextDto dto) =>
+        PutAsync($"api/blog/{id}/translations/{dto.Language}", dto);
+
+    public Task DeletePostTranslationAsync(Guid id, string language) =>
+        DeleteAsync($"api/blog/{id}/translations/{language}");
 
     // --- Users ---
 

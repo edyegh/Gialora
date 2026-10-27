@@ -51,6 +51,23 @@ public class IngredientsController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(Guid id) =>
         await _ingredients.DeleteAsync(id) ? NoContent() : NotFound();
+
+    // --- Անունները ամեն լեզվով (admin) ---
+
+    [HttpGet("{id:guid}/translations")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<List<IngredientNameDto>>> GetTranslations(Guid id) =>
+        await _ingredients.GetTranslationsAsync(id) is { } names ? Ok(names) : NotFound();
+
+    [HttpPut("{id:guid}/translations/{language}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> SaveTranslation(Guid id, string language, [FromBody] IngredientNameDto dto) =>
+        await _ingredients.SaveTranslationAsync(id, language, dto) ? NoContent() : NotFound();
+
+    [HttpDelete("{id:guid}/translations/{language}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> DeleteTranslation(Guid id, string language) =>
+        await _ingredients.DeleteTranslationAsync(id, language) ? NoContent() : NotFound();
 }
 
 [ApiController]
@@ -68,4 +85,14 @@ public class TagsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<List<TagDto>>> GetAll() =>
         Ok(await _ingredients.GetTagsAsync());
+
+    [HttpGet("admin")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<List<TagAdminDto>>> GetAllForAdmin() =>
+        Ok(await _ingredients.GetTagsForAdminAsync());
+
+    [HttpPut("{id:guid}/translations/{language}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> SaveTranslation(Guid id, string language, [FromBody] TagNameDto dto) =>
+        await _ingredients.SaveTagTranslationAsync(id, language, dto) ? NoContent() : NotFound();
 }

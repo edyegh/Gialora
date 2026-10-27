@@ -31,20 +31,12 @@ namespace Gialora.Data.Migrations
                     b.Property<Guid>("AuthorId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("CoverImageUrl")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
-
-                    b.Property<string>("Excerpt")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
@@ -60,11 +52,6 @@ namespace Gialora.Data.Migrations
                         .HasMaxLength(220)
                         .HasColumnType("nvarchar(220)");
 
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -77,6 +64,33 @@ namespace Gialora.Data.Migrations
                         .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("BlogPosts");
+                });
+
+            modelBuilder.Entity("Gialora.Data.Entities.BlogPostTranslation", b =>
+                {
+                    b.Property<Guid>("BlogPostId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Language")
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Excerpt")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("BlogPostId", "Language");
+
+                    b.ToTable("BlogPostTranslations");
                 });
 
             modelBuilder.Entity("Gialora.Data.Entities.ChatConversation", b =>
@@ -959,6 +973,17 @@ namespace Gialora.Data.Migrations
                     b.Navigation("Author");
                 });
 
+            modelBuilder.Entity("Gialora.Data.Entities.BlogPostTranslation", b =>
+                {
+                    b.HasOne("Gialora.Data.Entities.BlogPost", "BlogPost")
+                        .WithMany("Translations")
+                        .HasForeignKey("BlogPostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("BlogPost");
+                });
+
             modelBuilder.Entity("Gialora.Data.Entities.ChatConversation", b =>
                 {
                     b.HasOne("Gialora.Data.Entities.User", "User")
@@ -1205,6 +1230,11 @@ namespace Gialora.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Gialora.Data.Entities.BlogPost", b =>
+                {
+                    b.Navigation("Translations");
                 });
 
             modelBuilder.Entity("Gialora.Data.Entities.ChatConversation", b =>

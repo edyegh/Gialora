@@ -191,6 +191,14 @@ The parents hold only language-independent data. Translation rows are not `BaseE
 
 **Writing.** Create/update DTOs carry a `Language` (default `en`) and write only that row; other languages are untouched. The admin pages save back into the language the text was loaded in, so editing a fallback never creates a mislabelled translation. The slug is regenerated only when the **English** title changes. CSV import and the seeder are English: they match recipes by English title and ingredients by name (English first).
 
+**Admin editing.** Each translatable item has a per-language API: `GET …/translations` lists every language, `PUT …/translations/{lang}` adds or replaces one, `DELETE …/translations/{lang}` removes one — the last language can never be removed (400), and unsupported codes are rejected (400). Routes: `api/recipes/admin/{id}/translations` (GET) and `api/recipes/{id}/translations/{lang}`; `api/ingredients/{id}/translations[/{lang}]`; `api/tags/admin` and `api/tags/{id}/translations/{lang}`; `api/blog/admin/{id}/translations` and `api/blog/{id}/translations/{lang}`. Summary DTOs carry `Languages`, which the admin lists show as "no HY" badges. The recipe and blog editors use `LanguageTabs`: the active tab saves with the main create/update, other edited tabs are PUT separately. The ingredients page edits a name per language and the tag names per language.
+
+**CSV import.** Optional columns `recipe_hy/_el`, `description_hy/_el`, `instructions_hy/_el` and `ingredient_hy/_el`. A recipe translation is written only when both title and instructions are present (otherwise a warning); an ingredient name is added only when the ingredient has none in that language and the name is free.
+
+**Blog.** `BlogPostTranslation` (BlogPostId, Language, Title, Excerpt, Content) follows the same rules as recipes: untranslated posts are shown in English, never hidden.
+
+**Generated names.** Plan and shopping-list names are `PlanningNotes` keys with a date argument (`Plan.Name.Weekly::Date:2026-11-02`, `List.Name.Weekly::…`), rendered by `L.Note` with the month in the current language. Names saved before this change are English and show unchanged.
+
 **Planner and lists.** Disliked ingredients are catalogue ids (matched against `IngredientIds`), plus free-text terms matched against every language's names. Planning notes are translation keys (§4.6). Shopping-list items keep `DisplayName`/`SourceRecipes` as a snapshot but are read through `IngredientId` / `SourceRecipeIds` in the reader's language; hand-added lines and items generated before `SourceRecipeIds` existed show the snapshot.
 
 ### 3.4 Meal plans
@@ -217,7 +225,7 @@ The parents hold only language-independent data. Translation rows are not `BaseE
 
 **FavoriteRecipe** — a pure join table with composite key (UserId, RecipeId). Deleted hard rather than soft; a join table needs no audit trail.
 
-**BlogPost** — Title, Slug (unique), Excerpt, Content, CoverImageUrl, IsPublished, PublishedAtUtc, AuthorId.
+**BlogPost** — Slug (unique, from the English title), CoverImageUrl, IsPublished, PublishedAtUtc, AuthorId; Title, Excerpt and Content live in `BlogPostTranslation` (§3.3.1).
 
 ### 3.7 Cross-cutting persistence rules
 
@@ -250,6 +258,8 @@ The parents hold only language-independent data. Translation rows are not `BaseE
 The third migration contains **two hand-written backfill statements** that scaffolding cannot infer. `Recipe.Slug` is added as a non-nullable column with a default of `""` and then given a unique index — on any database holding two or more existing recipes, that index would fail. The backfill derives a slug from the title and appends the first eight characters of the row's Id to guarantee uniqueness. A second statement copies `Tag.Name` into the new non-nullable `Tag.DisplayName`.
 
 `AddContentTranslations` (§3.3.1) is also hand-edited: scaffolding dropped the old text columns *before* creating the translation tables. The edited version creates the tables, copies every recipe and tag (deleted ones too — the seeder recognises deleted seed recipes by English title) and every non-deleted ingredient as `en` rows, and only then drops the columns. `Down` copies the English (else first) translation back; other languages are lost.
+
+`AddBlogPostTranslations` follows the same hand-edited order for blog posts (create table → copy every post as `en` → drop columns); `Down` copies English back. `AddIngredientIdsToFamilyAndShoppingList` only adds `Families.DislikedIngredientIds` and `ShoppingListItems.SourceRecipeIds`.
 ---
 
 ## 4. The meal planning engine

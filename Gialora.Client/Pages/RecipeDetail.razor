@@ -62,7 +62,7 @@
                     @if (recipe.IsBatchFriendly) { <span class="pill pill-outline">@L["Recipe.Tag.BatchCook"]</span> }
                     @foreach (var tag in recipe.Tags)
                     {
-                        <span class="pill pill-outline">@tag</span>
+                        <span class="pill pill-outline">@tagNames.GetValueOrDefault(tag, tag)</span>
                     }
                 </div>
 
@@ -199,6 +199,7 @@
 
     private RecipeDetailDto? recipe;
     private RecipeRatingSummaryDto? ratings;
+    private Dictionary<string, string> tagNames = new();
     private FeedbackUpsertDto feedback = new();
 
     private int servings = 4;
@@ -224,6 +225,10 @@
 
             servings = recipe.Servings;
             isFavorite = recipe.IsFavorite;
+
+            // Tag-երը ռեցեպտում slug են ("high-protein") — ցուցադրվող անունը ընթացիկ լեզվով
+            if (recipe.Tags.Count > 0)
+                tagNames = (await Recipes.GetTagsAsync()).ToDictionary(t => t.Name, t => t.DisplayName);
 
             // Admin-ի "ամենադիտված ռեցեպտները" (միայն cookie-ների համաձայնությամբ)
             _ = Tracker.TrackRecipeViewAsync(recipe.Id, $"/recipes/{recipe.Slug}");

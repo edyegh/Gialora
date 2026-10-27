@@ -18,4 +18,9 @@ public interface IRecipeService
     Task<bool> UpdateAsync(Guid id, RecipeUpdateDto dto, Guid editedByAdminId);
     Task<bool> SetPublishedAsync(Guid id, bool isPublished);
     Task<bool> DeleteAsync(Guid id);
+
+    /// <summary>Բոլոր լեզուների տեքստերը (admin-ի tab-երի համար)։ null = ռեցեպտ չկա։</summary>
+    Task<List<RecipeTextDto>?> GetTranslationsAsync(Guid id);
+    Task<bool> SaveTranslationAsync(Guid id, string language, RecipeTextDto dto);
+    Task<bool> DeleteTranslationAsync(Guid id, string language);
 }

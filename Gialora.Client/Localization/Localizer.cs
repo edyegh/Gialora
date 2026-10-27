@@ -69,10 +69,22 @@ public class Localizer
         if (!Gialora.Shared.PlanningNotes.TryDecode(note, out var key, out var args))
             return note ?? string.Empty;
 
-        var formatted = args
-            .Select(a => (object?)(a.StartsWith("Goal.", StringComparison.Ordinal) ? this[a] : a))
-            .ToArray();
+        var formatted = args.Select(FormatNoteArg).ToArray();
         return this[key, formatted];
+    }
+
+    /// <summary>"Goal.x" → նպատակի անունը, "Date:2026-10-26" → "26 Հոկ" (ընթացիկ լեզվով)։</summary>
+    private object? FormatNoteArg(string arg)
+    {
+        if (arg.StartsWith("Goal.", StringComparison.Ordinal))
+            return this[arg];
+
+        if (arg.StartsWith(Gialora.Shared.PlanningNotes.DateArgPrefix, StringComparison.Ordinal)
+            && DateOnly.TryParseExact(arg[Gialora.Shared.PlanningNotes.DateArgPrefix.Length..], "yyyy-MM-dd",
+                System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var date))
+            return DayMonth(date);
+
+        return arg;
     }
 
     /// <summary>Enum-ի արժեքի ցուցադրվող անունը ("Enum.MealType.Breakfast"); բանալի չկա՝ enum-ի անունն է։</summary>

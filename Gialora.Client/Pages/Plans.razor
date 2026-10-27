@@ -37,7 +37,7 @@
                 <a class="card-g card-link" href="plans/@plan.Id">
                     <div class="card-g-body">
                         <p class="eyebrow mb-1">@L.Enum(plan.PlanType) · @L.Enum(plan.Status)</p>
-                        <h3 class="recipe-title">@plan.Name</h3>
+                        <h3 class="recipe-title">@L.Note(plan.Name)</h3>
 
                         <div class="meta-row mb-2">
                             <span>@L["Plans.Days", plan.Days.Count]</span>

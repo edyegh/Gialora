@@ -33,7 +33,7 @@
                 <a class="card-g card-link" href="shopping-lists/@list.Id">
                     <div class="card-g-body row-between">
                         <div>
-                            <h3 class="recipe-title">@list.Name</h3>
+                            <h3 class="recipe-title">@L.Note(list.Name)</h3>
                             <span class="small-muted">
                                 @L["ShoppingLists.PickedUp", list.CheckedItems, list.TotalItems] ·
                                 @L.DayMonth(list.CreatedAtUtc.ToLocalTime())

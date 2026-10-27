@@ -114,4 +114,21 @@ public class RecipesController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(Guid id) =>
         await _recipeService.DeleteAsync(id) ? NoContent() : NotFound();
+
+    // --- Թարգմանություններ (admin-ի լեզուների tab-երը) ---
+
+    [HttpGet("admin/{id:guid}/translations")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<List<RecipeTextDto>>> GetTranslations(Guid id) =>
+        await _recipeService.GetTranslationsAsync(id) is { } texts ? Ok(texts) : NotFound();
+
+    [HttpPut("{id:guid}/translations/{language}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> SaveTranslation(Guid id, string language, [FromBody] RecipeTextDto dto) =>
+        await _recipeService.SaveTranslationAsync(id, language, dto) ? NoContent() : NotFound();
+
+    [HttpDelete("{id:guid}/translations/{language}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> DeleteTranslation(Guid id, string language) =>
+        await _recipeService.DeleteTranslationAsync(id, language) ? NoContent() : NotFound();
 }

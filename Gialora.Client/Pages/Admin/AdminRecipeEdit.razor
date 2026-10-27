@@ -16,7 +16,7 @@
     <div class="page-header row-between">
         <div>
             <p class="eyebrow">@L["Nav.Admin"]</p>
-            <h1 style="margin:0;">@(IsNew ? L["Admin.NewRecipe"] : model.Title)</h1>
+            <h1 style="margin:0;">@(IsNew ? L["Admin.NewRecipe"] : DisplayTitle)</h1>
         </div>
         <a class="btn btn-outline-g btn-sm" href="admin/recipes">← @L["AdminRecipeEdit.AllRecipes"]</a>
     </div>
@@ -37,17 +37,21 @@
         <div class="card-g mb-4">
             <div class="card-g-body stack">
                 <h2 style="margin:0;">@L["AdminRecipeEdit.Basics"]</h2>
-                <p class="small-muted" style="margin:0;">@L["AdminRecipeEdit.TextLanguage", LanguageName(model.Language)]</p>
+
+                @* Վերնագիրը, նկարագրությունը և քայլերը ամեն լեզվով առանձին են. մնացածը՝ ընդհանուր *@
+                <LanguageTabs Active="@activeLanguage" Present="PresentLanguages" Disabled="busy"
+                              OnSelect="SelectLanguage" OnRemove="RemoveLanguage" />
+                <p class="form-text" style="margin:0;">@L["Translations.Hint"]</p>
 
                 <div>
                     <label class="form-label" for="title">@L["Common.Title"]</label>
-                    <input id="title" class="form-control" @bind="model.Title" maxlength="200" />
+                    <input id="title" class="form-control" @bind="Current.Title" @bind:event="oninput" maxlength="200" />
                 </div>
 
                 <div>
                     <label class="form-label" for="description">@L["AdminRecipeEdit.ShortDescription"]</label>
                     <textarea id="description" class="form-control" rows="2" maxlength="1000"
-                              @bind="model.Description"></textarea>
+                              @bind="Current.Description"></textarea>
                 </div>
 
                 <div>
@@ -223,9 +227,9 @@
         @* ------------------------------------------------------- method *@
         <div class="card-g mb-4">
             <div class="card-g-body">
-                <h2 class="mb-2">@L["RecipeDetail.Method"]</h2>
+                <h2 class="mb-2">@L["RecipeDetail.Method"] · @LanguageName(activeLanguage)</h2>
                 <p class="form-text mb-2">@L["AdminRecipeEdit.OneStepPerLine"]</p>
-                <textarea class="form-control" rows="8" @bind="model.Instructions"></textarea>
+                <textarea class="form-control" rows="8" @bind="Current.Instructions"></textarea>
             </div>
         </div>
 
@@ -250,6 +254,21 @@
     private bool IsNew => RecipeId is null;
 
     private RecipeUpdateDto model = new();
+
+    // Տեքստերը ամեն լեզվով (Title/Description/Instructions)։ model-ի տեքստային դաշտերը
+    // լրացվում են ակտիվ tab-ից միայն save-ի պահին։
+    private Dictionary<string, RecipeTextDto> texts = new();
+    private Dictionary<string, string> savedTexts = new();
+    private string activeLanguage = Localizer.DefaultLanguage;
+
+    private RecipeTextDto Current =>
+        texts.TryGetValue(activeLanguage, out var text) ? text : texts[activeLanguage] = new RecipeTextDto { Language = activeLanguage };
+
+    private ISet<string> PresentLanguages =>
+        texts.Values.Where(t => !IsEmpty(t)).Select(t => t.Language).ToHashSet();
+
+    private string DisplayTitle =>
+        texts.Values.Where(t => !IsEmpty(t)).OrderBy(t => t.Language == activeLanguage ? 0 : 1).Select(t => t.Title).FirstOrDefault() ?? string.Empty;
     private List<IngredientDto> ingredients = new();
     private string tagsText = string.Empty;
     private string selectedIngredientId = string.Empty;
@@ -284,11 +303,18 @@
                 model = ToUpdateDto(existing);
                 tagsText = string.Join(", ", existing.Tags);
                 isPublished = existing.IsPublished;
+
+                texts = (await Admin.GetRecipeTranslationsAsync(id)).ToDictionary(t => t.Language);
+                RememberSaved();
+                activeLanguage = existing.ContentLanguage;
             }
             else
             {
                 // Նոր ռեցեպտի տեքստերը գրվում են UI-ի լեզվով
-                model = new RecipeUpdateDto { Servings = 4, MealType = MealType.Dinner, Language = L.Language };
+                model = new RecipeUpdateDto { Servings = 4, MealType = MealType.Dinner };
+                texts = new();
+                savedTexts = new();
+                activeLanguage = L.Language;
             }
         }
         catch (ApiException ex)
@@ -304,15 +330,56 @@
     private static string LanguageName(string? code) =>
         Localizer.Languages.FirstOrDefault(l => l.Code == code)?.NativeName ?? code ?? string.Empty;
 
+    private static bool IsEmpty(RecipeTextDto text) =>
+        string.IsNullOrWhiteSpace(text.Title) && string.IsNullOrWhiteSpace(text.Description) && string.IsNullOrWhiteSpace(text.Instructions);
+
+    private static string Snapshot(RecipeTextDto text) => $"{text.Title}\u0001{text.Description}\u0001{text.Instructions}";
+
+    private void RememberSaved() => savedTexts = texts.ToDictionary(t => t.Key, t => Snapshot(t.Value));
+
+    /// <summary>Փոխված, ոչ դատարկ լեզուները (ակտիվից բացի) — save-ին պահվում են առանձին PUT-ով։</summary>
+    private IEnumerable<RecipeTextDto> ChangedOtherTexts() =>
+        texts.Values.Where(t => t.Language != activeLanguage && !IsEmpty(t)
+            && (!savedTexts.TryGetValue(t.Language, out var saved) || saved != Snapshot(t)));
+
+    private void SelectLanguage(string language) => activeLanguage = language;
+
+    private async Task RemoveLanguage(string language)
+    {
+        // Նոր ռեցեպտը դեռ server-ում չկա — պարզապես մաքրում ենք tab-ը
+        if (IsNew)
+        {
+            texts.Remove(language);
+            activeLanguage = texts.Keys.FirstOrDefault() ?? L.Language;
+            return;
+        }
+
+        busy = true;
+        error = null;
+        status = null;
+
+        try
+        {
+            await Admin.DeleteRecipeTranslationAsync(RecipeId!.Value, language);
+            texts.Remove(language);
+            RememberSaved();
+            activeLanguage = texts.Keys.OrderBy(k => k == Localizer.DefaultLanguage ? 0 : 1).First();
+            status = L["Translations.Removed", LanguageName(language)];
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
     private static RecipeUpdateDto ToUpdateDto(RecipeDetailDto source) => new()
     {
-        // Պահում ենք ՆՈՒՅՆ լեզվի թարգմանության մեջ, որից կարդացինք. եթե API-ն ետ էր
-        // ընկել անգլերենին, խմբագրումը անգլերենն է փոխում, ոչ թե ստեղծում "հայերեն"
-        // թարգմանություն անգլերեն տեքստով։
-        Language = source.ContentLanguage,
-        Title = source.Title,
-        Description = source.Description,
-        Instructions = source.Instructions ?? string.Empty,
+        // Տեքստային դաշտերը (Language/Title/Description/Instructions) լրացվում են
+        // Save-ում՝ ակտիվ լեզվի tab-ից
         ImageUrl = source.ImageUrl,
         MealType = source.MealType,
         Cuisine = source.Cuisine,
@@ -390,15 +457,30 @@
             for (var i = 0; i < model.Ingredients.Count; i++)
                 model.Ingredients[i].SortOrder = i;
 
+            // Ընդհանուր դաշտերը + ակտիվ լեզվի տեքստը գնում են մեկ create/update-ով
+            model.Language = activeLanguage;
+            model.Title = Current.Title;
+            model.Description = Current.Description;
+            model.Instructions = Current.Instructions;
+
             if (IsNew)
             {
-                var id = await Admin.CreateRecipeAsync(model);
-                Navigation.NavigateTo($"admin/recipes/{id}");
+                var newId = await Admin.CreateRecipeAsync(model);
+                foreach (var text in ChangedOtherTexts().ToList())
+                    await Admin.SaveRecipeTranslationAsync(newId, text);
+
+                Navigation.NavigateTo($"admin/recipes/{newId}");
                 return;
             }
 
             model.IsPublished = isPublished;
             await Admin.UpdateRecipeAsync(RecipeId!.Value, model);
+
+            // Մյուս լեզուների փոփոխությունները՝ ամեն մեկն իր PUT-ով
+            foreach (var text in ChangedOtherTexts().ToList())
+                await Admin.SaveRecipeTranslationAsync(RecipeId!.Value, text);
+
+            RememberSaved();
             status = L["Common.Saved"];
         }
         catch (ApiException ex)

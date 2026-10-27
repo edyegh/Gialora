@@ -34,6 +34,18 @@ public class IngredientTranslation
     public string Name { get; set; } = string.Empty;   // օր. "Chicken mince"
 }
 
+public class BlogPostTranslation
+{
+    public Guid BlogPostId { get; set; }
+    public BlogPost BlogPost { get; set; } = null!;
+
+    public string Language { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+    public string? Excerpt { get; set; }
+    public string Content { get; set; } = string.Empty;
+}
+
 public class TagTranslation
 {
     public Guid TagId { get; set; }
