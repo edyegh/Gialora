@@ -800,6 +800,29 @@ namespace Gialora.Data.Migrations
                     b.ToTable("ShoppingListItems");
                 });
 
+            modelBuilder.Entity("Gialora.Data.Entities.SiteText", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Language")
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.HasKey("Key", "Language");
+
+                    b.ToTable("SiteTexts");
+                });
+
             modelBuilder.Entity("Gialora.Data.Entities.Tag", b =>
                 {
                     b.Property<Guid>("Id")

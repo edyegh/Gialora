@@ -58,7 +58,11 @@ builder.Services.AddScoped<ChatApi>();
 builder.Services.AddScoped<ActivityTracker>();
 
 // UI-ի լեզուն (en / hy / el)։ Singleton — բոլոր բաղադրիչները նույն բառարանն են տեսնում։
-builder.Services.AddSingleton<Localizer>();
+// API-ի հասցեն պետք է admin-ի խմբագրած տեքստերը (api/site-texts) բեռնելու համար։
+builder.Services.AddSingleton(sp => new Localizer(
+    sp.GetRequiredService<IWebAssemblyHostEnvironment>(),
+    sp.GetRequiredService<Microsoft.JSInterop.IJSRuntime>(),
+    new Uri(apiBaseUrl)));
 
 var host = builder.Build();
 

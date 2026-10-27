@@ -602,6 +602,8 @@ All require a signed-in user and are scoped to that user's family.
 | GET | `/tags` | Anonymous |
 | GET | `/blog`, `/blog/{slug}` | Anonymous |
 | GET, POST, PUT, DELETE | `/blog/admin…`, `/blog…` | Admin |
+| GET | `/site-texts/{lang}` | Anonymous |
+| GET, PUT, DELETE | `/site-texts/admin`, `/site-texts`, `/site-texts/{lang}?key=` | Admin |
 | GET | `/meta` | Anonymous |
 | GET | `/admin/import/template` | Admin |
 | POST | `/admin/import/recipes` | Admin |
@@ -712,6 +714,13 @@ Home, Recipes and Blog are public so that a visitor — and a search engine — 
 ### 9.1 The admin panel
 
 Administrators can add and edit recipes, upload a photo URL, add ingredients, assign tags, mark age suitability and freezer-friendliness, change quantities, publish and unpublish, manage the ingredient catalogue, and write blog posts.
+
+**Site texts.** The texts of the interface itself, such as the home page hero, the footer and button labels, are not catalogue data. They ship in the client's `wwwroot/i18n/{en,hy,el}.json`. Administrators can still change any of them per language at `/admin/site-texts`:
+- A save writes a `SiteText` row (Key, Language, Value). `PUT api/site-texts` saves a text, `DELETE api/site-texts/{lang}?key=…` resets it, and `GET api/site-texts/admin` lists all of them; these routes require Admin. Readers get the texts through the anonymous `GET api/site-texts/{lang}`.
+- The client `Localizer` lays those rows over the JSON (override in the current language, then the JSON, then the English override, then the English JSON) and re-renders as soon as an admin saves.
+- Resetting deletes the row and restores the built-in text.
+- The server checks only the key's shape, because the JSON keys live in the client. It rejects values containing `<`, since a few keys are rendered as `MarkupString`. The admin page keeps `{0}` placeholders intact, and `Localizer` survives a malformed format string.
+- If the API is unreachable, the built-in JSON is used.
 
 Recipes are created as **drafts**. A draft is invisible to the public catalogue, invisible to the planner, and returns 404 on the public route — but remains editable through the admin route. Publishing is an explicit act.
 

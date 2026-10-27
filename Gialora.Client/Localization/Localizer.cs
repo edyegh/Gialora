@@ -8,7 +8,8 @@ namespace Gialora.Client.Localization;
 public record LanguageOption(string Code, string NativeName);
 
 /// <summary>
-/// UI-ի թարգմանությունները՝ wwwroot/i18n/{lang}.json-ից։
+/// UI-ի թարգմանությունները՝ wwwroot/i18n/{lang}.json-ից, որոնց ՎՐԱ դրվում են
+/// admin-ի խմբագրած տեքստերը (GET api/site-texts/{lang}, "Site texts" admin էջ)։
 ///
 /// Ինչու ոչ .resx + IStringLocalizer. csproj-ում InvariantGlobalization=true է
 /// (ICU-ի ~1.1 ՄԲ-ը browser չենք ուղարկում), իսկ satellite assembly-ները հենց
@@ -31,16 +32,27 @@ public class Localizer
     };
 
     private readonly HttpClient _http;
+    private readonly HttpClient _api;
     private readonly IJSRuntime _js;
     private readonly Dictionary<string, Dictionary<string, string>> _cache = new();
+    private readonly Dictionary<string, Dictionary<string, string>> _siteTextCache = new();
 
     private Dictionary<string, string> _fallback = new();
     private Dictionary<string, string> _current = new();
 
-    public Localizer(IWebAssemblyHostEnvironment env, IJSRuntime js)
+    // Admin-ի override-ները. փնտրման կարգը՝ override(ընթացիկ) → JSON(ընթացիկ) →
+    // override(en) → JSON(en) → բանալին ինքը
+    private Dictionary<string, string> _fallbackSiteTexts = new();
+    private Dictionary<string, string> _currentSiteTexts = new();
+
+    public Localizer(IWebAssemblyHostEnvironment env, IJSRuntime js, Uri apiBaseAddress)
     {
-        // Ոչ թե API-ի HttpClient-ը — բառարանները static ֆայլեր են հենց այս site-ից
+        // Բառարանները static ֆայլեր են հենց այս site-ից
         _http = new HttpClient { BaseAddress = new Uri(env.BaseAddress) };
+
+        // Override-ները API-ից են, առանց auth-ի (հանրային GET)։ Կարճ timeout — API-ն
+        // անջատված լինելու դեպքում առաջին render-ը չպիտի կախվի, JSON-ը բավական է
+        _api = new HttpClient { BaseAddress = apiBaseAddress, Timeout = TimeSpan.FromSeconds(5) };
         _js = js;
     }
 
@@ -51,12 +63,30 @@ public class Localizer
 
     /// <summary>Բանալին թարգմանում է; բացակայող բանալին վերադարձնում է ինքն իրեն, որ UI-ում աչքի ընկնի։</summary>
     public string this[string key] =>
-        _current.TryGetValue(key, out var value) ? value
+        _currentSiteTexts.TryGetValue(key, out var edited) ? edited
+        : _current.TryGetValue(key, out var value) ? value
+        : _fallbackSiteTexts.TryGetValue(key, out var editedFallback) ? editedFallback
         : _fallback.TryGetValue(key, out var fallback) ? fallback
         : key;
 
     /// <summary>Նույնը, բայց string.Format-ի placeholder-ներով ({0}, {1}…)։</summary>
-    public string this[string key, params object?[] args] => string.Format(this[key], args);
+    public string this[string key, params object?[] args]
+    {
+        get
+        {
+            var template = this[key];
+            try
+            {
+                return string.Format(template, args);
+            }
+            catch (FormatException)
+            {
+                // Admin-ի խմբագրած տեքստում փակագծերը սխալ են — ցույց ենք տալիս
+                // ինչպես կա, ոչ թե գցում ամբողջ էջը
+                return template;
+            }
+        }
+    }
 
     /// <summary>
     /// Planner-ի կոդավորված բացատրությունը ("Plan.Note.Proteins::4::5") ընթացիկ լեզվով։
@@ -119,7 +149,10 @@ public class Localizer
     /// <summary>Program.cs-ը կանչում է առաջին render-ից ԱՌԱՋ, որ էջը անգլերենով չթարթի։</summary>
     public async Task InitializeAsync()
     {
-        _fallback = await LoadAsync(DefaultLanguage);
+        var fallback = LoadAsync(DefaultLanguage);
+        var fallbackSiteTexts = LoadSiteTextsAsync(DefaultLanguage);
+        _fallback = await fallback;
+        _fallbackSiteTexts = await fallbackSiteTexts;
 
         string? saved = null;
         try
@@ -156,7 +189,19 @@ public class Localizer
 
     private async Task ApplyAsync(string language)
     {
-        _current = language == DefaultLanguage ? _fallback : await LoadAsync(language);
+        if (language == DefaultLanguage)
+        {
+            _current = _fallback;
+            _currentSiteTexts = _fallbackSiteTexts;
+        }
+        else
+        {
+            var current = LoadAsync(language);
+            var siteTexts = LoadSiteTextsAsync(language);
+            _current = await current;
+            _currentSiteTexts = await siteTexts;
+        }
+
         Language = language;
 
         try
@@ -169,6 +214,42 @@ public class Localizer
         {
             // Կոսմետիկ է — անտեսում ենք
         }
+    }
+
+    // --- Admin-ի խմբագրած տեքստեր ---
+
+    /// <summary>Ներկառուցված (JSON-ի) տեքստերը՝ առանց override-ների (admin-ի էջի "Built-in" սյունակը)։</summary>
+    public async Task<IReadOnlyDictionary<string, string>> GetBuiltInAsync(string language) =>
+        IsSupported(language) ? await LoadAsync(language) : new Dictionary<string, string>();
+
+    /// <summary>Admin-ը տեքստ պահեց/վերադարձրեց — նորից ենք բեռնում override-ները և re-render անում։</summary>
+    public async Task ReloadSiteTextsAsync()
+    {
+        _siteTextCache.Clear();
+        _fallbackSiteTexts = await LoadSiteTextsAsync(DefaultLanguage);
+        _currentSiteTexts = Language == DefaultLanguage ? _fallbackSiteTexts : await LoadSiteTextsAsync(Language);
+        Changed?.Invoke();
+    }
+
+    private async Task<Dictionary<string, string>> LoadSiteTextsAsync(string language)
+    {
+        if (_siteTextCache.TryGetValue(language, out var cached))
+            return cached;
+
+        Dictionary<string, string> texts;
+        try
+        {
+            texts = await _api.GetFromJsonAsync<Dictionary<string, string>>($"api/site-texts/{language}")
+                    ?? new Dictionary<string, string>();
+        }
+        catch (Exception)
+        {
+            // API-ն անհասանելի է (offline PWA, deploy) — ներկառուցված տեքստերը բավական են
+            texts = new Dictionary<string, string>();
+        }
+
+        _siteTextCache[language] = texts;
+        return texts;
     }
 
     private async Task<Dictionary<string, string>> LoadAsync(string language)

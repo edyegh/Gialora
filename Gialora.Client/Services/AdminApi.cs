@@ -112,6 +112,17 @@ public class AdminApi : ApiClientBase
     public Task DeletePostTranslationAsync(Guid id, string language) =>
         DeleteAsync($"api/blog/{id}/translations/{language}");
 
+    // --- Կայքի տեքստեր (i18n JSON-ի վրա admin-ի override-ները) ---
+
+    public Task<List<SiteTextDto>> GetSiteTextsAsync() =>
+        GetAsync<List<SiteTextDto>>("api/site-texts/admin");
+
+    public Task<SiteTextDto> SaveSiteTextAsync(SiteTextDto dto) =>
+        PutAsync<SiteTextDto>("api/site-texts", dto);
+
+    public Task ResetSiteTextAsync(string key, string language) =>
+        DeleteAsync($"api/site-texts/{language}?key={Uri.EscapeDataString(key)}");
+
     // --- Users ---
 
     public Task<List<AdminUserDto>> GetUsersAsync() =>

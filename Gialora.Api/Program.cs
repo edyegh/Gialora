@@ -123,6 +123,7 @@ builder.Services.AddScoped<IFeedbackService, FeedbackService>();
 builder.Services.AddScoped<IFavoriteService, FavoriteService>();
 builder.Services.AddScoped<IBlogService, BlogService>();
 builder.Services.AddScoped<IRecipeImportService, RecipeImportService>();
+builder.Services.AddScoped<ISiteTextService, SiteTextService>();
 builder.Services.AddScoped<DbSeeder>();
 
 // Աջակցության chat → Telegram։ Կարգավորումը՝ "Telegram" section (BotToken-ը ԳԱՂՏՆԻ է՝

@@ -1,0 +1,260 @@
+@* Gialora.Client/Pages/Admin/AdminSiteTexts.razor
+   Կայքի տեքստերը (գլխավոր էջ, footer, կոճակներ…), որոնք DB-ում չեն, այլ
+   wwwroot/i18n/*.json-ում։ Admin-ը ցանկացածը փոխում է ամեն լեզվով առանձին. պահվածը
+   ծածկում է ներկառուցվածը, "Վերադարձնել"-ը ջնջում է override-ը։ *@
+@page "/admin/site-texts"
+@attribute [Authorize(Roles = "Admin")]
+@using System.Text.RegularExpressions
+@using Gialora.Client.Services
+@inject AdminApi Admin
+
+<PageTitle>@L["Nav.Admin"] · @L["Admin.SiteTexts"] — Gialora</PageTitle>
+
+<section class="section container-wide">
+    <div class="page-header row-between">
+        <div>
+            <p class="eyebrow">@L["Nav.Admin"]</p>
+            <h1 style="margin:0;">@L["Admin.SiteTexts"]</h1>
+        </div>
+        <a class="btn btn-outline-g btn-sm" href="admin/recipes">← @L["Nav.Recipes"]</a>
+    </div>
+
+    <p class="small-muted">@L["SiteTexts.Intro"]</p>
+
+    <ErrorAlert Message="@error" />
+
+    @if (!string.IsNullOrEmpty(status))
+    {
+        <div class="alert alert-success" role="status">@status</div>
+    }
+
+    @* Ամեն լեզու առանձին է — "բացակայող" նշան չկա, ներկառուցված տեքստը միշտ կա *@
+    <LanguageTabs Active="@language" Present="AllLanguages" Disabled="busy" OnSelect="SelectLanguage" />
+
+    <div class="cluster mb-3" style="margin-top:1rem;">
+        <label class="form-label" for="section" style="margin:0;">@L["SiteTexts.Section"]</label>
+        <select id="section" class="form-select" style="max-width:14rem;" @bind="section" disabled="@(!string.IsNullOrWhiteSpace(search))">
+            @foreach (var name in sections)
+            {
+                <option value="@name">@name</option>
+            }
+        </select>
+        <input class="form-control" style="max-width:20rem;" placeholder="@L["SiteTexts.Search"]"
+               @bind="search" @bind:event="oninput" />
+    </div>
+
+    @if (loading)
+    {
+        <Loading />
+    }
+    else if (VisibleKeys.Count == 0)
+    {
+        <p class="small-muted">@L["SiteTexts.NoResults"]</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="table-g">
+                <thead>
+                    <tr><th style="width:38%;">@L["SiteTexts.BuiltIn"]</th><th>@L["SiteTexts.Text"]</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var key in VisibleKeys)
+                    {
+                        var builtIn = BuiltIn(key);
+                        var edited = overrides.TryGetValue((key, language), out var saved);
+                        var draft = drafts.TryGetValue(key, out var d) ? d : (edited ? saved!.Value : builtIn);
+                        var placeholdersOk = SamePlaceholders(builtIn, draft);
+
+                        <tr>
+                            <td>
+                                <div class="small-muted" style="font-family:monospace;">@key</div>
+                                <div>@builtIn</div>
+                            </td>
+                            <td>
+                                @if (builtIn.Contains('<'))
+                                {
+                                    @* MarkupString-ով render արվող տեքստ — server-ը "<" չի ընդունում *@
+                                    <span class="small-muted">@L["SiteTexts.HasFormatting"]</span>
+                                }
+                                else
+                                {
+                                    <textarea class="form-control" rows="@(draft.Length > 90 ? 3 : 1)" maxlength="4000"
+                                              value="@draft" @oninput="e => drafts[key] = e.Value?.ToString() ?? string.Empty"></textarea>
+
+                                    @if (!placeholdersOk)
+                                    {
+                                        <p class="form-text" style="color:var(--danger);">
+                                            @L["SiteTexts.PlaceholderMismatch", string.Join(" ", Placeholders(builtIn))]
+                                        </p>
+                                    }
+                                    @if (edited)
+                                    {
+                                        <span class="pill pill-olive">@L["SiteTexts.Edited"]</span>
+                                    }
+                                }
+                            </td>
+                            <td style="text-align:right; white-space:nowrap;">
+                                @if (!builtIn.Contains('<'))
+                                {
+                                    var current = edited ? saved!.Value : builtIn;
+                                    <button class="btn btn-primary btn-sm" @onclick="() => Save(key)"
+                                            disabled="@(busy || !placeholdersOk || string.IsNullOrWhiteSpace(draft) || draft.Trim() == current)">
+                                        @L["Common.Save"]
+                                    </button>
+                                    @if (edited)
+                                    {
+                                        <ConfirmButton Label="@L["SiteTexts.Reset"]" OnConfirm="() => Reset(key)" Disabled="busy" />
+                                    }
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    // Առաջինը՝ այն բաժինները, որոնք admin-ը ամենահաճախն է փոխում
+    private static readonly string[] PreferredSections = { "Home", "Footer", "Nav", "Common" };
+    private static readonly Regex PlaceholderPattern = new(@"\{\d+\}");
+    private static readonly ISet<string> AllLanguages = Localizer.Languages.Select(l => l.Code).ToHashSet();
+
+    private string language = Localizer.DefaultLanguage;
+    private string section = "Home";
+    private string search = string.Empty;
+
+    private IReadOnlyDictionary<string, string> english = new Dictionary<string, string>();
+    private IReadOnlyDictionary<string, string> builtInCurrent = new Dictionary<string, string>();
+    private Dictionary<(string Key, string Language), SiteTextDto> overrides = new();
+    private Dictionary<string, string> drafts = new();
+    private List<string> sections = new();
+
+    private bool loading = true;
+    private bool busy;
+    private string? error;
+    private string? status;
+
+    protected override async Task OnInitializedAsync()
+    {
+        language = L.Language;
+
+        try
+        {
+            english = await L.GetBuiltInAsync(Localizer.DefaultLanguage);
+            builtInCurrent = await L.GetBuiltInAsync(language);
+            sections = english.Keys.Select(SectionOf).Distinct()
+                .OrderBy(s => Array.IndexOf(PreferredSections, s) is var i and >= 0 ? i : PreferredSections.Length)
+                .ThenBy(s => s, StringComparer.Ordinal)
+                .ToList();
+
+            await LoadOverridesAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private List<string> VisibleKeys
+    {
+        get
+        {
+            var keys = english.Keys.Concat(builtInCurrent.Keys).Distinct();
+
+            if (string.IsNullOrWhiteSpace(search))
+                return keys.Where(k => SectionOf(k) == section).OrderBy(k => k, StringComparer.Ordinal).ToList();
+
+            var term = search.Trim();
+            return keys
+                .Where(k => k.Contains(term, StringComparison.OrdinalIgnoreCase)
+                            || BuiltIn(k).Contains(term, StringComparison.OrdinalIgnoreCase)
+                            || (overrides.TryGetValue((k, language), out var o) && o.Value.Contains(term, StringComparison.OrdinalIgnoreCase)))
+                .OrderBy(k => k, StringComparer.Ordinal)
+                .Take(100)
+                .ToList();
+        }
+    }
+
+    private static string SectionOf(string key) => key.Split('.')[0];
+
+    /// <summary>Ներկառուցվածը ընտրված լեզվով, չկա՝ անգլերենը (նույն կանոնը, ինչ Localizer-ինը)։</summary>
+    private string BuiltIn(string key) =>
+        builtInCurrent.TryGetValue(key, out var value) ? value
+        : english.TryGetValue(key, out var fallback) ? fallback
+        : string.Empty;
+
+    private static IEnumerable<string> Placeholders(string text) =>
+        PlaceholderPattern.Matches(text).Select(m => m.Value).Distinct().Order();
+
+    /// <summary>{0}, {1}… կոդը լրացնում է — admin-ը չպիտի դրանք կորցնի կամ նորը հորինի։</summary>
+    private static bool SamePlaceholders(string builtIn, string draft) =>
+        Placeholders(builtIn).SequenceEqual(Placeholders(draft));
+
+    private async Task LoadOverridesAsync() =>
+        overrides = (await Admin.GetSiteTextsAsync()).ToDictionary(t => (t.Key, t.Language));
+
+    private async Task SelectLanguage(string code)
+    {
+        language = code;
+        drafts.Clear();
+        status = null;
+        builtInCurrent = await L.GetBuiltInAsync(code);
+    }
+
+    private async Task Save(string key)
+    {
+        busy = true;
+        error = null;
+        status = null;
+
+        try
+        {
+            var saved = await Admin.SaveSiteTextAsync(new SiteTextDto { Key = key, Language = language, Value = drafts[key] });
+            overrides[(key, language)] = saved;
+            drafts.Remove(key);
+            status = L["SiteTexts.Saved"];
+
+            // Փոփոխությունը անմիջապես երևում է ամբողջ UI-ում (առանց էջը թարմացնելու)
+            await L.ReloadSiteTextsAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task Reset(string key)
+    {
+        busy = true;
+        error = null;
+        status = null;
+
+        try
+        {
+            await Admin.ResetSiteTextAsync(key, language);
+            overrides.Remove((key, language));
+            drafts.Remove(key);
+            status = L["SiteTexts.ResetDone"];
+            await L.ReloadSiteTextsAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

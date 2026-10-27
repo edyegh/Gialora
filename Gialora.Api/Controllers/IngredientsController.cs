@@ -72,7 +72,6 @@ public class IngredientsController : ControllerBase
 
 [ApiController]
 [Route("api/tags")]
-[AllowAnonymous]
 public class TagsController : ControllerBase
 {
     private readonly IIngredientService _ingredients;
@@ -82,7 +81,10 @@ public class TagsController : ControllerBase
         _ingredients = ingredients;
     }
 
+    // [AllowAnonymous]-ը ՄԻԱՅՆ այստեղ — class-ի վրա այն կչեղարկեր admin-ի
+    // endpoint-ների [Authorize(Roles = "Admin")]-ը (ASP0026) և ցանկացածը կարող էր tag վերանվանել
     [HttpGet]
+    [AllowAnonymous]
     public async Task<ActionResult<List<TagDto>>> GetAll() =>
         Ok(await _ingredients.GetTagsAsync());
 

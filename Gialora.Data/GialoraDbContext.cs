@@ -31,6 +31,7 @@ public class GialoraDbContext : DbContext
     public DbSet<ShoppingListItem> ShoppingListItems => Set<ShoppingListItem>();
     public DbSet<BlogPost> BlogPosts => Set<BlogPost>();
     public DbSet<BlogPostTranslation> BlogPostTranslations => Set<BlogPostTranslation>();
+    public DbSet<SiteText> SiteTexts => Set<SiteText>();
     public DbSet<ChatConversation> ChatConversations => Set<ChatConversation>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<UserActivity> UserActivities => Set<UserActivity>();
@@ -395,6 +396,17 @@ public class GialoraDbContext : DbContext
              .OnDelete(DeleteBehavior.Restrict);
 
             b.HasQueryFilter(p => !p.IsDeleted);
+        });
+
+        // ---------------- Site texts ----------------
+        // Admin-ի փոխած UI տեքստերը (i18n JSON-ի բանալիների վրա)։ Ծնող չունեն,
+        // ուստի ոչ FK, ոչ query filter
+        modelBuilder.Entity<SiteText>(b =>
+        {
+            b.HasKey(t => new { t.Key, t.Language });
+            b.Property(t => t.Key).HasMaxLength(150);
+            b.Property(t => t.Language).HasMaxLength(8);
+            b.Property(t => t.Value).HasMaxLength(4000).IsRequired();
         });
 
         // ---------------- Support chat ----------------
